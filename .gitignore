@@ -1,0 +1,58 @@
+# ===== Global =====
+.env
+.env.local
+.env.*.local
+*.log
+*.pid
+*.seed
+.DS_Store
+Thumbs.db
+
+# ===== Python / Backend =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# ===== Node / Frontend =====
+node_modules/
+frontend/dist/
+frontend/.vite/
+*.tsbuildinfo
+
+# ===== IDE =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ===== Docker =====
+docker/postgres/data/
+docker/redis/data/
+docker/minio/data/
+docker/nginx/certs/
+
+# ===== Misc =====
+*.bak
+*.tmp
+.claude/
+nul
+_*.py

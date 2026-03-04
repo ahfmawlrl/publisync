@@ -1,0 +1,111 @@
+/**
+ * TanStack Query hooks for async AI jobs — S18 (F03/F15).
+ *
+ * Pattern: POST → 202 Accepted (jobId) → polling GET /ai/jobs/:jobId
+ * Uses mutations for job creation, queries with refetchInterval for polling.
+ */
+
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+
+import apiClient from '@/shared/api/client';
+import type { ApiResponse } from '@/shared/api/types';
+
+// ── Types ───────────────────────────────────────────────
+
+interface AiJobCreateResponse {
+  job_id: string;
+  job_type: string;
+  status: string;
+  message: string;
+}
+
+interface AiJobStatus {
+  job_id: string;
+  job_type: string;
+  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+  progress: number;
+  result: Record<string, unknown> | null;
+  error_message: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+}
+
+interface SubtitleRequest {
+  media_asset_id: string;
+  language?: string;
+  include_timestamps?: boolean;
+}
+
+interface ShortformRequest {
+  media_asset_id: string;
+  target_duration?: number;
+  count?: number;
+  style?: string;
+}
+
+// ── Mutations ───────────────────────────────────────────
+
+/**
+ * Create an async subtitle generation job (F03).
+ * POST /api/v1/ai/generate-subtitles → 202 Accepted
+ */
+export function useCreateSubtitles() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: SubtitleRequest) => {
+      const res = await apiClient.post<ApiResponse<AiJobCreateResponse>>(
+        '/ai/generate-subtitles',
+        data,
+      );
+      return res.data.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['ai-jobs'] }),
+  });
+}
+
+/**
+ * Create an async shortform extraction job (F15).
+ * POST /api/v1/ai/extract-shortform → 202 Accepted
+ */
+export function useCreateShortform() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: ShortformRequest) => {
+      const res = await apiClient.post<ApiResponse<AiJobCreateResponse>>(
+        '/ai/extract-shortform',
+        data,
+      );
+      return res.data.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['ai-jobs'] }),
+  });
+}
+
+// ── Queries ─────────────────────────────────────────────
+
+/**
+ * Poll async job status every 3 seconds until COMPLETED or FAILED.
+ * GET /api/v1/ai/jobs/:jobId
+ */
+export function useJobStatus(
+  jobId: string | null,
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: ['ai-jobs', jobId],
+    queryFn: async () => {
+      const res = await apiClient.get<ApiResponse<AiJobStatus>>(
+        `/ai/jobs/${jobId}`,
+      );
+      return res.data.data;
+    },
+    enabled: !!jobId && options?.enabled !== false,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data) return 3000;
+      if (data.status === 'COMPLETED' || data.status === 'FAILED') return false;
+      return 3000; // Poll every 3 seconds while processing
+    },
+  });
+}

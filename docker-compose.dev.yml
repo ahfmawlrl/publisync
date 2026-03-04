@@ -1,0 +1,29 @@
+# Development overrides — use with: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+services:
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./backend:/app
+    environment:
+      - DEBUG=true
+      - DB_ECHO=false
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  postgres:
+    ports:
+      - "5432:5432"
+
+  redis:
+    ports:
+      - "6379:6379"
+
+  minio:
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+
+  meilisearch:
+    ports:
+      - "7700:7700"

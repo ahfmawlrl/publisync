@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PubliSync — 프로토타입</title>
+<style>
+:root {
+  --primary: #1a56db;
+  --primary-light: #e1effe;
+  --primary-dark: #1e429f;
+  --sidebar-w: 240px;
+  --sidebar-collapsed: 64px;
+  --topbar-h: 56px;
+  --bg: #f3f4f6;
+  --bg-secondary: #f9fafb;
+  --card: #fff;
+  --border: #e5e7eb;
+  --text: #111827;
+  --text-secondary: #6b7280;
+  --success: #059669;
+  --warning: #d97706;
+  --danger: #dc2626;
+  --info: #2563eb;
+  --radius: 8px;
+  --shadow: 0 1px 3px rgba(0,0,0,.1);
+  --input-bg: #fff;
+  --overlay: rgba(0,0,0,.2);
+  --placeholder-bg: #e5e7eb;
+  --danger-bg: #fef2f2;
+  --warning-bg: #fef3c7;
+  --success-bg: #d1fae5;
+  --info-bg: #dbeafe;
+  --ai-result-bg: #f0fdf4;
+  --ai-result-border: #86efac;
+  --video-bg: #1a1a2e;
+}
+[data-theme="dark"] {
+  --primary: #60a5fa;
+  --primary-light: #1e3a5f;
+  --primary-dark: #93bbfd;
+  --bg: #111827;
+  --bg-secondary: #1f2937;
+  --card: #1f2937;
+  --border: #374151;
+  --text: #f3f4f6;
+  --text-secondary: #9ca3af;
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --info: #60a5fa;
+  --shadow: 0 1px 3px rgba(0,0,0,.4);
+  --input-bg: #374151;
+  --overlay: rgba(0,0,0,.5);
+  --placeholder-bg: #374151;
+  --danger-bg: #451a1a;
+  --warning-bg: #452a0a;
+  --success-bg: #0a3622;
+  --info-bg: #1e3a5f;
+  --ai-result-bg: #0a2e1a;
+  --ai-result-border: #166534;
+  --video-bg: #0f0f1e;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: 'Segoe UI','Malgun Gothic',sans-serif; background:var(--bg); color:var(--text); font-size:14px; }
+a { color:var(--primary); text-decoration:none; }
+button, .btn { cursor:pointer; border:none; border-radius:var(--radius); padding:6px 14px; font-size:13px; font-family:inherit; }
+.btn-primary { background:var(--primary); color:#fff; }
+.btn-primary:hover { background:var(--primary-dark); }
+.btn-outline { background:var(--card); border:1px solid var(--border); color:var(--text); }
+.btn-outline:hover { background:var(--bg); }
+.btn-danger { background:var(--danger); color:#fff; }
+.btn-success { background:var(--success); color:#fff; }
+.btn-sm { padding:4px 10px; font-size:12px; }
+.badge { display:inline-block; padding:2px 8px; border-radius:12px; font-size:11px; font-weight:600; }
+.badge-blue { background:var(--info-bg); color:#1e40af; }
+.badge-yellow { background:var(--warning-bg); color:#92400e; }
+.badge-green { background:var(--success-bg); color:#065f46; }
+.badge-red { background:var(--danger-bg); color:#991b1b; }
+.badge-gray { background:var(--bg); color:#4b5563; }
+
+/* Layout */
+#app { display:flex; flex-direction:column; height:100vh; }
+#login-page { display:flex; align-items:center; justify-content:center; height:100vh; background:linear-gradient(135deg,#1e3a5f,#1a56db); }
+#main-app { display:none; flex:1; overflow:hidden; }
+
+/* Topbar */
+.topbar { height:var(--topbar-h); background:var(--card); border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 20px; gap:16px; z-index:100; flex-shrink:0; }
+.topbar .logo { display:flex; align-items:center; gap:8px; font-weight:700; font-size:18px; color:var(--primary); white-space:nowrap; text-decoration:none; }
+.topbar .logo .logo-icon { width:28px; height:28px; flex-shrink:0; }
+.topbar .logo-divider { width:1px; height:28px; background:var(--border); flex-shrink:0; }
+.topbar .workspace-select { padding:6px 12px; border:1px solid var(--border); border-radius:var(--radius); background:var(--input-bg); color:var(--text); font-size:13px; cursor:pointer; max-width:200px; }
+.topbar .search-box { flex:1; max-width:400px; position:relative; margin-left:auto; }
+.topbar .search-box input { width:100%; padding:8px 14px 8px 36px; border:1px solid var(--border); border-radius:20px; font-size:13px; background:var(--input-bg); color:var(--text); }
+.topbar .search-box::before { content:'🔍'; position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:13px; }
+.topbar-right { display:flex; align-items:center; gap:4px; flex-shrink:0; }
+.notif-btn { position:relative; background:none; border:none; font-size:18px; padding:6px 8px; border-radius:var(--radius); transition:background .15s; }
+.notif-btn:hover { background:var(--bg); }
+.notif-btn .notif-count { position:absolute; top:0; right:0; background:var(--danger); color:#fff; font-size:10px; border-radius:50%; width:16px; height:16px; display:flex; align-items:center; justify-content:center; font-weight:600; }
+.profile-btn { display:flex; align-items:center; gap:6px; padding:4px 10px; border-radius:var(--radius); background:var(--card); border:1px solid var(--border); font-size:13px; cursor:pointer; position:relative; color:var(--text); transition:background .15s; }
+.profile-btn:hover { background:var(--bg); }
+.profile-menu { display:none; position:absolute; top:100%; right:0; margin-top:4px; background:var(--card); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); min-width:200px; z-index:200; }
+.profile-menu.show { display:block; }
+.profile-menu a, .profile-menu button { display:block; width:100%; text-align:left; padding:8px 14px; font-size:13px; color:var(--text); background:none; border:none; border-radius:0; }
+.profile-menu a:hover, .profile-menu button:hover { background:var(--bg); }
+.profile-menu .divider { border-top:1px solid var(--border); margin:4px 0; }
+.role-option { display:flex; align-items:center; gap:6px; }
+.role-option.active { color:var(--primary); font-weight:600; }
+
+/* Sidebar */
+.layout-body { display:flex; flex:1; overflow:hidden; }
+.sidebar { width:var(--sidebar-w); background:var(--card); border-right:1px solid var(--border); overflow-y:auto; overflow-x:hidden; transition:width .2s; flex-shrink:0; display:flex; flex-direction:column; }
+.sidebar.collapsed { width:var(--sidebar-collapsed); }
+.sidebar-toggle { padding:8px 12px; text-align:right; border-bottom:1px solid var(--border); }
+.sidebar-toggle button { background:none; border:none; font-size:18px; cursor:pointer; color:var(--text-secondary); }
+.sidebar-nav { flex:1; padding:8px 0; }
+.nav-group { margin-bottom:4px; }
+.nav-group-label { padding:8px 16px 4px; font-size:11px; font-weight:700; color:var(--text-secondary); text-transform:uppercase; letter-spacing:.5px; }
+.sidebar.collapsed .nav-group-label { display:none; }
+.nav-item { display:flex; align-items:center; padding:8px 16px; gap:10px; cursor:pointer; color:var(--text-secondary); transition:all .15s; white-space:nowrap; font-size:13px; border-radius:0; }
+.nav-item:hover { background:var(--primary-light); color:var(--primary); }
+.nav-item.active { background:var(--primary-light); color:var(--primary); font-weight:600; }
+.nav-item .icon { width:20px; text-align:center; flex-shrink:0; font-size:16px; }
+.nav-item .label { overflow:hidden; }
+.sidebar.collapsed .nav-item .label { display:none; }
+.sidebar.collapsed .nav-item { justify-content:center; padding:10px 0; }
+.nav-item .item-badge { margin-left:auto; background:var(--danger); color:#fff; font-size:10px; border-radius:10px; padding:1px 6px; }
+.sidebar.collapsed .nav-item .item-badge { display:none; }
+.nav-sub { padding-left:20px; }
+.sidebar.collapsed .nav-sub { padding-left:0; }
+
+/* Main content */
+.main-content { flex:1; overflow-y:auto; padding:24px; background:var(--bg); }
+.page { display:none; }
+.page.active { display:block; }
+.page-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; flex-wrap:wrap; gap:8px; }
+.page-header h1 { font-size:20px; font-weight:700; }
+.page-header .actions { display:flex; gap:8px; }
+
+/* Cards & Panels */
+.card { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:16px; box-shadow:var(--shadow); }
+.kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:16px; margin-bottom:20px; }
+.kpi-card { text-align:center; }
+.kpi-card .kpi-value { font-size:24px; font-weight:700; color:var(--primary); }
+.kpi-card .kpi-label { font-size:12px; color:var(--text-secondary); margin-bottom:4px; }
+.kpi-card .kpi-change { font-size:12px; }
+.kpi-change.up { color:var(--success); }
+.kpi-change.down { color:var(--danger); }
+.chart-placeholder { background:var(--bg-secondary); border:2px dashed var(--border); border-radius:var(--radius); height:200px; display:flex; align-items:center; justify-content:center; color:var(--text-secondary); font-size:13px; }
+.two-col { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px; }
+.three-col { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; margin-bottom:20px; }
+
+/* Table */
+.table-wrap { overflow-x:auto; }
+table { width:100%; border-collapse:collapse; font-size:13px; }
+th, td { padding:10px 12px; text-align:left; border-bottom:1px solid var(--border); }
+th { background:var(--bg-secondary); font-weight:600; color:var(--text-secondary); font-size:12px; }
+tr:hover { background:var(--bg-secondary); }
+tr.clickable { cursor:pointer; }
+
+/* Filter bar */
+.filter-bar { display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; align-items:center; }
+.filter-bar select, .filter-bar input { padding:6px 10px; border:1px solid var(--border); border-radius:var(--radius); font-size:13px; background:var(--input-bg); color:var(--text); }
+.tab-bar { display:flex; gap:0; border-bottom:2px solid var(--border); margin-bottom:16px; }
+.tab-bar .tab { padding:8px 16px; cursor:pointer; color:var(--text-secondary); font-size:13px; border-bottom:2px solid transparent; margin-bottom:-2px; }
+.tab-bar .tab.active { color:var(--primary); border-bottom-color:var(--primary); font-weight:600; }
+.pagination { display:flex; align-items:center; justify-content:space-between; margin-top:12px; font-size:12px; color:var(--text-secondary); }
+
+/* Approval cards */
+.approval-card { border:1px solid var(--border); border-radius:var(--radius); padding:14px; margin-bottom:12px; background:var(--card); }
+.approval-card.urgent { border-left:4px solid var(--danger); }
+.approval-card.normal { border-left:4px solid var(--warning); }
+.approval-card .card-top { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.approval-card .card-meta { font-size:12px; color:var(--text-secondary); margin-bottom:4px; }
+
+/* Notification panel */
+.notif-panel { position:fixed; top:0; right:-380px; width:380px; height:100vh; background:var(--card); box-shadow:-2px 0 8px rgba(0,0,0,.15); z-index:300; transition:right .3s; display:flex; flex-direction:column; }
+.notif-panel.open { right:0; }
+.notif-panel-header { padding:16px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.notif-panel-body { flex:1; overflow-y:auto; padding:12px; }
+.notif-item { padding:10px; border-bottom:1px solid var(--border); cursor:pointer; display:flex; gap:8px; font-size:13px; }
+.notif-item:hover { background:var(--bg); }
+.notif-dot { width:8px; height:8px; border-radius:50%; margin-top:4px; flex-shrink:0; }
+.notif-overlay { display:none; position:fixed; inset:0; background:var(--overlay); z-index:299; }
+.notif-overlay.show { display:block; }
+
+/* Two panel layout */
+.split-panel { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.split-panel-left { border-right:1px solid var(--border); padding-right:16px; }
+
+/* Workflow bar */
+.workflow-bar { display:flex; align-items:center; gap:0; margin-top:16px; padding:12px; background:var(--bg-secondary); border-radius:var(--radius); }
+.wf-step { display:flex; align-items:center; gap:6px; font-size:12px; padding:4px 12px; border-radius:16px; }
+.wf-step.current { background:var(--primary); color:#fff; font-weight:600; }
+.wf-step.done { color:var(--success); }
+.wf-step.pending { color:var(--text-secondary); }
+.wf-arrow { margin:0 4px; color:var(--text-secondary); }
+
+/* Login */
+.login-card { background:var(--card); border-radius:12px; padding:40px; width:100%; max-width:400px; text-align:center; box-shadow:0 4px 24px rgba(0,0,0,.2); }
+.login-card h1 { color:var(--primary); margin-bottom:4px; }
+.login-card p { color:var(--text-secondary); font-size:13px; margin-bottom:24px; }
+.login-card input[type=email], .login-card input[type=password] { width:100%; padding:10px 14px; border:1px solid var(--border); border-radius:var(--radius); margin-bottom:12px; font-size:14px; background:var(--input-bg); color:var(--text); }
+.login-card .btn-primary { width:100%; padding:10px; font-size:15px; margin-top:8px; }
+.login-card .remember { display:flex; align-items:center; gap:6px; font-size:13px; color:var(--text-secondary); margin-bottom:8px; }
+.login-card .forgot { font-size:13px; margin-top:12px; }
+
+/* Content editor */
+.editor-layout { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.editor-section { margin-bottom:16px; }
+.editor-section label { display:block; font-weight:600; font-size:12px; margin-bottom:6px; color:var(--text-secondary); }
+.editor-section textarea, .editor-section input[type=text] { width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:var(--radius); font-size:13px; font-family:inherit; background:var(--input-bg); color:var(--text); }
+.editor-section textarea { min-height:100px; resize:vertical; }
+.ai-btn { background:var(--primary-light); color:var(--primary); border:1px solid #93c5fd; padding:4px 10px; border-radius:var(--radius); font-size:12px; cursor:pointer; margin-top:4px; }
+.ai-btn:hover { background:var(--info-bg); }
+.ai-result { background:var(--ai-result-bg); border:1px solid var(--ai-result-border); border-radius:var(--radius); padding:10px; margin-top:8px; font-size:13px; display:none; }
+.ai-result.show { display:block; }
+.platform-checks { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+.platform-check { display:flex; align-items:center; gap:4px; padding:6px 12px; border:1px solid var(--border); border-radius:var(--radius); cursor:pointer; font-size:13px; }
+.platform-check.selected { background:var(--primary-light); border-color:var(--primary); color:var(--primary); }
+.preview-card { border:1px solid var(--border); border-radius:var(--radius); padding:12px; margin-bottom:12px; }
+.preview-card h4 { font-size:13px; margin-bottom:8px; color:var(--text-secondary); }
+
+/* Comment panel */
+.comment-list-item { padding:10px; border-bottom:1px solid var(--border); cursor:pointer; display:flex; gap:8px; }
+.comment-list-item:hover { background:var(--bg); }
+.comment-list-item.selected { background:var(--primary-light); }
+.sentiment-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; margin-top:3px; }
+
+/* Timeline */
+.timeline-item { display:flex; gap:12px; padding:8px 0; font-size:13px; }
+.timeline-dot { width:10px; height:10px; border-radius:50%; background:var(--primary); margin-top:4px; flex-shrink:0; }
+.timeline-line { border-left:2px solid var(--border); margin-left:4px; padding-left:16px; }
+
+/* Calendar grid */
+.cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+.cal-header { background:var(--bg-secondary); padding:8px; text-align:center; font-size:12px; font-weight:600; }
+.cal-cell { background:var(--card); min-height:80px; padding:4px 6px; font-size:12px; }
+.cal-cell .day-num { font-weight:600; margin-bottom:4px; }
+.cal-event { padding:2px 4px; border-radius:4px; font-size:11px; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+/* Media grid */
+.media-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:12px; }
+.media-item { border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; cursor:pointer; }
+.media-thumb { height:100px; background:var(--placeholder-bg); display:flex; align-items:center; justify-content:center; font-size:28px; }
+.media-info { padding:8px; font-size:12px; }
+
+/* Responsive */
+@media(max-width:1280px) {
+  .two-col, .split-panel, .editor-layout { grid-template-columns:1fr; }
+  .three-col { grid-template-columns:1fr 1fr; }
+}
+@media(max-width:768px) {
+  .sidebar { position:fixed; left:-260px; top:var(--topbar-h); height:calc(100vh - var(--topbar-h)); z-index:200; transition:left .3s; }
+  .sidebar.mobile-open { left:0; }
+  .sidebar.collapsed { width:var(--sidebar-w); }
+  .mobile-overlay { display:none; position:fixed; inset:0; top:var(--topbar-h); background:rgba(0,0,0,.3); z-index:199; }
+  .mobile-overlay.show { display:block; }
+  .main-content { padding:16px; }
+  .kpi-grid { grid-template-columns:1fr 1fr; }
+  .three-col { grid-template-columns:1fr; }
+  .topbar .search-box { display:none; }
+  .topbar .logo-divider { display:none; }
+  .topbar .workspace-select { max-width:120px; font-size:12px; }
+  .topbar .logo span { display:none; }
+  .topbar { padding:0 12px; gap:8px; }
+}
+
+/* Dark mode toggle button */
+.theme-toggle { background:none; border:none; border-radius:var(--radius); padding:6px 8px; font-size:16px; cursor:pointer; line-height:1; transition:background .15s; }
+.theme-toggle:hover { background:var(--bg); }
+/* Dark mode overrides for inline-styled elements */
+[data-theme="dark"] select { background:var(--input-bg); color:var(--text); border-color:var(--border); }
+[data-theme="dark"] textarea { background:var(--input-bg); color:var(--text); border-color:var(--border); }
+[data-theme="dark"] input[type=text], [data-theme="dark"] input[type=email], [data-theme="dark"] input[type=password] { background:var(--input-bg); color:var(--text); border-color:var(--border); }
+[data-theme="dark"] .badge-blue { background:#1e3a5f; color:#93c5fd; }
+[data-theme="dark"] .badge-yellow { background:#452a0a; color:#fbbf24; }
+[data-theme="dark"] .badge-green { background:#0a3622; color:#34d399; }
+[data-theme="dark"] .badge-red { background:#451a1a; color:#f87171; }
+[data-theme="dark"] .badge-gray { background:#374151; color:#9ca3af; }
+[data-theme="dark"] #login-page { background:linear-gradient(135deg,#0f172a,#1e3a5f); }
+[data-theme="dark"] .notif-btn { color:var(--text); }
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- LOGIN PAGE -->
+<div id="login-page">
+  <div class="login-card">
+    <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:4px">
+      <svg width="36" height="36" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" style="color:var(--primary)">
+        <rect width="32" height="32" rx="8" fill="currentColor" opacity="0.12"/>
+        <circle cx="16" cy="16" r="6" stroke="currentColor" stroke-width="2" fill="none"/>
+        <path d="M13 16.5l2 2 4-4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        <path d="M22 10l2-2M10 10L8 8M22 22l2 2M10 22l-2 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+      </svg>
+      <h1 style="margin:0">PubliSync</h1>
+    </div>
+    <p>공공기관 소셜 미디어 통합 관리 플랫폼</p>
+    <input type="email" placeholder="이메일" value="user@agency.co.kr">
+    <input type="password" placeholder="비밀번호" value="••••••••">
+    <label class="remember"><input type="checkbox"> 로그인 상태 유지</label>
+    <button class="btn btn-primary" onclick="doLogin()">로그인</button>
+    <div class="forgot"><a href="#" onclick="return false">비밀번호를 잊으셨나요?</a></div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="main-app">
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <button class="btn-outline btn-sm" id="mobile-menu-btn" style="display:none" onclick="toggleMobileSidebar()">☰</button>
+  <a class="logo" href="#" onclick="navigateTo('dashboard');return false">
+    <svg class="logo-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="32" height="32" rx="8" fill="currentColor" opacity="0.12"/>
+      <path d="M8 12.5C8 10.567 9.567 9 11.5 9H14L11 16H14L10 23L13 16H10L13 9" stroke="currentColor" stroke-width="0" fill="currentColor" opacity="0.9"/>
+      <path d="M9 11a2 2 0 012-2h10a2 2 0 012 2v2.5l-3.5 5H23v4a2 2 0 01-2 2H11a2 2 0 01-2-2V11z" fill="currentColor" opacity="0.15"/>
+      <circle cx="16" cy="16" r="6" stroke="currentColor" stroke-width="2" fill="none"/>
+      <path d="M13 16.5l2 2 4-4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <path d="M22 10l2-2M10 10L8 8M22 22l2 2M10 22l-2 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+    </svg>
+    <span>PubliSync</span>
+  </a>
+  <div class="logo-divider"></div>
+  <select class="workspace-select" id="workspace-select" onchange="switchWorkspace(this.value)">
+    <option value="서울시 홍보담당관실">서울시 홍보담당관실</option>
+    <option value="부산시 홍보담당관실">부산시 홍보담당관실</option>
+    <option value="인천시 홍보담당관실">인천시 홍보담당관실</option>
+    <option value="전체 기관">전체 기관</option>
+  </select>
+  <div class="search-box"><input type="text" placeholder="콘텐츠, 댓글, 미디어 검색..."></div>
+  <div class="topbar-right">
+    <button class="theme-toggle" id="theme-toggle" onclick="toggleDarkMode()" title="다크 모드 전환">🌙</button>
+    <button class="notif-btn" onclick="toggleNotifPanel()">🔔<span class="notif-count">3</span></button>
+    <div style="position:relative">
+      <button class="profile-btn" onclick="toggleProfileMenu()">
+        <span>👤</span><span id="current-role-label">수탁업체 관리자</span>
+      </button>
+      <div class="profile-menu" id="profile-menu">
+        <div style="padding:10px 14px;font-size:12px;color:var(--text-secondary)">역할 전환 (데모)</div>
+        <button class="role-option active" onclick="switchRole('agency_admin')">✔ 수탁업체 관리자</button>
+        <button class="role-option" onclick="switchRole('agency_worker')">　 수탁업체 실무자</button>
+        <button class="role-option" onclick="switchRole('client_manager')">　 위탁기관 담당자</button>
+        <button class="role-option" onclick="switchRole('sys_admin')">　 시스템 관리자</button>
+        <div class="divider"></div>
+        <button onclick="navigateTo('notification-settings')">알림 설정</button>
+        <button onclick="doLogout()">로그아웃</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LAYOUT BODY -->
+<div class="layout-body">
+<div class="mobile-overlay" id="mobile-overlay" onclick="toggleMobileSidebar()"></div>
+
+<!-- SIDEBAR -->
+<nav class="sidebar" id="sidebar">
+  <div class="sidebar-toggle"><button onclick="toggleSidebar()">◀</button></div>
+  <div class="sidebar-nav">
+    <div class="nav-group">
+      <div class="nav-item" data-page="dashboard" data-roles="all" onclick="navigateTo('dashboard')"><span class="icon">📊</span><span class="label">대시보드</span></div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">콘텐츠</div>
+      <div class="nav-item" data-page="content-new" data-roles="agency_admin,agency_worker" onclick="navigateTo('content-new')"><span class="icon">✏️</span><span class="label">새 콘텐츠 작성</span></div>
+      <div class="nav-item" data-page="content-list" data-roles="agency_admin,agency_worker,client_manager" onclick="navigateTo('content-list')"><span class="icon">📋</span><span class="label">콘텐츠 목록</span></div>
+      <div class="nav-item" data-page="approval" data-roles="agency_admin,agency_worker,client_manager" onclick="navigateTo('approval')"><span class="icon">✅</span><span class="label">승인 대기</span><span class="item-badge">3</span></div>
+      <div class="nav-item" data-page="calendar" data-roles="agency_admin,agency_worker,client_manager" onclick="navigateTo('calendar')"><span class="icon">📅</span><span class="label">캘린더</span></div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">댓글 관리</div>
+      <div class="nav-item" data-page="comments" data-roles="agency_admin,agency_worker,client_manager" onclick="navigateTo('comments')"><span class="icon">💬</span><span class="label">통합 댓글함</span></div>
+      <div class="nav-item" data-page="danger-comments" data-roles="agency_admin,agency_worker,client_manager" onclick="navigateTo('danger-comments')"><span class="icon">⚠️</span><span class="label">위험 댓글</span><span class="item-badge">5</span></div>
+      <div class="nav-item" data-page="reply-templates" data-roles="agency_admin,agency_worker" onclick="navigateTo('reply-templates')"><span class="icon">📝</span><span class="label">답글 템플릿 관리</span></div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-item" data-page="media" data-roles="agency_admin,agency_worker,client_manager" onclick="navigateTo('media')"><span class="icon">📁</span><span class="label">미디어 라이브러리</span></div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">분석·리포트</div>
+      <div class="nav-item" data-page="analytics" data-roles="agency_admin,agency_worker,client_manager" onclick="navigateTo('analytics')"><span class="icon">📈</span><span class="label">성과 분석</span></div>
+      <div class="nav-item" data-page="prediction" data-roles="agency_admin,agency_worker,client_manager" onclick="navigateTo('prediction')"><span class="icon">🔮</span><span class="label">성과 예측</span></div>
+      <div class="nav-item" data-page="reports" data-roles="agency_admin,agency_worker,client_manager" onclick="navigateTo('reports')"><span class="icon">📄</span><span class="label">운영 리포트</span></div>
+      <div class="nav-item" data-page="sentiment" data-roles="agency_admin,agency_worker,client_manager" onclick="navigateTo('sentiment')"><span class="icon">🌐</span><span class="label">여론 동향</span></div>
+      <div class="nav-item" data-page="benchmark" data-roles="agency_admin,agency_worker,client_manager" onclick="navigateTo('benchmark')"><span class="icon">🏆</span><span class="label">벤치마크 분석</span></div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">채널 관리</div>
+      <div class="nav-item" data-page="channels" data-roles="sys_admin,agency_admin" onclick="navigateTo('channels')"><span class="icon">🔗</span><span class="label">연동 계정</span></div>
+      <div class="nav-item" data-page="channel-history" data-roles="sys_admin,agency_admin" onclick="navigateTo('channel-history')"><span class="icon">📜</span><span class="label">연동 이력</span></div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">설정</div>
+      <div class="nav-item" data-page="users" data-roles="sys_admin,agency_admin" onclick="navigateTo('users')"><span class="icon">👥</span><span class="label">사용자·권한</span></div>
+      <div class="nav-item" data-page="workflow-settings" data-roles="sys_admin,agency_admin,client_manager" onclick="navigateTo('workflow-settings')"><span class="icon">⚙️</span><span class="label">승인 워크플로우 설정</span></div>
+      <div class="nav-item" data-page="notification-settings" data-roles="all" onclick="navigateTo('notification-settings')"><span class="icon">🔔</span><span class="label">알림 설정</span></div>
+      <div class="nav-item" data-page="audit-log" data-roles="sys_admin,agency_admin,client_manager" onclick="navigateTo('audit-log')"><span class="icon">📑</span><span class="label">감사 로그</span></div>
+    </div>
+    <div class="nav-group" style="margin-top:auto;border-top:1px solid var(--border);padding-top:4px">
+      <div class="nav-item" data-roles="all" style="opacity:.7"><span class="icon">❓</span><span class="label">도움말</span></div>
+    </div>
+  </div>
+</nav>
+
+<!-- MAIN CONTENT AREA -->
+<div class="main-content" id="main-content">
+
+<!-- PAGE: DASHBOARD -->
+<div class="page" id="page-dashboard" data-page="dashboard">
+  <div class="page-header"><h1>대시보드</h1><div class="actions"><select class="workspace-select"><option>최근 7일</option><option>최근 30일</option></select><button class="btn btn-outline btn-sm">새로고침</button></div></div>
+  <div class="kpi-grid">
+    <div class="card kpi-card"><div class="kpi-label">총 팔로워</div><div class="kpi-value">45.2K</div><div class="kpi-change up">+3.2%</div></div>
+    <div class="card kpi-card"><div class="kpi-label">총 게시물</div><div class="kpi-value">127</div><div class="kpi-change up">+12건</div></div>
+    <div class="card kpi-card"><div class="kpi-label">총 댓글</div><div class="kpi-value">2,341</div><div class="kpi-change up">+18%</div></div>
+    <div class="card kpi-card" style="cursor:pointer" onclick="navigateTo('danger-comments')"><div class="kpi-label">위험 댓글</div><div class="kpi-value" style="color:var(--danger)">5</div><div class="kpi-change" style="color:var(--danger)">즉시 확인</div></div>
+  </div>
+  <div class="two-col">
+    <div class="card"><h3 style="font-size:14px;margin-bottom:12px">플랫폼별 성과 추이</h3><div class="chart-placeholder">📊 라인 차트 (YouTube / Instagram / Facebook / X / Blog)</div></div>
+    <div class="card"><h3 style="font-size:14px;margin-bottom:12px">승인 대기 현황</h3><div style="font-size:13px"><div style="padding:6px 0">• 검수 대기 <strong>3건</strong></div><div style="padding:6px 0">• 반려 후 수정 <strong>1건</strong></div><div style="padding:6px 0">• 긴급 승인 요청 <strong>1건</strong></div><div style="margin-top:12px"><a href="#" onclick="navigateTo('approval');return false">승인 대기 목록 보기 →</a></div></div></div>
+  </div>
+  <div class="two-col">
+    <div class="card"><h3 style="font-size:14px;margin-bottom:12px">댓글 감성 분석 현황</h3><div class="chart-placeholder">🟢 긍정 62% · 🟡 중립 28% · 🟠 부정 8% · 🔴 위험 2%<br>(도넛 차트)</div></div>
+    <div class="card"><h3 style="font-size:14px;margin-bottom:12px">최근 게시 콘텐츠</h3><div style="font-size:13px"><div style="padding:6px 0">🎬 <strong>[YT]</strong> 정책 브리핑 3월호 · 조회 1.2K · 좋아요 45</div><div style="padding:6px 0">📷 <strong>[IG]</strong> 시민과 함께하는 봄 · 조회 890 · 좋아요 123</div><div style="padding:6px 0">📄 <strong>[FB]</strong> 교통 안내 카드뉴스 · 조회 456 · 공유 23</div></div></div>
+  </div>
+  <div class="card"><h3 style="font-size:14px;margin-bottom:12px">오늘의 게시 일정</h3><div style="font-size:13px"><div style="padding:4px 0">09:00 <span class="badge badge-green">IG</span> 봄맞이 환경정화 캠페인 · <span style="color:var(--success)">● 게시 완료</span></div><div style="padding:4px 0">12:00 <span class="badge badge-red">YT</span> 정책설명회 영상 · <span style="color:var(--warning)">◐ 승인 대기</span></div><div style="padding:4px 0">15:00 <span class="badge badge-blue">X</span> 교통 안내 트윗 · <span style="color:var(--info)">○ 예약됨</span></div><div style="padding:4px 0">17:00 <span class="badge badge-blue">FB</span> 주간 소식 정리 · <span style="color:var(--info)">○ 예약됨</span></div></div><div style="font-size:11px;color:var(--text-secondary);margin-top:12px">데이터 최신성: YouTube 2분 전 · Instagram 5분 전</div></div>
+</div>
+
+<!-- PAGE: CONTENT NEW -->
+<div class="page" id="page-content-new" data-page="content-new">
+  <div class="page-header"><h1>새 콘텐츠 작성</h1><div class="actions"><button class="btn btn-outline">임시 저장</button><button class="btn btn-primary">검토 요청</button></div></div>
+  <div class="platform-checks">
+    <label class="platform-check selected" onclick="this.classList.toggle('selected')">✅ YouTube</label>
+    <label class="platform-check selected" onclick="this.classList.toggle('selected')">✅ Instagram</label>
+    <label class="platform-check selected" onclick="this.classList.toggle('selected')">✅ Facebook</label>
+    <label class="platform-check" onclick="this.classList.toggle('selected')">☐ X</label>
+    <label class="platform-check" onclick="this.classList.toggle('selected')">☐ 네이버 블로그</label>
+  </div>
+  <div class="editor-layout">
+    <div>
+      <div class="card">
+        <div class="editor-section"><label>미디어 업로드</label><div style="border:2px dashed var(--border);border-radius:var(--radius);padding:30px;text-align:center;color:var(--text-secondary)">📎 파일을 드래그하거나 클릭하여 업로드<br><button class="btn btn-outline btn-sm" style="margin-top:8px" onclick="navigateTo('media')">미디어 라이브러리에서 선택</button></div></div>
+        <div class="editor-section"><label>제목</label><input type="text" value="서울시 정책 브리핑 3월호"><button class="ai-btn" onclick="toggleAiResult(this)">🤖 AI 제목 생성</button><div class="ai-result"><strong>AI 제안:</strong> "3분 만에 보는 서울시 3월 정책 변화"<br><button class="btn btn-sm btn-primary" style="margin-top:6px">적용</button> <button class="btn btn-sm btn-outline">수정</button> <button class="btn btn-sm btn-outline">무시</button></div></div>
+        <div class="editor-section"><label>본문/설명문</label><textarea>서울시 3월 주요 정책 변화를 알려드립니다. 교통, 환경, 복지 분야의 핵심 내용을 정리했습니다.</textarea><button class="ai-btn" onclick="toggleAiResult(this)">🤖 AI 설명문 생성</button><div class="ai-result"><strong>AI 제안:</strong> "서울시의 3월 정책 하이라이트! 교통 편의 개선부터 친환경 에너지 정책까지, 시민 생활에 직접 영향을 미치는 핵심 변화를 3분 안에 확인하세요."<br><button class="btn btn-sm btn-primary" style="margin-top:6px">적용</button> <button class="btn btn-sm btn-outline">무시</button></div></div>
+        <div class="editor-section"><label>해시태그</label><input type="text" value="#서울시 #정책브리핑 #3월"><button class="ai-btn" onclick="toggleAiResult(this)">🤖 AI 해시태그 추천</button><div class="ai-result"><strong>AI 추천:</strong> #서울시정책 #3월정책변화 #교통개선 #친환경서울 #시민참여<br><button class="btn btn-sm btn-primary" style="margin-top:6px">적용</button></div></div>
+        <div class="editor-section"><label>게시 설정</label><div style="font-size:13px"><label style="font-weight:normal"><input type="radio" name="schedule"> 즉시 게시</label><br><label style="font-weight:normal"><input type="radio" name="schedule" checked> 예약 게시 <input type="text" value="2026-03-05 09:00" style="width:160px;padding:4px 8px;margin-left:4px"></label></div><button class="ai-btn" onclick="toggleAiResult(this)">🤖 최적 시간 추천</button><div class="ai-result"><strong>AI 추천:</strong> 화요일 09:00~10:00 (최근 3개월 유사 콘텐츠 기반)<br><button class="btn btn-sm btn-primary" style="margin-top:6px">적용</button></div></div>
+      </div>
+    </div>
+    <div>
+      <div class="card" style="margin-bottom:16px"><h3 style="font-size:14px;margin-bottom:12px">플랫폼별 미리보기</h3>
+        <div class="tab-bar"><span class="tab active">YouTube</span><span class="tab">Instagram</span><span class="tab">Facebook</span></div>
+        <div class="preview-card"><h4>YouTube 미리보기</h4><div style="background:var(--placeholder-bg);height:160px;border-radius:var(--radius);display:flex;align-items:center;justify-content:center;margin-bottom:8px">🎬 영상 미리보기</div><div style="font-size:13px"><strong>서울시 정책 브리핑 3월호</strong><br><span style="color:var(--text-secondary)">서울시 3월 주요 정책 변화를 알려드립니다...</span><br><span style="color:var(--primary);font-size:12px">#서울시 #정책브리핑 #3월</span></div></div>
+      </div>
+      <div class="card"><h3 style="font-size:14px;margin-bottom:12px">AI 검수 결과</h3><div style="font-size:13px"><div style="padding:4px 0">✅ 부적절 표현: 없음</div><div style="padding:4px 0">✅ 개인정보: 미검출</div><div style="padding:4px 0">⚠️ 접근성: 대체텍스트 미입력 (이미지 2건)</div><div style="padding:4px 0">✅ 저작권: 이상 없음</div><div style="margin-top:8px"><button class="ai-btn">🤖 AI 재검수</button></div></div></div>
+      <div class="card" style="margin-top:16px"><h3 style="font-size:14px;margin-bottom:12px">영상 콘텐츠 추가 기능</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="ai-btn" onclick="navigateTo('video-edit')">🤖 자막 자동 생성 (F03)</button><button class="ai-btn" onclick="navigateTo('shortform')">🤖 숏폼 생성 (F15)</button><button class="ai-btn" onclick="toggleAiResult(this)">🤖 효과음/이모지 추천</button><div class="ai-result">효과음·이모지 타임라인 에디터에서 삽입 가능 (Phase 2)</div></div></div>
+    </div>
+  </div>
+  <div class="workflow-bar"><span class="wf-step current">● 작성 중</span><span class="wf-arrow">→</span><span class="wf-step pending">○ 검토 요청</span><span class="wf-arrow">→</span><span class="wf-step pending">○ 검수 중</span><span class="wf-arrow">→</span><span class="wf-step pending">○ 게시</span></div>
+</div>
+
+<!-- PAGE: CONTENT LIST -->
+<div class="page" id="page-content-list" data-page="content-list">
+  <div class="page-header"><h1>콘텐츠 목록</h1><div class="actions"><button class="btn btn-primary" onclick="navigateTo('content-new')">+ 새 콘텐츠</button></div></div>
+  <div class="tab-bar"><span class="tab active">전체</span><span class="tab">작성 중</span><span class="tab">검수 대기</span><span class="tab">승인됨</span><span class="tab">게시 완료</span><span class="tab">반려</span></div>
+  <div class="filter-bar"><select><option>전체 플랫폼</option><option>YouTube</option><option>Instagram</option><option>Facebook</option><option>X</option><option>블로그</option></select><select><option>최근 30일</option><option>최근 7일</option><option>최근 90일</option></select><input type="text" placeholder="검색..."></div>
+  <div class="card"><div class="table-wrap"><table>
+    <thead><tr><th style="width:30px"><input type="checkbox"></th><th>상태</th><th>제목</th><th>플랫폼</th><th>작성자</th><th>날짜</th></tr></thead>
+    <tbody>
+      <tr class="clickable" onclick="navigateTo('publish-history')"><td><input type="checkbox"></td><td><span class="badge badge-yellow">검수 대기</span></td><td>서울시 정책 브리핑 3월호</td><td>YT·IG·FB</td><td>김OO</td><td>03-03</td></tr>
+      <tr class="clickable" onclick="navigateTo('publish-history')"><td><input type="checkbox"></td><td><span class="badge badge-green">게시 완료</span></td><td>봄맞이 환경정화 캠페인</td><td>IG</td><td>이OO</td><td>03-02</td></tr>
+      <tr class="clickable" onclick="navigateTo('publish-history')"><td><input type="checkbox"></td><td><span class="badge badge-red">반려</span></td><td>교통 안내 카드뉴스</td><td>FB·X</td><td>박OO</td><td>03-01</td></tr>
+      <tr class="clickable" onclick="navigateTo('publish-history')"><td><input type="checkbox"></td><td><span class="badge badge-blue">작성 중</span></td><td>주간 소식 정리</td><td>미지정</td><td>김OO</td><td>03-01</td></tr>
+      <tr class="clickable" onclick="navigateTo('publish-history')"><td><input type="checkbox"></td><td><span class="badge badge-green">게시 완료</span></td><td>문화행사 안내</td><td>YT·IG·X</td><td>이OO</td><td>02-28</td></tr>
+    </tbody>
+  </table></div><div class="pagination"><span>◀ 1 2 3 ... 12 ▶</span><span>총 237건 | 선택: 0건</span></div></div>
+</div>
+
+<!-- PAGE: APPROVAL -->
+<div class="page" id="page-approval" data-page="approval">
+  <div class="page-header"><h1>승인 대기</h1><div class="actions"><span style="color:var(--danger);font-weight:600">3건 대기</span></div></div>
+  <div class="tab-bar"><span class="tab active">내가 검수할 항목</span><span class="tab">내가 요청한 항목</span><span class="tab">전체</span></div>
+  <div id="approval-list">
+    <div class="approval-card urgent"><div class="card-top"><span class="badge badge-red">긴급</span><strong>서울시 정책 브리핑 3월호</strong></div><div class="card-meta">요청자: 김OO · 요청일: 03-03 09:00 · 대상: YouTube, Instagram, Facebook</div><div class="card-meta">메모: "오늘 15시까지 게시 필요합니다"</div><div style="text-align:right;margin-top:8px"><button class="btn btn-primary btn-sm" onclick="showReview()">검수하기</button></div></div>
+    <div class="approval-card normal"><div class="card-top"><span class="badge badge-yellow">일반</span><strong>교통 혼잡 안내 카드뉴스 (수정본)</strong></div><div class="card-meta">요청자: 박OO · 요청일: 03-02 14:30 · 대상: Facebook, X</div><div class="card-meta">이력: 1차 반려 → 수정 후 재요청</div><div style="text-align:right;margin-top:8px"><button class="btn btn-primary btn-sm" onclick="showReview()">검수하기</button></div></div>
+    <div class="approval-card normal"><div class="card-top"><span class="badge badge-yellow">일반</span><strong>3월 문화행사 일정 포스터</strong></div><div class="card-meta">요청자: 이OO · 요청일: 03-02 11:00 · 대상: Instagram, 네이버 블로그</div><div style="text-align:right;margin-top:8px"><button class="btn btn-primary btn-sm" onclick="showReview()">검수하기</button></div></div>
+  </div>
+  <div id="review-detail" style="display:none">
+    <div style="margin-bottom:12px"><button class="btn btn-outline btn-sm" onclick="hideReview()">← 목록으로</button></div>
+    <h2 style="font-size:16px;margin-bottom:16px">콘텐츠 검수 — 서울시 정책 브리핑 3월호</h2>
+    <div class="split-panel">
+      <div>
+        <div class="card"><h3 style="font-size:14px;margin-bottom:12px">콘텐츠 내용</h3><div style="background:var(--placeholder-bg);height:180px;border-radius:var(--radius);display:flex;align-items:center;justify-content:center;margin-bottom:12px">🎬 미디어 미리보기</div><div style="font-size:13px"><strong>제목:</strong> 서울시 정책 브리핑 3월호<br><strong>본문:</strong> 서울시 3월 주요 정책 변화를 알려드립니다...<br><strong>해시태그:</strong> #서울시 #정책브리핑 #3월</div><div style="margin-top:12px"><span class="tab" style="font-size:12px;padding:4px 8px;background:var(--bg);border-radius:4px;margin-right:4px">YouTube</span><span class="tab" style="font-size:12px;padding:4px 8px;background:var(--bg);border-radius:4px;margin-right:4px">IG</span><span class="tab" style="font-size:12px;padding:4px 8px;background:var(--bg);border-radius:4px">FB</span></div></div>
+      </div>
+      <div>
+        <div class="card" style="margin-bottom:16px"><h3 style="font-size:14px;margin-bottom:12px">AI 검수 결과</h3><div style="font-size:13px"><div style="padding:4px 0">✅ 표현 적합성: 통과</div><div style="padding:4px 0">✅ 개인정보: 미검출</div><div style="padding:4px 0">⚠️ 이미지 대체텍스트 미입력 1건</div></div></div>
+        <div class="card" style="margin-bottom:16px"><h3 style="font-size:14px;margin-bottom:12px">승인 이력</h3><div style="font-size:13px"><div style="padding:3px 0">03-01 작성 (김OO)</div><div style="padding:3px 0">03-02 수정 (김OO)</div><div style="padding:3px 0">03-03 검토요청 (김OO)</div></div></div>
+        <div class="card"><h3 style="font-size:14px;margin-bottom:12px">검수 의견</h3><textarea style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);min-height:60px;font-size:13px;font-family:inherit" placeholder="의견 입력..."></textarea><div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end"><button class="btn btn-danger btn-sm">반려</button><button class="btn btn-success btn-sm">승인 후 게시</button></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE: PUBLISH HISTORY -->
+<div class="page" id="page-publish-history" data-page="publish-history">
+  <div class="page-header"><h1>콘텐츠 상세: 서울시 정책 브리핑 3월호</h1><div class="actions"><span class="badge badge-green">게시 완료</span></div></div>
+  <div class="tab-bar"><span class="tab">콘텐츠 내용</span><span class="tab">플랫폼별 미리보기</span><span class="tab active">게시 이력</span><span class="tab">승인 이력</span></div>
+  <div class="card" style="margin-bottom:16px"><div class="table-wrap"><table>
+    <thead><tr><th>플랫폼</th><th>상태</th><th>게시 일시</th><th>상세</th></tr></thead>
+    <tbody>
+      <tr><td>YouTube</td><td><span class="badge badge-green">게시 완료</span></td><td>03-05 09:00:12</td><td><button class="btn btn-outline btn-sm">보기</button></td></tr>
+      <tr><td>Instagram</td><td><span class="badge badge-green">게시 완료</span></td><td>03-05 09:00:15</td><td><button class="btn btn-outline btn-sm">보기</button></td></tr>
+      <tr><td>Facebook</td><td><span class="badge badge-red">게시 실패</span></td><td>03-05 09:00:18</td><td><button class="btn btn-outline btn-sm">보기</button></td></tr>
+    </tbody>
+  </table></div>
+  <div style="margin-top:12px;padding:12px;background:var(--danger-bg);border-radius:var(--radius);font-size:13px">
+    <strong>Facebook 실패 상세</strong><br>
+    실패 사유: 토큰 만료 (Error 190)<br>
+    재시도 1차: 09:05:00 🔴 실패<br>
+    재시도 2차: 09:15:00 🔴 실패<br>
+    <div style="margin-top:8px"><button class="btn btn-primary btn-sm">수동 재시도</button> <button class="btn btn-outline btn-sm" onclick="navigateTo('channels')">토큰 갱신 후 재시도</button></div>
+  </div></div>
+  <div class="card"><h3 style="font-size:14px;margin-bottom:12px">게시 실패 알림 이력</h3><div style="font-size:13px"><div style="padding:3px 0">• 03-05 09:00 웹 알림 발송 ✓</div><div style="padding:3px 0">• 03-05 09:01 텔레그램 알림 발송 ✓ (김OO, 이OO)</div><div style="padding:3px 0">• 03-05 09:15 재시도 최종 실패 알림 발송 ✓</div></div></div>
+</div>
+
+<!-- PAGE: CALENDAR -->
+<div class="page" id="page-calendar" data-page="calendar">
+  <div class="page-header"><h1>콘텐츠 캘린더</h1><div class="actions"><span class="tab active" style="padding:4px 10px;border:1px solid var(--border);border-radius:4px;font-size:12px">월간</span><span class="tab" style="padding:4px 10px;border:1px solid var(--border);border-radius:4px;font-size:12px">주간</span><span style="font-size:14px;margin:0 8px">◀ 2026년 3월 ▶</span><button class="btn btn-primary btn-sm">+ 게시 예약 등록</button></div></div>
+  <div class="filter-bar"><select><option>전체 플랫폼</option></select></div>
+  <div class="cal-grid">
+    <div class="cal-header">일</div><div class="cal-header">월</div><div class="cal-header">화</div><div class="cal-header">수</div><div class="cal-header">목</div><div class="cal-header">금</div><div class="cal-header">토</div>
+    <div class="cal-cell"></div><div class="cal-cell"></div><div class="cal-cell"></div>
+    <div class="cal-cell"><div class="day-num">1</div><div class="cal-event" style="background:var(--warning-bg)">📌 삼일절</div></div>
+    <div class="cal-cell"><div class="day-num">2</div><div class="cal-event" style="background:var(--success-bg)">🟢 IG 캠페인</div><div class="cal-event" style="background:var(--success-bg)">🟢 FB 소식</div></div>
+    <div class="cal-cell"><div class="day-num">3</div><div class="cal-event" style="background:var(--warning-bg)">🟡 YT 정책</div><div class="cal-event" style="background:var(--warning-bg)">🟡 IG 포스터</div><div class="cal-event" style="background:var(--info-bg)">🔵 X 교통</div></div>
+    <div class="cal-cell"><div class="day-num">4</div></div>
+    <div class="cal-cell"><div class="day-num">5</div></div>
+    <div class="cal-cell"><div class="day-num">6</div><div class="cal-event" style="background:var(--info-bg)">🔵 YT 영상</div><div class="cal-event" style="background:var(--info-bg)">🔵 IG 릴스</div></div>
+    <div class="cal-cell"><div class="day-num">7</div></div>
+    <div class="cal-cell"><div class="day-num">8</div></div>
+    <div class="cal-cell"><div class="day-num">9</div><div class="cal-event" style="background:var(--danger-bg)">⚠️ 3건 집중</div></div>
+    <div class="cal-cell"><div class="day-num">10</div></div>
+    <div class="cal-cell"><div class="day-num">11</div></div>
+    <div class="cal-cell"><div class="day-num">12</div></div><div class="cal-cell"><div class="day-num">13</div></div><div class="cal-cell"><div class="day-num">14</div></div><div class="cal-cell"><div class="day-num">15</div></div><div class="cal-cell"><div class="day-num">16</div></div><div class="cal-cell"><div class="day-num">17</div></div><div class="cal-cell"><div class="day-num">18</div></div>
+    <div class="cal-cell"><div class="day-num">19</div></div><div class="cal-cell"><div class="day-num">20</div></div><div class="cal-cell"><div class="day-num">21</div></div><div class="cal-cell"><div class="day-num">22</div></div><div class="cal-cell"><div class="day-num">23</div></div><div class="cal-cell"><div class="day-num">24</div></div><div class="cal-cell"><div class="day-num">25</div></div>
+    <div class="cal-cell"><div class="day-num">26</div></div><div class="cal-cell"><div class="day-num">27</div></div><div class="cal-cell"><div class="day-num">28</div></div><div class="cal-cell"><div class="day-num">29</div></div><div class="cal-cell"><div class="day-num">30</div></div><div class="cal-cell"><div class="day-num">31</div></div><div class="cal-cell"></div>
+  </div>
+  <div style="font-size:12px;color:var(--text-secondary);margin-top:12px">범례: 🟢 게시 완료 · 🟡 승인 대기 · 🔵 예약/작성 중 · ⚠️ 게시 집중 경고</div>
+</div>
+
+<!-- PAGE: COMMENTS -->
+<div class="page" id="page-comments" data-page="comments">
+  <div class="page-header"><h1>통합 댓글함</h1><div class="actions"><span style="color:var(--text-secondary);font-size:13px">총 2,341건</span></div></div>
+  <div class="tab-bar"><span class="tab active">전체</span><span class="tab">🔴 위험 5</span><span class="tab">🟠 부정 42</span><span class="tab">🟡 중립 658</span><span class="tab">🟢 긍정 1,636</span></div>
+  <div class="filter-bar"><select><option>전체 플랫폼</option></select><select><option>전체 게시물</option></select><input type="text" placeholder="검색..."></div>
+  <div class="split-panel">
+    <div>
+      <div class="comment-list-item selected"><div class="sentiment-dot" style="background:var(--danger)"></div><div><strong>user123</strong> <span class="badge badge-red" style="font-size:10px">YT</span> <span style="font-size:11px;color:var(--text-secondary)">2분 전</span><br><span style="font-size:13px">"이 정책 당장 철회해라 담당자 나와"</span></div></div>
+      <div class="comment-list-item"><div class="sentiment-dot" style="background:var(--warning)"></div><div><strong>citizen_kr</strong> <span class="badge badge-green" style="font-size:10px">IG</span> <span style="font-size:11px;color:var(--text-secondary)">15분 전</span><br><span style="font-size:13px">"세금 낭비 아닌가요"</span></div></div>
+      <div class="comment-list-item"><div class="sentiment-dot" style="background:var(--success)"></div><div><strong>happy_seoul</strong> <span class="badge badge-blue" style="font-size:10px">FB</span> <span style="font-size:11px;color:var(--text-secondary)">30분 전</span><br><span style="font-size:13px">"좋은 정책 감사합니다"</span></div></div>
+      <div class="comment-list-item"><div class="sentiment-dot" style="background:var(--success)"></div><div><strong>user456</strong> <span class="badge badge-gray" style="font-size:10px">X</span> <span style="font-size:11px;color:var(--text-secondary)">1시간 전</span><br><span style="font-size:13px">"공유합니다"</span></div></div>
+      <div class="comment-list-item"><div class="sentiment-dot" style="background:var(--success)"></div><div><strong>seoul_lover</strong> <span class="badge badge-red" style="font-size:10px">YT</span> <span style="font-size:11px;color:var(--text-secondary)">2시간 전</span><br><span style="font-size:13px">"영상 퀄리티가 점점 좋아지네요!"</span></div></div>
+    </div>
+    <div>
+      <div class="card">
+        <div style="font-size:13px;margin-bottom:12px">📹 <a href="#" onclick="return false">서울시 정책 브리핑</a> (원본 게시물)</div>
+        <div style="padding:12px;background:var(--danger-bg);border-radius:var(--radius);margin-bottom:12px">
+          <div style="display:flex;justify-content:space-between"><strong>🔴 user123</strong><span style="font-size:12px;color:var(--text-secondary)">2분 전</span></div>
+          <div style="margin:8px 0;font-size:13px">"이 정책 당장 철회해라 담당자 나와"</div>
+          <div style="font-size:12px">감성: <span class="badge badge-red">위험</span> (신뢰도 94%) · 키워드: 철회, 담당자</div>
+        </div>
+        <div style="margin-bottom:12px"><button class="ai-btn" onclick="toggleAiResult(this)">🤖 AI 답글 생성</button><div class="ai-result"><div style="padding:8px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin:8px 0;font-size:13px">안녕하세요, 서울시입니다. 해당 정책에 대한 시민 여러분의 의견을 소중히 듣고 있습니다. 관련 부서에 전달하여 개선 방안을 검토하겠습니다. 추가 문의는 ☎ 02-120으로 연락 부탁드립니다.</div><button class="btn btn-sm btn-outline">수정</button> <button class="btn btn-sm btn-primary">답글 게시</button></div></div>
+        <div style="display:flex;gap:8px"><button class="btn btn-outline btn-sm">숨김 처리</button><button class="btn btn-outline btn-sm">삭제 승인 요청</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE: DANGER COMMENTS -->
+<div class="page" id="page-danger-comments" data-page="danger-comments">
+  <div class="page-header"><h1>⚠️ 위험 댓글 관리</h1><div class="actions"><span style="color:var(--danger);font-weight:600">🔴 5건 대기</span></div></div>
+  <div class="tab-bar"><span class="tab active">미처리</span><span class="tab">처리 완료</span><span class="tab">아카이브</span></div>
+  <div class="approval-card urgent"><div class="card-top"><span class="badge badge-red">긴급</span><span style="font-size:12px;color:var(--text-secondary)">2분 전 · YouTube · 정책 브리핑 영상</span></div><div style="font-size:13px;margin:8px 0">user123: "이 정책 당장 철회해라 담당자 나와"</div><div style="font-size:12px;color:var(--text-secondary)">감성: 위험 (94%) · 텔레그램 알림 발송됨 ✓</div><div style="display:flex;gap:8px;margin-top:10px"><button class="ai-btn">🤖 AI 답글 생성</button><button class="btn btn-outline btn-sm">숨김 처리</button><button class="btn btn-outline btn-sm">삭제 승인 요청</button><button class="btn btn-outline btn-sm">무시</button></div></div>
+  <div class="approval-card urgent"><div class="card-top"><span class="badge badge-red">긴급</span><span style="font-size:12px;color:var(--text-secondary)">15분 전 · Instagram · 봄맞이 캠페인</span></div><div style="font-size:13px;margin:8px 0">angry_user: "개인정보 유출 아닌가? 신고하겠다"</div><div style="font-size:12px;color:var(--text-secondary)">감성: 위험 (89%) · 텔레그램 알림 발송됨 ✓</div><div style="display:flex;gap:8px;margin-top:10px"><button class="ai-btn">🤖 AI 답글 생성</button><button class="btn btn-outline btn-sm">숨김 처리</button><button class="btn btn-outline btn-sm">삭제 승인 요청</button><button class="btn btn-outline btn-sm">무시</button></div></div>
+  <div class="approval-card normal"><div class="card-top"><span class="badge badge-yellow">주의</span><span style="font-size:12px;color:var(--text-secondary)">1시간 전 · Facebook · 교통 안내</span></div><div style="font-size:13px;margin:8px 0">road_rage99: "매일 막히는데 대책이 이거밖에 없나"</div><div style="font-size:12px;color:var(--text-secondary)">감성: 위험 (72%)</div><div style="display:flex;gap:8px;margin-top:10px"><button class="ai-btn">🤖 AI 답글 생성</button><button class="btn btn-outline btn-sm">숨김 처리</button><button class="btn btn-outline btn-sm">무시</button></div></div>
+</div>
+
+<!-- PAGE: REPLY TEMPLATES -->
+<div class="page" id="page-reply-templates" data-page="reply-templates">
+  <div class="page-header"><h1>답글 템플릿 관리</h1><div class="actions"><button class="btn btn-primary btn-sm">+ 새 템플릿</button></div></div>
+  <div class="filter-bar"><select><option>전체 카테고리</option><option>민원·불만</option><option>정책 문의</option><option>칭찬·감사</option></select><input type="text" placeholder="검색..."></div>
+  <div class="card" style="margin-bottom:16px"><div class="table-wrap"><table>
+    <thead><tr><th>카테고리</th><th>템플릿명</th><th>사용 횟수</th><th>상태</th></tr></thead>
+    <tbody>
+      <tr class="clickable"><td>민원·불만</td><td>일반 민원 응대</td><td>124회</td><td><span class="badge badge-green">활성</span></td></tr>
+      <tr class="clickable"><td>민원·불만</td><td>개인정보 관련 문의</td><td>87회</td><td><span class="badge badge-green">활성</span></td></tr>
+      <tr class="clickable"><td>정책 문의</td><td>정책 상세 안내 요청</td><td>65회</td><td><span class="badge badge-green">활성</span></td></tr>
+      <tr class="clickable"><td>칭찬·감사</td><td>긍정 댓글 감사 응답</td><td>201회</td><td><span class="badge badge-green">활성</span></td></tr>
+      <tr class="clickable"><td>행사·일정</td><td>행사 일정 안내</td><td>43회</td><td><span class="badge badge-green">활성</span></td></tr>
+      <tr class="clickable"><td>기타</td><td>담당 부서 연결 안내</td><td>31회</td><td><span class="badge badge-gray">비활성</span></td></tr>
+    </tbody>
+  </table></div></div>
+  <div class="card"><h3 style="font-size:14px;margin-bottom:12px">템플릿 편집</h3>
+    <div class="editor-section"><label>템플릿명</label><input type="text" value="일반 민원 응대"></div>
+    <div class="editor-section"><label>카테고리</label><select style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius)"><option>민원·불만</option><option>정책 문의</option></select></div>
+    <div class="editor-section"><label>템플릿 내용</label><textarea>안녕하세요, {기관명}입니다.
+불편을 드려 죄송합니다. 해당 사안은 담당 부서에 전달하여 신속히 처리하겠습니다.
+추가 문의사항은 {연락처}로 연락 부탁드립니다.</textarea></div>
+    <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">변수: {기관명}, {연락처}, {담당부서}</div>
+    <div style="display:flex;gap:8px"><button class="btn btn-primary btn-sm">저장</button><button class="btn btn-danger btn-sm">삭제</button><button class="ai-btn">🤖 AI로 개선 제안 받기</button></div>
+  </div>
+</div>
+
+<!-- PAGE: MEDIA LIBRARY -->
+<div class="page" id="page-media" data-page="media">
+  <div class="page-header"><h1>미디어 라이브러리</h1><div class="actions"><button class="btn btn-primary btn-sm">업로드</button><button class="btn btn-outline btn-sm">폴더 추가</button></div></div>
+  <div class="filter-bar"><select><option>전체 유형</option><option>영상</option><option>이미지</option><option>문서</option></select><input type="text" placeholder="태그 검색..."><select><option>최신순</option><option>이름순</option></select></div>
+  <div style="display:grid;grid-template-columns:200px 1fr;gap:16px">
+    <div class="card" style="font-size:13px">
+      <div style="padding:4px 0;cursor:pointer"><strong>📂 전체</strong></div>
+      <div style="padding:4px 0 4px 12px;cursor:pointer">📂 2026년 3월</div>
+      <div style="padding:4px 0 4px 24px;cursor:pointer">📂 영상</div>
+      <div style="padding:4px 0 4px 24px;cursor:pointer">📂 이미지</div>
+      <div style="padding:4px 0 4px 24px;cursor:pointer">📂 문서</div>
+      <div style="padding:4px 0 4px 12px;cursor:pointer">📂 2026년 2월</div>
+      <div style="padding:4px 0 4px 12px;cursor:pointer">📂 템플릿</div>
+      <div style="margin-top:16px;font-size:12px;color:var(--text-secondary)">용량: 12.3GB / 50GB</div>
+    </div>
+    <div><div class="media-grid">
+      <div class="media-item"><div class="media-thumb">🎬</div><div class="media-info"><strong>정책 브리핑 v2</strong><br>영상 · 15:20</div></div>
+      <div class="media-item"><div class="media-thumb">📷</div><div class="media-info"><strong>캠페인 사진</strong><br>이미지 · 최종</div></div>
+      <div class="media-item"><div class="media-thumb">📷</div><div class="media-info"><strong>포스터 시안</strong><br>이미지 · v1</div></div>
+      <div class="media-item"><div class="media-thumb">📄</div><div class="media-info"><strong>보도 자료</strong><br>문서</div></div>
+      <div class="media-item"><div class="media-thumb">📷</div><div class="media-info"><strong>행사 사진1</strong><br>이미지</div></div>
+      <div class="media-item"><div class="media-thumb">🎬</div><div class="media-info"><strong>인터뷰 영상</strong><br>영상 · 8:30</div></div>
+      <div class="media-item"><div class="media-thumb">📷</div><div class="media-info"><strong>배너 이미지</strong><br>이미지</div></div>
+      <div class="media-item"><div class="media-thumb">📷</div><div class="media-info"><strong>로고 파일</strong><br>이미지</div></div>
+    </div><div class="pagination"><span>◀ 1 2 3 ▶</span><span></span></div></div>
+  </div>
+</div>
+
+<!-- PAGE: ANALYTICS -->
+<div class="page" id="page-analytics" data-page="analytics">
+  <div class="page-header"><h1>성과 분석</h1><div class="actions"><span style="font-size:13px">기간: 2026-02-01 ~ 03-03</span><button class="btn btn-outline btn-sm">PDF 내보내기</button></div></div>
+  <div class="filter-bar"><select><option>전체 플랫폼</option></select></div>
+  <div class="kpi-grid">
+    <div class="card kpi-card"><div class="kpi-label">총 도달</div><div class="kpi-value">125.4K</div><div class="kpi-change up">+12.3%</div></div>
+    <div class="card kpi-card"><div class="kpi-label">참여율</div><div class="kpi-value">4.2%</div><div class="kpi-change up">+0.8%p</div></div>
+    <div class="card kpi-card"><div class="kpi-label">팔로워</div><div class="kpi-value">45.2K</div><div class="kpi-change up">+1,423</div></div>
+    <div class="card kpi-card"><div class="kpi-label">게시물</div><div class="kpi-value">127건</div><div class="kpi-change up">+15건</div></div>
+  </div>
+  <div class="card" style="margin-bottom:16px"><h3 style="font-size:14px;margin-bottom:12px">도달·참여 추이</h3><div class="tab-bar"><span class="tab active">일별</span><span class="tab">주별</span><span class="tab">월별</span></div><div class="chart-placeholder">📈 라인 차트 (플랫폼별 색상 구분)</div></div>
+  <div class="two-col">
+    <div class="card"><h3 style="font-size:14px;margin-bottom:12px">플랫폼별 성과 비교</h3><div style="font-size:13px"><div style="padding:4px 0">YouTube <div style="background:var(--primary);height:12px;border-radius:4px;width:90%"></div> 45K</div><div style="padding:4px 0">Instagram <div style="background:#8b5cf6;height:12px;border-radius:4px;width:64%"></div> 32K</div><div style="padding:4px 0">Facebook <div style="background:#3b82f6;height:12px;border-radius:4px;width:56%"></div> 28K</div><div style="padding:4px 0">X <div style="background:#6b7280;height:12px;border-radius:4px;width:30%"></div> 15K</div><div style="padding:4px 0">Blog <div style="background:var(--success);height:12px;border-radius:4px;width:10%"></div> 5K</div></div></div>
+    <div class="card"><h3 style="font-size:14px;margin-bottom:12px">상위 콘텐츠 TOP 5</h3><div style="font-size:13px"><div style="padding:4px 0">1. 정책 브리핑 (YT) — 12.3K 조회</div><div style="padding:4px 0">2. 봄맞이 캠페인 (IG) — 8.9K 도달</div><div style="padding:4px 0">3. 교통 안내 카드뉴스 (FB) — 5.2K 도달</div><div style="padding:4px 0">4. 문화행사 안내 (YT) — 4.8K 조회</div><div style="padding:4px 0">5. 시민 인터뷰 (IG) — 3.5K 도달</div></div></div>
+  </div>
+  <div class="card"><h3 style="font-size:14px;margin-bottom:12px">게시 시간대별 참여율 히트맵</h3><div class="chart-placeholder">📊 요일 × 시간 매트릭스 히트맵<br>🤖 최적 게시 시간 추천: 화/목 09:00~10:00</div></div>
+</div>
+
+<!-- PAGE: REPORTS -->
+<div class="page" id="page-reports" data-page="reports">
+  <div class="page-header"><h1>운영 리포트</h1><div class="actions"><button class="btn btn-primary btn-sm">🤖 새 리포트 생성</button></div></div>
+  <div class="filter-bar"><select><option>주간</option><option>월간</option></select><span style="font-size:13px">기간: 2026-02-24 ~ 03-02</span></div>
+  <div class="card" style="margin-bottom:16px"><div class="table-wrap"><table>
+    <thead><tr><th>리포트명</th><th>상태</th><th>날짜</th></tr></thead>
+    <tbody>
+      <tr class="clickable"><td>📄 2월 5주차 주간 운영 리포트</td><td><span class="badge badge-green">확정</span></td><td>03-03</td></tr>
+      <tr class="clickable"><td>📄 2월 4주차 주간 운영 리포트</td><td><span class="badge badge-green">확정</span></td><td>02-24</td></tr>
+      <tr class="clickable"><td>📄 2월 월간 운영 리포트</td><td><span class="badge badge-yellow">초안</span></td><td>02-28</td></tr>
+      <tr class="clickable"><td>📄 2월 3주차 주간 운영 리포트</td><td><span class="badge badge-green">확정</span></td><td>02-17</td></tr>
+    </tbody>
+  </table></div></div>
+  <div class="card"><h3 style="font-size:14px;margin-bottom:12px">리포트 미리보기 — 2월 5주차 주간 운영 리포트</h3><div style="font-size:13px"><div style="margin-bottom:8px"><strong>1. 요약</strong><br>이번 주 총 게시물 32건, 전주 대비 +12%. YouTube 정책 브리핑 영상이 12.3K 조회로 최고 성과.</div><div style="margin-bottom:8px"><strong>2. 플랫폼별 성과</strong><div class="chart-placeholder" style="height:100px;margin-top:4px">📊 차트</div></div><div style="margin-bottom:8px"><strong>3. 주요 콘텐츠 성과</strong> — 테이블</div><div style="margin-bottom:8px"><strong>4. 댓글·여론 동향</strong> — 감성 분석 차트</div><div><strong>5. AI 개선 제안</strong> — 릴스 활용 확대 권장</div></div><div style="display:flex;gap:8px;margin-top:16px"><button class="btn btn-outline btn-sm">편집</button><button class="btn btn-outline btn-sm">PDF 다운로드</button><button class="btn btn-primary btn-sm">확정</button></div></div>
+</div>
+
+<!-- PAGE: SENTIMENT -->
+<div class="page" id="page-sentiment" data-page="sentiment">
+  <div class="page-header"><h1>여론 동향 분석</h1><div class="actions"><span style="font-size:13px">기간: 최근 7일</span></div></div>
+  <div class="card" style="margin-bottom:16px;border-left:4px solid var(--warning)"><div style="font-size:13px">⚠️ <strong>"교통정책" 키워드 부정 댓글 48시간 내 230% 급증</strong><br>이슈화 가능성: 높음 (신뢰도: 보통)<br><div style="margin-top:8px"><button class="btn btn-outline btn-sm">상세 보기</button> <button class="btn btn-outline btn-sm" onclick="navigateTo('comments')">관련 댓글 보기</button></div></div></div>
+  <div class="two-col">
+    <div class="card"><h3 style="font-size:14px;margin-bottom:12px">감성 추이 (시계열)</h3><div class="chart-placeholder">📈 긍정 / 중립 / 부정 라인 차트</div></div>
+    <div class="card"><h3 style="font-size:14px;margin-bottom:12px">주요 키워드 워드클라우드</h3><div class="chart-placeholder" style="font-size:16px">교통 &nbsp; <span style="font-size:22px">정책</span> &nbsp; 환경<br><span style="font-size:14px">예산</span> &nbsp; <span style="font-size:20px">시민</span> &nbsp; 안전<br>복지 &nbsp; <span style="font-size:18px">서울</span></div></div>
+  </div>
+  <div class="card"><h3 style="font-size:14px;margin-bottom:12px">키워드별 출현 빈도 변화</h3><div class="chart-placeholder">📊 히트맵 또는 바 차트</div></div>
+</div>
+
+<!-- PAGE: CHANNELS -->
+<div class="page" id="page-channels" data-page="channels">
+  <div class="page-header"><h1>채널 관리</h1><div class="actions"><button class="btn btn-primary btn-sm">+ 새 채널 연동</button></div></div>
+  <div class="tab-bar"><span class="tab active">연동 계정</span><span class="tab">API 상태</span></div>
+  <div class="card" style="margin-bottom:16px"><div class="table-wrap"><table>
+    <thead><tr><th>플랫폼</th><th>계정명</th><th>상태</th><th>토큰 만료</th></tr></thead>
+    <tbody>
+      <tr class="clickable" onclick="navigateTo('channel-history')"><td>▶ YouTube</td><td>서울시 공식채널</td><td><span class="badge badge-green">정상</span></td><td>2026-09-15</td></tr>
+      <tr class="clickable" onclick="navigateTo('channel-history')"><td>▶ Instagram</td><td>@seoul_official</td><td><span class="badge badge-green">정상</span></td><td>2026-06-01</td></tr>
+      <tr class="clickable" onclick="navigateTo('channel-history')"><td>▶ Facebook</td><td>서울특별시</td><td><span class="badge badge-yellow">갱신 필요</span></td><td>2026-03-10</td></tr>
+      <tr class="clickable" onclick="navigateTo('channel-history')"><td>▶ X</td><td>@seoul_gov</td><td><span class="badge badge-green">정상</span></td><td>2026-12-01</td></tr>
+      <tr class="clickable" onclick="navigateTo('channel-history')"><td>▶ 네이버 블로그</td><td>서울시 공식블로그</td><td><span class="badge badge-green">정상</span></td><td>—</td></tr>
+    </tbody>
+  </table></div></div>
+  <div class="card"><h3 style="font-size:14px;margin-bottom:12px">API 상태</h3><div style="font-size:13px">
+    <div style="padding:6px 0">YouTube — 오늘 사용: 3,200 / 10,000 쿼터 <div style="background:var(--placeholder-bg);border-radius:4px;height:8px;margin-top:4px"><div style="background:var(--primary);border-radius:4px;height:8px;width:32%"></div></div></div>
+    <div style="padding:6px 0">Instagram — 오늘 사용: 850 / 5,000 호출 <div style="background:var(--placeholder-bg);border-radius:4px;height:8px;margin-top:4px"><div style="background:#8b5cf6;border-radius:4px;height:8px;width:17%"></div></div></div>
+    <div style="padding:6px 0">Facebook — 오늘 사용: 1,200 / 4,800 호출 <div style="background:var(--placeholder-bg);border-radius:4px;height:8px;margin-top:4px"><div style="background:#3b82f6;border-radius:4px;height:8px;width:25%"></div></div></div>
+    <div style="padding:6px 0">X — 오늘 사용: 120 / 1,500 호출 <div style="background:var(--placeholder-bg);border-radius:4px;height:8px;margin-top:4px"><div style="background:#6b7280;border-radius:4px;height:8px;width:8%"></div></div></div>
+  </div></div>
+</div>
+
+<!-- PAGE: CHANNEL HISTORY -->
+<div class="page" id="page-channel-history" data-page="channel-history">
+  <div class="page-header"><h1>채널 상세: YouTube — 서울시 공식채널</h1></div>
+  <div class="tab-bar"><span class="tab">계정 정보</span><span class="tab active">연동 이력</span><span class="tab">API 사용량</span></div>
+  <div class="card" style="margin-bottom:16px"><div class="table-wrap"><table>
+    <thead><tr><th>일시</th><th>유형</th><th>처리자</th><th>상세</th></tr></thead>
+    <tbody>
+      <tr><td>2026-03-01 09:00</td><td>토큰 갱신</td><td>시스템</td><td>자동 갱신 ✅</td></tr>
+      <tr><td>2026-02-15 14:30</td><td>토큰 갱신</td><td>김OO</td><td>수동 갱신 ✅</td></tr>
+      <tr><td>2026-01-10 10:00</td><td>계정 연결</td><td>김OO</td><td>OAuth 연동 ✅</td></tr>
+      <tr><td>2025-12-20 16:00</td><td>계정 해제</td><td>이OO</td><td>기존 연동 해제</td></tr>
+      <tr><td>2025-06-01 09:00</td><td>계정 연결</td><td>이OO</td><td>최초 연동</td></tr>
+    </tbody>
+  </table></div></div>
+  <div style="display:flex;gap:8px"><button class="btn btn-danger btn-sm">연동 해제</button><button class="btn btn-primary btn-sm">토큰 수동 갱신</button></div>
+</div>
+
+<!-- PAGE: USERS -->
+<div class="page" id="page-users" data-page="users">
+  <div class="page-header"><h1>사용자·권한 관리</h1><div class="actions"><button class="btn btn-primary btn-sm">+ 사용자 초대</button></div></div>
+  <div class="tab-bar"><span class="tab active">사용자 목록</span><span class="tab">역할 관리</span></div>
+  <div class="filter-bar"><input type="text" placeholder="검색..."><select><option>전체 역할</option><option>수탁업체 관리자</option><option>수탁업체 실무자</option><option>위탁기관 담당자</option></select><select><option>전체 상태</option><option>활성</option><option>비활성</option></select></div>
+  <div class="card"><div class="table-wrap"><table>
+    <thead><tr><th>이름</th><th>이메일</th><th>역할</th><th>상태</th></tr></thead>
+    <tbody>
+      <tr class="clickable"><td>김OO</td><td>kim@agency.co.kr</td><td>수탁업체 관리자</td><td><span class="badge badge-green">활성</span></td></tr>
+      <tr class="clickable"><td>이OO</td><td>lee@agency.co.kr</td><td>수탁업체 실무자</td><td><span class="badge badge-green">활성</span></td></tr>
+      <tr class="clickable"><td>박OO</td><td>park@agency.co.kr</td><td>수탁업체 실무자</td><td><span class="badge badge-green">활성</span></td></tr>
+      <tr class="clickable"><td>정OO</td><td>jung@seoul.go.kr</td><td>위탁기관 담당자</td><td><span class="badge badge-green">활성</span></td></tr>
+      <tr class="clickable"><td>최OO</td><td>choi@seoul.go.kr</td><td>위탁기관 담당자</td><td><span class="badge badge-gray">비활성</span></td></tr>
+    </tbody>
+  </table></div></div>
+</div>
+
+<!-- PAGE: WORKFLOW SETTINGS -->
+<div class="page" id="page-workflow-settings" data-page="workflow-settings">
+  <div class="page-header"><h1>승인 워크플로우 설정</h1><div class="actions"><button class="btn btn-primary btn-sm">저장</button></div></div>
+  <div class="card" style="margin-bottom:16px"><h3 style="font-size:14px;margin-bottom:12px">기본 워크플로우</h3>
+    <div class="workflow-bar" style="margin-top:0"><span class="wf-step done">작성</span><span class="wf-arrow">→</span><span class="wf-step done">검토 요청</span><span class="wf-arrow">→</span><span class="wf-step current">1차 검수</span><span class="wf-arrow">→</span><span class="wf-step pending">승인/반려</span><span class="wf-arrow">→</span><span class="wf-step pending">게시</span></div>
+    <div style="margin-top:12px;font-size:13px">검수자: <select style="padding:4px 8px;border:1px solid var(--border);border-radius:var(--radius)"><option>정OO</option><option>최OO</option></select></div>
+    <div style="margin-top:8px"><button class="btn btn-outline btn-sm">+ 검수 단계 추가</button> <button class="btn btn-outline btn-sm">단계 삭제</button></div>
+  </div>
+  <div class="card" style="margin-bottom:16px"><h3 style="font-size:14px;margin-bottom:12px">긴급 승인 경로 (Fast Track)</h3>
+    <div style="font-size:13px"><label><input type="checkbox" checked> 긴급 승인 경로 활성화</label></div>
+    <div class="workflow-bar" style="margin-top:8px"><span class="wf-step done">작성</span><span class="wf-arrow">→</span><span class="wf-step current">긴급 표시 + 검토 요청</span><span class="wf-arrow">→</span><span class="wf-step pending">승인/반려</span><span class="wf-arrow">→</span><span class="wf-step pending">게시</span></div>
+    <div style="margin-top:12px;font-size:13px">긴급 승인 권한자: <select style="padding:4px 8px;border:1px solid var(--border);border-radius:var(--radius)"><option>정OO</option></select> <select style="padding:4px 8px;border:1px solid var(--border);border-radius:var(--radius)"><option>최OO</option></select><br><label style="margin-top:6px;display:block"><input type="checkbox" checked> 긴급 사유 입력 필수</label><label><input type="checkbox" checked> 긴급 게시 후 사후 검수 필수</label></div>
+  </div>
+  <div class="card"><h3 style="font-size:14px;margin-bottom:12px">자동 반려 조건</h3><div style="font-size:13px"><label><input type="radio" name="auto-reject"> AI 표현 가이드 검수 미통과 시 자동 반려</label><br><label><input type="radio" name="auto-reject" checked> AI 검수 경고 첨부 후 검수자 판단에 위임</label></div></div>
+</div>
+
+<!-- PAGE: NOTIFICATION SETTINGS -->
+<div class="page" id="page-notification-settings" data-page="notification-settings">
+  <div class="page-header"><h1>알림 설정</h1><div class="actions"><button class="btn btn-primary btn-sm">저장</button></div></div>
+  <div class="tab-bar"><span class="tab active" onclick="this.parentElement.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));this.classList.add('active')">웹 알림</span><span class="tab" onclick="this.parentElement.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));this.classList.add('active')">텔레그램</span><span class="tab" onclick="this.parentElement.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));this.classList.add('active')">웹 푸시</span></div>
+  <div class="card" style="margin-bottom:16px"><div class="table-wrap"><table>
+    <thead><tr><th>알림 유형</th><th>수신 여부</th></tr></thead>
+    <tbody>
+      <tr><td>위험 댓글 감지</td><td><label><input type="checkbox" checked> 수신</label></td></tr>
+      <tr><td>승인 요청 (내가 검수자일 때)</td><td><label><input type="checkbox" checked> 수신</label></td></tr>
+      <tr><td>승인/반려 결과</td><td><label><input type="checkbox" checked> 수신</label></td></tr>
+      <tr><td>게시 완료</td><td><label><input type="checkbox" checked> 수신</label></td></tr>
+      <tr><td>게시 실패</td><td><label><input type="checkbox" checked> 수신</label></td></tr>
+      <tr><td>토큰 만료 임박</td><td><label><input type="checkbox" checked> 수신</label></td></tr>
+      <tr><td>시스템 공지</td><td><label><input type="checkbox" checked> 수신</label></td></tr>
+    </tbody>
+  </table></div></div>
+  <div class="card" style="margin-bottom:16px"><h3 style="font-size:14px;margin-bottom:12px">텔레그램 설정</h3><div style="font-size:13px"><label><input type="checkbox" checked> 텔레그램 알림 활성화</label><br><div style="margin:8px 0">봇 연결: @PubliSync_Bot 연결됨 ✅</div><table style="margin-top:8px"><thead><tr><th>알림 유형</th><th>채널/그룹</th><th>활성화</th></tr></thead><tbody><tr><td>위험 댓글 감지</td><td>위기대응팀 그룹</td><td><input type="checkbox" checked></td></tr><tr><td>여론 급변</td><td>위기대응팀 그룹</td><td><input type="checkbox" checked></td></tr><tr><td>게시 실패</td><td>운영팀 채널</td><td><input type="checkbox" checked></td></tr><tr><td>시스템 장애</td><td>관리자 채널</td><td><input type="checkbox" checked></td></tr></tbody></table><div style="margin-top:8px"><button class="btn btn-outline btn-sm">+ 채널/그룹 추가</button> <button class="btn btn-outline btn-sm">테스트 알림 발송</button></div></div></div>
+  <div class="card"><h3 style="font-size:14px;margin-bottom:12px">웹 푸시 설정</h3><div style="font-size:13px"><label><input type="checkbox" checked> 브라우저 웹 푸시 알림 활성화</label><br><div style="margin:8px 0">이 브라우저: Chrome · 알림 허용됨 ✅</div><div><label><input type="checkbox" checked> 위험 댓글 감지</label><br><label><input type="checkbox" checked> 승인 요청</label><br><label><input type="checkbox"> 게시 완료</label><br><label><input type="checkbox" checked> 게시 실패</label></div></div></div>
+</div>
+
+<!-- PAGE: AUDIT LOG -->
+<div class="page" id="page-audit-log" data-page="audit-log">
+  <div class="page-header"><h1>감사 로그</h1><div class="actions"><button class="btn btn-outline btn-sm">CSV 내보내기</button><button class="btn btn-outline btn-sm">PDF</button></div></div>
+  <div class="filter-bar"><input type="text" value="2026-03-01 ~ 03-03" style="width:180px"><select><option>전체 행위자</option></select><select><option>전체 유형</option><option>콘텐츠 작성</option><option>댓글 삭제</option><option>승인</option><option>로그인</option></select><input type="text" placeholder="대상 검색..."></div>
+  <div class="card"><div class="table-wrap"><table>
+    <thead><tr><th>일시</th><th>행위자</th><th>유형</th><th>대상</th><th>상세</th></tr></thead>
+    <tbody>
+      <tr><td>03-03 09:15:23</td><td>김OO</td><td>콘텐츠 작성</td><td>정책 브리핑</td><td><button class="btn btn-outline btn-sm">보기</button></td></tr>
+      <tr><td>03-03 09:10:05</td><td>이OO</td><td>댓글 삭제</td><td>comment#123</td><td><button class="btn btn-outline btn-sm">보기</button></td></tr>
+      <tr><td>03-03 08:55:41</td><td>정OO</td><td>승인</td><td>카드뉴스</td><td><button class="btn btn-outline btn-sm">보기</button></td></tr>
+      <tr><td>03-03 08:30:12</td><td>박OO</td><td>로그인</td><td>—</td><td><button class="btn btn-outline btn-sm">보기</button></td></tr>
+      <tr><td>03-02 18:20:33</td><td>김OO</td><td>계정 연동</td><td>YouTube</td><td><button class="btn btn-outline btn-sm">보기</button></td></tr>
+    </tbody>
+  </table></div><div class="pagination"><span>◀ 1 2 3 ... 45 ▶</span><span></span></div></div>
+</div>
+
+<!-- PAGE: AI VIDEO EDIT -->
+<div class="page" id="page-video-edit" data-page="video-edit">
+  <div class="page-header"><h1>AI 영상 편집 보조</h1><div class="actions"><button class="btn btn-primary btn-sm">저장</button><button class="btn btn-outline btn-sm" onclick="navigateTo('content-new')">콘텐츠 작성으로 돌아가기</button></div></div>
+  <div class="card" style="margin-bottom:16px"><div style="background:var(--video-bg);height:240px;border-radius:var(--radius);display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px">🎬 영상 미리보기 플레이어<br><span style="font-size:13px">▶ 00:02:34 / 00:15:20</span></div></div>
+  <div class="card" style="margin-bottom:16px"><h3 style="font-size:14px;margin-bottom:8px">타임라인</h3><div style="background:var(--bg);padding:12px;border-radius:var(--radius);font-size:12px"><div style="display:flex;gap:4px;margin-bottom:4px"><span style="background:#93c5fd;padding:2px 8px;border-radius:4px">자막1</span><span style="background:#93c5fd;padding:2px 8px;border-radius:4px">자막2</span><span style="background:#93c5fd;padding:2px 8px;border-radius:4px">자막3</span><span style="background:#93c5fd;padding:2px 8px;border-radius:4px">자막4</span><span style="background:#93c5fd;padding:2px 8px;border-radius:4px">자막5</span></div><div style="display:flex;gap:4px;margin-bottom:4px"><span style="background:#fcd34d;padding:2px 8px;border-radius:4px">♪ 효과음1</span><span style="background:#fcd34d;padding:2px 8px;border-radius:4px;margin-left:40px">♪ 효과음2</span></div><div style="display:flex;gap:4px"><span style="background:#fca5a5;padding:2px 8px;border-radius:4px">😊</span><span style="background:#fca5a5;padding:2px 8px;border-radius:4px;margin-left:30px">👍</span><span style="background:#fca5a5;padding:2px 8px;border-radius:4px;margin-left:50px">🎉</span></div></div></div>
+  <div class="split-panel">
+    <div class="card"><h3 style="font-size:14px;margin-bottom:12px">자막 편집 패널</h3><div style="font-size:13px"><div style="margin-bottom:12px"><strong>#1</strong> 00:00 ~ 00:05<br><textarea style="width:100%;padding:6px;border:1px solid var(--border);border-radius:4px;font-size:13px;margin-top:4px">안녕하세요 서울시 정책 브리핑입니다</textarea><button class="btn btn-outline btn-sm" style="margin-top:4px">삭제</button> <button class="btn btn-outline btn-sm">시간 조정</button></div><div style="margin-bottom:12px"><strong>#2</strong> 00:05 ~ 00:10<br><textarea style="width:100%;padding:6px;border:1px solid var(--border);border-radius:4px;font-size:13px;margin-top:4px">오늘은 3월 교통 정책에 대해 말씀드리겠습니다</textarea><button class="btn btn-outline btn-sm" style="margin-top:4px">삭제</button> <button class="btn btn-outline btn-sm">시간 조정</button></div></div><div style="margin-top:8px"><button class="ai-btn">🤖 자막 재생성</button> <button class="btn btn-outline btn-sm">+ 수동 자막 추가</button></div></div>
+    <div class="card"><h3 style="font-size:14px;margin-bottom:12px">🤖 AI 추천 패널</h3><div style="font-size:13px"><div style="margin-bottom:12px"><strong>효과음 추천:</strong><br>• 00:00 인트로 효과음 ▶<br>• 02:30 전환 효과음 ▶<br>• 10:15 강조 효과음 ▶<br><button class="btn btn-outline btn-sm" style="margin-top:4px">전체 적용</button> <button class="btn btn-outline btn-sm">개별 선택</button></div><div><strong>이모지 추천:</strong><br>• 00:15 😊 (밝은 인사)<br>• 05:20 📊 (통계 설명)<br>• 12:00 👍 (성과 강조)<br><button class="btn btn-outline btn-sm" style="margin-top:4px">전체 적용</button> <button class="btn btn-outline btn-sm">개별 선택</button></div><div style="margin-top:12px;padding:8px;background:var(--warning-bg);border-radius:var(--radius);font-size:12px">⚠️ AI 추천은 PoC 검증 후 가용 범위가 결정됩니다.</div></div></div>
+  </div>
+</div>
+
+<!-- PAGE: AI SHORTFORM -->
+<div class="page" id="page-shortform" data-page="shortform">
+  <div class="page-header"><h1>숏폼 생성: 정책 브리핑 영상에서 숏폼 추출</h1><div class="actions"><button class="btn btn-primary btn-sm">저장</button><button class="btn btn-outline btn-sm">취소</button></div></div>
+  <div class="card" style="margin-bottom:16px"><h3 style="font-size:14px;margin-bottom:8px">원본 영상 타임라인</h3><div style="background:var(--bg);padding:12px;border-radius:var(--radius);font-size:12px"><div style="background:var(--placeholder-bg);height:20px;border-radius:4px;position:relative"><span style="position:absolute;left:3%;width:5%;height:100%;background:#3b82f6;border-radius:4px;opacity:.7" title="AI 추천 1"></span><span style="position:absolute;left:28%;width:7%;height:100%;background:#3b82f6;border-radius:4px;opacity:.7" title="AI 추천 2"></span><span style="position:absolute;left:78%;width:5%;height:100%;background:#3b82f6;border-radius:4px;opacity:.7" title="AI 추천 3"></span></div><div style="display:flex;justify-content:space-between;margin-top:4px"><span>00:00</span><span>15:20</span></div></div></div>
+  <div class="split-panel">
+    <div class="card"><h3 style="font-size:14px;margin-bottom:12px">추출 후보</h3><div style="font-size:13px">
+      <div style="padding:10px;border:2px solid var(--primary);border-radius:var(--radius);margin-bottom:8px;background:var(--primary-light)"><label><input type="checkbox" checked> <strong>후보 1 (AI 추천)</strong></label><br>00:30~01:15 (45초)<br>"핵심 정책 요약 부분"<br><span class="badge badge-green">신뢰도: 높음</span></div>
+      <div style="padding:10px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px"><label><input type="checkbox"> <strong>후보 2 (AI 추천)</strong></label><br>04:20~05:30 (70초→60초)<br>"시민 인터뷰 하이라이트"<br><span class="badge badge-yellow">신뢰도: 보통</span></div>
+      <div style="padding:10px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px"><label><input type="checkbox"> <strong>후보 3 (AI 추천)</strong></label><br>12:00~12:45 (45초)<br>"성과 발표 핵심"<br><span class="badge badge-green">신뢰도: 높음</span></div>
+      <button class="btn btn-outline btn-sm">+ 수동 구간 지정</button>
+    </div></div>
+    <div class="card"><h3 style="font-size:14px;margin-bottom:12px">숏폼 미리보기</h3><div style="background:var(--video-bg);width:180px;height:320px;border-radius:var(--radius);margin:0 auto 12px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;flex-direction:column">🎬 9:16 세로<br>숏폼 미리보기<br><span style="font-size:11px;margin-top:8px">자막 오버레이</span></div><div style="font-size:13px;text-align:center"><div style="margin-bottom:8px">비율: <span class="badge badge-blue">9:16</span> <span class="badge badge-gray">1:1</span> <span class="badge badge-gray">16:9</span></div><div style="margin-bottom:8px">자막: 🤖 자동 적용 ✅</div><div style="margin-bottom:12px">캡션: <button class="ai-btn">🤖 자동 생성</button></div><button class="btn btn-primary btn-sm">숏폼으로 저장</button> <button class="btn btn-outline btn-sm" onclick="navigateTo('content-new')">새 콘텐츠로 등록</button></div></div>
+  </div>
+</div>
+
+<!-- PAGE: PREDICTION -->
+<div class="page" id="page-prediction" data-page="prediction">
+  <div class="page-header"><h1>콘텐츠 성과 예측 <span class="badge badge-blue">BETA</span></h1></div>
+  <div class="card" style="margin-bottom:16px;background:var(--info-bg);border-color:#93c5fd"><div style="font-size:13px">ℹ️ 이 기능은 축적된 운영 데이터를 기반으로 예측합니다. 데이터가 충분히 축적되지 않은 초기에는 정확도가 낮을 수 있으며, 참고 자료로만 활용해 주세요.</div></div>
+  <div class="filter-bar"><label style="font-size:13px">예측 대상:</label><select><option>서울시 정책 브리핑 3월호</option><option>봄맞이 캠페인</option></select><span style="font-size:12px;color:var(--text-secondary)">(게시 전 콘텐츠)</span></div>
+  <div class="two-col">
+    <div class="card"><h3 style="font-size:14px;margin-bottom:12px">예상 성과 예측</h3><div style="font-size:13px"><div style="margin-bottom:8px"><strong>YouTube</strong><br>예상 조회수: 1.2K~2.5K<br>예상 좋아요: 45~80</div><div><strong>Instagram</strong><br>예상 도달: 800~1.5K<br>예상 참여율: 3.2~4.5%</div></div></div>
+    <div class="card"><h3 style="font-size:14px;margin-bottom:12px">최적 게시 시간 추천</h3><div style="font-size:13px">🤖 추천 시간:<br>화요일 09:00~10:00<br>목요일 14:00~15:00<br><br><span style="color:var(--text-secondary)">근거: 최근 3개월간 유사 콘텐츠 성과 분석</span></div></div>
+  </div>
+  <div class="card"><h3 style="font-size:14px;margin-bottom:12px">🤖 A/B 테스트 제안</h3><div style="font-size:13px"><div style="margin-bottom:6px"><strong>제목 A:</strong> "서울시 3월 정책 브리핑 — 핵심 요약"</div><div style="margin-bottom:6px"><strong>제목 B:</strong> "3분 만에 보는 서울시 3월 정책 변화"</div><div style="margin-bottom:6px">예상 성과 차이: 제목 B가 CTR 15~20% 높을 것으로 예측</div><div style="color:var(--text-secondary)">근거: "숫자 + 짧은 시간" 키워드가 포함된 콘텐츠의 평균 클릭률이 18% 높음</div><div style="margin-top:12px"><button class="btn btn-primary btn-sm">제목 B 적용</button> <button class="btn btn-outline btn-sm">무시</button></div></div></div>
+</div>
+
+<!-- PAGE: BENCHMARK -->
+<div class="page" id="page-benchmark" data-page="benchmark">
+  <div class="page-header"><h1>벤치마크 분석</h1><div class="actions"><span style="font-size:13px">기간: 최근 30일</span></div></div>
+  <div class="filter-bar"><button class="btn btn-outline btn-sm">+ 기관 추가</button><span style="font-size:13px">현재: 서울시, 부산시, 인천시</span></div>
+  <div class="card" style="margin-bottom:16px"><h3 style="font-size:14px;margin-bottom:12px">기관별 KPI 비교</h3><div class="table-wrap"><table>
+    <thead><tr><th></th><th>팔로워</th><th>게시물</th><th>참여율</th><th>성장률</th></tr></thead>
+    <tbody>
+      <tr><td><strong>서울시</strong></td><td>45.2K</td><td>127건</td><td>4.2%</td><td>+3.2%</td></tr>
+      <tr><td><strong>부산시</strong></td><td>32.1K</td><td>98건</td><td>3.8%</td><td>+5.1%</td></tr>
+      <tr><td><strong>인천시</strong></td><td>28.5K</td><td>85건</td><td>4.5%</td><td>+2.8%</td></tr>
+    </tbody>
+  </table></div></div>
+  <div class="card"><h3 style="font-size:14px;margin-bottom:12px">🤖 AI 인사이트</h3><div style="font-size:13px"><div style="padding:4px 0">• <strong>부산시:</strong> 이번 달 릴스 조회수 300% 증가. 사용된 포맷: 시민 참여형 챌린지 영상</div><div style="padding:4px 0">• <strong>인천시:</strong> 카드뉴스 참여율이 타 기관 대비 1.5배 높음. 특징: 인포그래픽 + 질문형 CTA 활용</div><div style="margin-top:12px;padding:8px;background:var(--bg);border-radius:var(--radius);font-size:12px">ℹ️ 공개 데이터(조회수, 좋아요 등)만 수집하며, 비공개 데이터는 포함되지 않습니다.</div></div></div>
+</div>
+
+</div><!-- /main-content -->
+</div><!-- /layout-body -->
+
+<!-- NOTIFICATION PANEL -->
+<div class="notif-overlay" id="notif-overlay" onclick="toggleNotifPanel()"></div>
+<div class="notif-panel" id="notif-panel">
+  <div class="notif-panel-header">
+    <h3>알림 센터</h3>
+    <div><button class="btn btn-sm btn-outline" onclick="navigateTo('notification-settings')">설정</button> <button class="btn btn-sm" onclick="toggleNotifPanel()">✕</button></div>
+  </div>
+  <div style="padding:8px 12px;border-bottom:1px solid var(--border)">
+    <span class="tab active" style="font-size:12px;cursor:pointer">전체</span>
+    <span class="tab" style="font-size:12px;cursor:pointer;margin-left:8px">미읽음 3</span>
+  </div>
+  <div class="notif-panel-body">
+    <div style="font-size:11px;color:var(--text-secondary);padding:8px 0">오늘</div>
+    <div class="notif-item" onclick="navigateTo('danger-comments');toggleNotifPanel()"><div class="notif-dot" style="background:var(--danger)"></div><div><strong>위험 댓글 감지</strong><br>YouTube · "이 정책 당장 철회해라..."<br><span style="font-size:11px;color:var(--text-secondary)">09:12</span></div></div>
+    <div class="notif-item" onclick="navigateTo('approval');toggleNotifPanel()"><div class="notif-dot" style="background:var(--warning)"></div><div><strong>승인 요청</strong><br>김OO님이 "정책 브리핑" 검수를 요청했습니다.<br><span style="font-size:11px;color:var(--text-secondary)">09:00</span></div></div>
+    <div class="notif-item"><div class="notif-dot" style="background:var(--success)"></div><div><strong>게시 완료</strong><br>"봄맞이 캠페인" IG 게시 완료<br><span style="font-size:11px;color:var(--text-secondary)">08:45</span></div></div>
+    <div class="notif-item"><div class="notif-dot" style="background:var(--warning)"></div><div><strong>토큰 만료 임박</strong><br>Facebook 토큰이 7일 후 만료됩니다<br><span style="font-size:11px;color:var(--text-secondary)">08:30</span></div></div>
+    <div style="font-size:11px;color:var(--text-secondary);padding:8px 0">어제</div>
+    <div class="notif-item"><div class="notif-dot" style="background:transparent;border:1px solid var(--border)"></div><div><strong>게시 완료</strong><br>"교통 안내" X 게시 완료<br><span style="font-size:11px;color:var(--text-secondary)">어제 17:30</span></div></div>
+    <div style="text-align:center;padding:12px"><button class="btn btn-sm btn-outline">전체 읽음 처리</button></div>
+  </div>
+</div>
+
+</div><!-- /main-app -->
+</div><!-- /app -->
+
+<script>
+// State
+let currentPage = 'dashboard';
+let currentRole = 'agency_admin';
+let sidebarCollapsed = false;
+
+// Role config: which menus are visible per role
+const roleMenuMap = {
+  sys_admin: ['dashboard','channels','channel-history','users','workflow-settings','notification-settings','audit-log'],
+  agency_admin: ['dashboard','content-new','content-list','approval','calendar','comments','danger-comments','reply-templates','media','analytics','prediction','reports','sentiment','benchmark','channels','channel-history','users','workflow-settings','notification-settings','audit-log'],
+  agency_worker: ['dashboard','content-new','content-list','approval','calendar','comments','danger-comments','reply-templates','media','analytics','prediction','reports','sentiment','benchmark','notification-settings'],
+  client_manager: ['dashboard','content-list','approval','calendar','comments','danger-comments','media','analytics','prediction','reports','sentiment','benchmark','workflow-settings','notification-settings','audit-log']
+};
+
+// Also allow these pages to be navigated to directly (not in sidebar but reachable via clicks)
+const extraPages = ['publish-history','video-edit','shortform'];
+
+function doLogin() {
+  document.getElementById('login-page').style.display = 'none';
+  document.getElementById('main-app').style.display = 'flex';
+  document.getElementById('main-app').style.flexDirection = 'column';
+  document.getElementById('main-app').style.height = '100vh';
+  navigateTo('dashboard');
+  updateMenuVisibility();
+  checkMobile();
+}
+
+function doLogout() {
+  document.getElementById('main-app').style.display = 'none';
+  document.getElementById('login-page').style.display = 'flex';
+  closeProfileMenu();
+}
+
+function navigateTo(page) {
+  // Hide all pages
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  // Show target page
+  const target = document.getElementById('page-' + page);
+  if (target) {
+    target.classList.add('active');
+    currentPage = page;
+  }
+  // Update sidebar active state
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.classList.toggle('active', item.getAttribute('data-page') === page);
+  });
+  // Scroll main content to top
+  document.getElementById('main-content').scrollTop = 0;
+  // Close mobile sidebar
+  if (window.innerWidth <= 768) {
+    document.getElementById('sidebar').classList.remove('mobile-open');
+    document.getElementById('mobile-overlay').classList.remove('show');
+  }
+  // Reset review detail if leaving approval
+  if (page !== 'approval') {
+    hideReview();
+  }
+  closeProfileMenu();
+}
+
+function switchRole(role) {
+  currentRole = role;
+  const labels = {
+    sys_admin: '시스템 관리자',
+    agency_admin: '수탁업체 관리자',
+    agency_worker: '수탁업체 실무자',
+    client_manager: '위탁기관 담당자'
+  };
+  document.getElementById('current-role-label').textContent = labels[role] || role;
+  // Update role option active states
+  const roleMap = { sys_admin:0, agency_admin:1, agency_worker:2, client_manager:3 };
+  const roleLabels = ['수탁업체 관리자','수탁업체 실무자','위탁기관 담당자','시스템 관리자'];
+  document.querySelectorAll('.role-option').forEach(btn => {
+    const btnRole = btn.getAttribute('onclick').match(/'([^']+)'/)[1];
+    const isActive = btnRole === role;
+    btn.classList.toggle('active', isActive);
+    const label = labels[btnRole] || btnRole;
+    btn.textContent = (isActive ? '✔ ' : '　 ') + label;
+  });
+
+  updateMenuVisibility();
+  // If current page is not visible in new role, go to dashboard
+  const allowed = roleMenuMap[role] || [];
+  if (!allowed.includes(currentPage) && !extraPages.includes(currentPage)) {
+    navigateTo('dashboard');
+  }
+  closeProfileMenu();
+}
+
+function updateMenuVisibility() {
+  const allowed = roleMenuMap[currentRole] || [];
+  document.querySelectorAll('.nav-item[data-page]').forEach(item => {
+    const page = item.getAttribute('data-page');
+    const roles = item.getAttribute('data-roles');
+    if (roles === 'all') {
+      item.style.display = '';
+    } else {
+      item.style.display = allowed.includes(page) ? '' : 'none';
+    }
+  });
+  // Show/hide workspace select based on role
+  const ws = document.getElementById('workspace-select');
+  if (currentRole === 'client_manager') {
+    ws.innerHTML = '<option>▼ 서울시 홍보담당관실</option>';
+  } else {
+    ws.innerHTML = '<option value="서울시 홍보담당관실">▼ 서울시 홍보담당관실</option><option value="부산시 홍보담당관실">▼ 부산시 홍보담당관실</option><option value="인천시 홍보담당관실">▼ 인천시 홍보담당관실</option><option value="전체 기관">▼ 전체 기관</option>';
+  }
+}
+
+function switchWorkspace(name) {
+  // Just update the display name; in a real app this would reload data
+  document.title = 'PubliSync — ' + name;
+}
+
+function toggleSidebar() {
+  sidebarCollapsed = !sidebarCollapsed;
+  const sb = document.getElementById('sidebar');
+  sb.classList.toggle('collapsed', sidebarCollapsed);
+  sb.querySelector('.sidebar-toggle button').textContent = sidebarCollapsed ? '▶' : '◀';
+}
+
+function toggleMobileSidebar() {
+  const sb = document.getElementById('sidebar');
+  const ov = document.getElementById('mobile-overlay');
+  sb.classList.toggle('mobile-open');
+  ov.classList.toggle('show');
+}
+
+function toggleNotifPanel() {
+  document.getElementById('notif-panel').classList.toggle('open');
+  document.getElementById('notif-overlay').classList.toggle('show');
+}
+
+function toggleProfileMenu() {
+  document.getElementById('profile-menu').classList.toggle('show');
+}
+
+function closeProfileMenu() {
+  document.getElementById('profile-menu').classList.remove('show');
+}
+
+// Close profile menu on outside click
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.profile-btn') && !e.target.closest('.profile-menu')) {
+    closeProfileMenu();
+  }
+});
+
+function toggleAiResult(btn) {
+  const result = btn.nextElementSibling;
+  if (result && result.classList.contains('ai-result')) {
+    result.classList.toggle('show');
+  }
+}
+
+function showReview() {
+  document.getElementById('approval-list').style.display = 'none';
+  document.getElementById('review-detail').style.display = 'block';
+}
+
+function hideReview() {
+  const al = document.getElementById('approval-list');
+  const rd = document.getElementById('review-detail');
+  if (al) al.style.display = '';
+  if (rd) rd.style.display = 'none';
+}
+
+function checkMobile() {
+  const btn = document.getElementById('mobile-menu-btn');
+  if (window.innerWidth <= 768) {
+    btn.style.display = '';
+  } else {
+    btn.style.display = 'none';
+  }
+}
+
+window.addEventListener('resize', checkMobile);
+
+// Tab click behavior
+document.querySelectorAll('.tab-bar').forEach(bar => {
+  bar.addEventListener('click', function(e) {
+    if (e.target.classList.contains('tab')) {
+      bar.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      e.target.classList.add('active');
+    }
+  });
+});
+
+// Dark mode
+function toggleDarkMode() {
+  const html = document.documentElement;
+  const isDark = html.getAttribute('data-theme') === 'dark';
+  html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  document.getElementById('theme-toggle').textContent = isDark ? '🌙' : '☀️';
+  try { localStorage.setItem('publisync-theme', isDark ? 'light' : 'dark'); } catch(e) {}
+}
+// Restore saved theme
+try {
+  const saved = localStorage.getItem('publisync-theme');
+  if (saved === 'dark') {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    document.getElementById('theme-toggle').textContent = '☀️';
+  }
+} catch(e) {}
+</script>
+</body>
+</html>

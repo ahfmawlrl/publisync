@@ -1,0 +1,105 @@
+[project]
+name = "publisync"
+version = "0.1.0"
+description = "PubliSync — 공공기관 소셜 미디어 통합 관리 플랫폼"
+requires-python = ">=3.11"
+dependencies = [
+    # Core
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.7.0",
+    "email-validator>=2.2.0",
+    # Database
+    "sqlalchemy[asyncio]>=2.0.36",
+    "asyncpg>=0.30.0",
+    "psycopg2-binary>=2.9.9",
+    "alembic>=1.14.0",
+    # Redis
+    "redis[hiredis]>=5.2.0",
+    # Auth
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "authlib>=1.4.0",
+    # HTTP
+    "httpx>=0.28.0",
+    # Email
+    "fastapi-mail>=1.4.2",
+    "jinja2>=3.1.4",
+    # Celery
+    "celery[redis]>=5.4.0",
+    # SSE
+    "sse-starlette>=2.2.0",
+    # Security
+    "cryptography>=44.0.0",
+    "slowapi>=0.1.9",
+    # Logging
+    "structlog>=24.4.0",
+    # Storage
+    "minio>=7.2.12",
+    "pillow>=11.0.0",
+    # Search
+    "meilisearch>=0.31.0",
+    # Media Processing
+    "ffmpeg-python>=0.2.0",
+    # PDF
+    "weasyprint>=62.0",
+    # AI
+    "litellm>=1.50.0",
+    # Telegram
+    "python-telegram-bot>=21.0",
+    # Monitoring
+    "sentry-sdk[fastapi]>=2.0.0",
+    # Misc
+    "python-multipart>=0.0.18",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.25.0",
+    "pytest-cov>=6.0.0",
+    "httpx>=0.28.0",
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+    "pre-commit>=4.0.0",
+]
+
+[build-system]
+requires = ["setuptools>=75.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "S",   # flake8-bandit
+    "A",   # flake8-builtins
+    "C4",  # flake8-comprehensions
+    "T20", # flake8-print
+    "RUF", # ruff-specific
+]
+ignore = ["S101", "B008"]  # allow assert in tests, allow Depends() in defaults
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+plugins = ["pydantic.mypy"]
+exclude = ["migrations/"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning"]
