@@ -50,6 +50,10 @@ docker/redis/data/
 docker/minio/data/
 docker/nginx/certs/
 
+# ===== Backups & Deploy =====
+backups/
+deploy-*.log
+
 # ===== Misc =====
 *.bak
 *.tmp

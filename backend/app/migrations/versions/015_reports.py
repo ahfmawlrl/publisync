@@ -9,7 +9,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 revision = "015"
-down_revision = "012"
+down_revision = "014"
 branch_labels = None
 depends_on = None
 
@@ -63,7 +63,7 @@ def upgrade() -> None:
     )
     op.execute(
         "CREATE POLICY sa_bypass ON reports "
-        "USING (current_setting('app.current_role', true) = 'SYSTEM_ADMIN')"
+        "USING (current_setting('app.user_role', true) = 'SYSTEM_ADMIN')"
     )
 
 

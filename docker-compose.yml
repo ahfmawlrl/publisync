@@ -119,6 +119,21 @@ services:
         condition: service_healthy
     command: celery -A app.tasks beat --loglevel=info
 
+  # ── MinIO Init (bucket creation) ────────────────────────
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 $${MINIO_ROOT_USER:-minioadmin} $${MINIO_ROOT_PASSWORD:-minioadmin};
+      mc mb --ignore-existing local/publisync-media;
+      mc anonymous set none local/publisync-media;
+      echo 'MinIO bucket initialized';
+      "
+    restart: "no"
+
   # ── Nginx ───────────────────────────────────────────────
   nginx:
     image: nginx:1.27-alpine
@@ -130,6 +145,11 @@ services:
       - ./frontend/dist:/usr/share/nginx/html:ro
     depends_on:
       - api
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   # ── Prometheus (monitoring) ─────────────────────────────
   prometheus:
@@ -159,6 +179,26 @@ services:
       - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
     depends_on:
       - prometheus
+
+  # ── Postgres Exporter ──────────────────────────────────
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: "postgresql://publisync:${POSTGRES_PASSWORD:-publisync}@postgres:5432/publisync?sslmode=disable"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ── Redis Exporter ────────────────────────────────────
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.58.0
+    restart: unless-stopped
+    environment:
+      REDIS_ADDR: "redis://redis:6379"
+    depends_on:
+      redis:
+        condition: service_healthy
 
   # ── Loki (log aggregation) ─────────────────────────────
   loki:
