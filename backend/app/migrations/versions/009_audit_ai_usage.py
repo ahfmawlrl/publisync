@@ -6,6 +6,7 @@ audit_logs: INSERT-ONLY (UPDATE/DELETE blocked via trigger).
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 revision = "009"
@@ -34,12 +35,9 @@ def upgrade() -> None:
         sa.Column("id", UUID(as_uuid=True), primary_key=True),
         sa.Column("organization_id", UUID(as_uuid=True), sa.ForeignKey("organizations.id"), nullable=False),
         sa.Column("actor_id", UUID(as_uuid=True), sa.ForeignKey("users.id"), nullable=True),
-        sa.Column("actor_role", sa.Enum("SYSTEM_ADMIN", "AGENCY_MANAGER", "AGENCY_OPERATOR",
-                                         "CLIENT_DIRECTOR", name="userrole", create_type=False),
+        sa.Column("actor_role", postgresql.ENUM(name="user_role", create_type=False),
                   nullable=True),
-        sa.Column("action", sa.Enum("CREATE", "READ", "UPDATE", "DELETE", "PUBLISH", "APPROVE",
-                                     "REJECT", "LOGIN", "LOGOUT", "INVITE", "EXPORT", "CONNECT",
-                                     "DISCONNECT", name="auditaction", create_type=False), nullable=False),
+        sa.Column("action", postgresql.ENUM(name="auditaction", create_type=False), nullable=False),
         sa.Column("resource_type", sa.String(50), nullable=False),
         sa.Column("resource_id", UUID(as_uuid=True), nullable=True),
         sa.Column("changes", JSONB, nullable=True),
@@ -78,10 +76,7 @@ def upgrade() -> None:
         sa.Column("id", UUID(as_uuid=True), primary_key=True),
         sa.Column("organization_id", UUID(as_uuid=True), sa.ForeignKey("organizations.id"), nullable=False),
         sa.Column("user_id", UUID(as_uuid=True), sa.ForeignKey("users.id"), nullable=True),
-        sa.Column("task_type", sa.Enum("TITLE", "DESCRIPTION", "HASHTAG", "META_DESC", "ALT_TEXT",
-                                        "SENTIMENT", "COMMENT_REPLY", "TONE_CONVERT", "CONTENT_REVIEW",
-                                        "SUBTITLE", "SHORTFORM", "THUMBNAIL", "TRANSLATION", "REPORT",
-                                        "PREDICTION", name="aitasktype", create_type=False), nullable=False),
+        sa.Column("task_type", postgresql.ENUM(name="aitasktype", create_type=False), nullable=False),
         sa.Column("model", sa.String(100), nullable=False),
         sa.Column("prompt_tokens", sa.Integer, server_default="0", nullable=False),
         sa.Column("completion_tokens", sa.Integer, server_default="0", nullable=False),

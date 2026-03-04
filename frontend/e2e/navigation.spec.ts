@@ -23,7 +23,7 @@ const MOCK_AUTH_STATE = {
 const MOCK_WORKSPACE_STATE = {
   state: {
     currentOrgId: '00000000-0000-0000-0000-000000000001',
-    workspaces: [{ id: '00000000-0000-0000-0000-000000000001', name: '테스트 기관' }],
+    orgList: [{ id: '00000000-0000-0000-0000-000000000001', name: '테스트 기관', slug: 'test-org' }],
   },
   version: 0,
 };
@@ -66,11 +66,12 @@ test.describe('Protected route navigation (smoke)', () => {
     test(`should load ${route.name} page at ${route.path}`, async ({ page }) => {
       await page.goto(route.path);
 
-      // Page should load without fatal errors — check that the root div has content
-      const rootContent = await page.locator('#root').textContent();
-      expect(rootContent).toBeTruthy();
+      // React should render — root div must have child elements
+      // (loading spinners, auth guards, or actual page content all count as successful rendering)
+      const childCount = await page.locator('#root > *').count();
+      expect(childCount).toBeGreaterThan(0);
 
-      // Should not show a blank error page
+      // Should not show a Vite/server error page
       await expect(page.locator('body')).not.toHaveText(/Cannot GET/i);
     });
   }

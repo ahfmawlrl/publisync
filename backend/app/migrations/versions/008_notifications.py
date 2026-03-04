@@ -5,6 +5,7 @@ Create notification tables with ENUMs and RLS policies.
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 revision = "008"
@@ -31,12 +32,8 @@ def upgrade() -> None:
         sa.Column("id", UUID(as_uuid=True), primary_key=True),
         sa.Column("organization_id", UUID(as_uuid=True), sa.ForeignKey("organizations.id"), nullable=False),
         sa.Column("user_id", UUID(as_uuid=True), sa.ForeignKey("users.id"), nullable=False),
-        sa.Column("type", sa.Enum("PUBLISH_COMPLETE", "PUBLISH_FAILED", "APPROVAL_REQUEST",
-                                   "APPROVAL_RESULT", "DANGEROUS_COMMENT", "COMMENT_NEW",
-                                   "TOKEN_EXPIRING", "SYSTEM",
-                                   name="notificationtype", create_type=False), nullable=False),
-        sa.Column("channel", sa.Enum("IN_APP", "EMAIL", "WEB_PUSH", "TELEGRAM",
-                                      name="notificationchannel", create_type=False),
+        sa.Column("type", postgresql.ENUM(name="notificationtype", create_type=False), nullable=False),
+        sa.Column("channel", postgresql.ENUM(name="notificationchannel", create_type=False),
                   nullable=False, server_default="IN_APP"),
         sa.Column("title", sa.String(255), nullable=False),
         sa.Column("message", sa.Text, nullable=False),

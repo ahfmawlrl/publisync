@@ -131,6 +131,12 @@ app.add_middleware(RequestIdMiddleware)
 app.state.limiter = limiter
 app.add_middleware(SlowAPIMiddleware)
 
+# ── Health check ──────────────────────────────────────────
+@app.get("/health", tags=["health"])
+async def health_check() -> dict:
+    return {"status": "ok", "service": "publisync-api"}
+
+
 # ── Routers ───────────────────────────────────────────────
 app.include_router(admin_router.router, prefix="/api/v1/admin", tags=["admin"])
 app.include_router(ai_router.router, prefix="/api/v1/ai", tags=["ai"])

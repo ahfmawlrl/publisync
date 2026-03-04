@@ -5,6 +5,7 @@ Creates async AI job tracking table with ENUMs and RLS policies.
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 revision = "012"
@@ -26,10 +27,8 @@ def upgrade() -> None:
                   sa.ForeignKey("organizations.id"), nullable=False),
         sa.Column("user_id", UUID(as_uuid=True),
                   sa.ForeignKey("users.id"), nullable=False),
-        sa.Column("job_type", sa.Enum("SUBTITLE", "SHORTFORM",
-                                       name="aijobtype", create_type=False), nullable=False),
-        sa.Column("status", sa.Enum("PENDING", "PROCESSING", "COMPLETED", "FAILED",
-                                     name="aijobstatus", create_type=False),
+        sa.Column("job_type", postgresql.ENUM(name="aijobtype", create_type=False), nullable=False),
+        sa.Column("status", postgresql.ENUM(name="aijobstatus", create_type=False),
                   server_default="PENDING", nullable=False),
         sa.Column("progress", sa.Integer, server_default="0", nullable=False),
         sa.Column("input_params", JSONB, nullable=True),

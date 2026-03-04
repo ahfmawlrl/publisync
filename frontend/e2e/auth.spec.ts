@@ -3,9 +3,10 @@ import { expect, test } from '@playwright/test';
 test.describe('Authentication', () => {
   test('should show login page', async ({ page }) => {
     await page.goto('/login');
-    await expect(page.getByRole('heading', { name: /로그인/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /PubliSync/i })).toBeVisible();
     await expect(page.getByPlaceholder(/이메일/i)).toBeVisible();
     await expect(page.getByPlaceholder(/비밀번호/i)).toBeVisible();
+    await expect(page.getByRole('button', { name: /로그인/i })).toBeVisible();
   });
 
   test('should show validation error on empty submit', async ({ page }) => {

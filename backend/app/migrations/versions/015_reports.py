@@ -6,6 +6,7 @@ Adds REPORT value to aijobtype ENUM.
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 revision = "015"
@@ -29,12 +30,10 @@ def upgrade() -> None:
         sa.Column("organization_id", UUID(as_uuid=True),
                   sa.ForeignKey("organizations.id"), nullable=False),
         sa.Column("title", sa.String(255), nullable=False),
-        sa.Column("period", sa.Enum("WEEKLY", "MONTHLY", "QUARTERLY",
-                                     name="reportperiod", create_type=False), nullable=False),
+        sa.Column("period", postgresql.ENUM(name="reportperiod", create_type=False), nullable=False),
         sa.Column("period_start", sa.Date, nullable=False),
         sa.Column("period_end", sa.Date, nullable=False),
-        sa.Column("status", sa.Enum("GENERATING", "DRAFT", "FINALIZED",
-                                     name="reportstatus", create_type=False),
+        sa.Column("status", postgresql.ENUM(name="reportstatus", create_type=False),
                   server_default="GENERATING", nullable=False),
         sa.Column("content", JSONB, server_default="{}", nullable=False),
         sa.Column("pdf_url", sa.String(1024), nullable=True),

@@ -5,6 +5,7 @@ Creates calendar events table with ENUM and RLS policies.
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.dialects.postgresql import UUID
 
 revision = "011"
@@ -28,8 +29,7 @@ def upgrade() -> None:
                   sa.ForeignKey("organizations.id"), nullable=False),
         sa.Column("content_id", UUID(as_uuid=True),
                   sa.ForeignKey("contents.id", ondelete="SET NULL"), nullable=True),
-        sa.Column("event_type", sa.Enum("SCHEDULED_POST", "HOLIDAY", "ANNIVERSARY", "CUSTOM",
-                                         name="calendareventtype", create_type=False), nullable=False),
+        sa.Column("event_type", postgresql.ENUM(name="calendareventtype", create_type=False), nullable=False),
         sa.Column("title", sa.String(500), nullable=False),
         sa.Column("description", sa.Text, nullable=True),
         sa.Column("event_date", sa.Date, nullable=False),

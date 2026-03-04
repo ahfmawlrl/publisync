@@ -20,23 +20,23 @@ def upgrade() -> None:
     # ── ENUM types ────────────────────────────────────────
     user_role = postgresql.ENUM(
         "SYSTEM_ADMIN", "AGENCY_MANAGER", "AGENCY_OPERATOR", "CLIENT_DIRECTOR",
-        name="user_role", create_type=True,
+        name="user_role", create_type=False,
     )
     user_status = postgresql.ENUM(
         "ACTIVE", "INACTIVE", "LOCKED", "WITHDRAWN",
-        name="user_status", create_type=True,
+        name="user_status", create_type=False,
     )
     org_status = postgresql.ENUM(
         "ACTIVE", "INACTIVE", "SUSPENDED",
-        name="org_status", create_type=True,
+        name="org_status", create_type=False,
     )
     org_plan = postgresql.ENUM(
         "FREE", "BASIC", "PRO", "ENTERPRISE",
-        name="org_plan", create_type=True,
+        name="org_plan", create_type=False,
     )
     invitation_status = postgresql.ENUM(
         "PENDING", "ACCEPTED", "EXPIRED", "REVOKED",
-        name="invitation_status", create_type=True,
+        name="invitation_status", create_type=False,
     )
     user_role.create(op.get_bind(), checkfirst=True)
     user_status.create(op.get_bind(), checkfirst=True)

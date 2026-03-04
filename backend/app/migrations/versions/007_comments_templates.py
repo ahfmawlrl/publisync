@@ -5,6 +5,7 @@ Create comments and reply_templates tables with ENUMs and RLS policies.
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 revision = "007"
@@ -28,20 +29,17 @@ def upgrade() -> None:
         sa.Column("organization_id", UUID(as_uuid=True), sa.ForeignKey("organizations.id"), nullable=False),
         sa.Column("content_id", UUID(as_uuid=True), sa.ForeignKey("contents.id"), nullable=True),
         sa.Column("channel_id", UUID(as_uuid=True), sa.ForeignKey("channels.id"), nullable=False),
-        sa.Column("platform", sa.Enum("YOUTUBE", "INSTAGRAM", "FACEBOOK", "X", "NAVER_BLOG",
-                                       name="platformtype", create_type=False), nullable=False),
+        sa.Column("platform", postgresql.ENUM(name="platformtype", create_type=False), nullable=False),
         sa.Column("external_id", sa.String(255), nullable=False),
         sa.Column("text", sa.Text, nullable=False),
         sa.Column("author_name", sa.String(200), nullable=False),
         sa.Column("author_profile_url", sa.String(512), nullable=True),
         sa.Column("parent_comment_id", UUID(as_uuid=True), sa.ForeignKey("comments.id"), nullable=True),
-        sa.Column("sentiment", sa.Enum("POSITIVE", "NEUTRAL", "NEGATIVE", "DANGEROUS",
-                                        name="commentsentiment", create_type=False), nullable=True),
+        sa.Column("sentiment", postgresql.ENUM(name="commentsentiment", create_type=False), nullable=True),
         sa.Column("sentiment_confidence", sa.Float, nullable=True),
         sa.Column("dangerous_level", sa.String(20), nullable=True),
         sa.Column("keywords", sa.ARRAY(sa.String(100)), nullable=True),
-        sa.Column("status", sa.Enum("UNPROCESSED", "PUBLISHED", "HIDDEN", "PENDING_DELETE", "DELETED",
-                                     name="commentstatus", create_type=False),
+        sa.Column("status", postgresql.ENUM(name="commentstatus", create_type=False),
                   nullable=False, server_default="UNPROCESSED"),
         sa.Column("reply_text", sa.Text, nullable=True),
         sa.Column("reply_draft", sa.Text, nullable=True),

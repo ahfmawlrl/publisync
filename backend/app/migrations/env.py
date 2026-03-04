@@ -1,15 +1,17 @@
 import asyncio
+import sys
 from logging.config import fileConfig
+from pathlib import Path
+
+# Ensure the backend root is in sys.path for 'app' module resolution
+# env.py → migrations → app → backend(/app)
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from app.core.config import settings
-from app.core.database import Base
-
-# Import all models so Base.metadata is populated for autogenerate
-import app.models  # noqa: F401 — triggers __init__.py which imports all models
 
 # Alembic Config object
 config = context.config
@@ -18,7 +20,9 @@ config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-target_metadata = Base.metadata
+# NOTE: target_metadata=None disables autogenerate but avoids
+# ORM model ENUM types interfering with manual migration scripts.
+target_metadata = None
 
 
 def run_migrations_offline() -> None:

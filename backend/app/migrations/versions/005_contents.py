@@ -22,11 +22,11 @@ def upgrade() -> None:
         "DRAFT", "PENDING_REVIEW", "IN_REVIEW", "APPROVED", "REJECTED",
         "SCHEDULED", "PUBLISHING", "PUBLISHED", "PARTIALLY_PUBLISHED",
         "PUBLISH_FAILED", "CANCELLED", "ARCHIVED",
-        name="contentstatus", create_type=True,
+        name="contentstatus", create_type=False,
     )
     publish_result_status = postgresql.ENUM(
         "PENDING", "SUCCESS", "FAILED",
-        name="publishresultstatus", create_type=True,
+        name="publishresultstatus", create_type=False,
     )
     content_status.create(op.get_bind(), checkfirst=True)
     publish_result_status.create(op.get_bind(), checkfirst=True)

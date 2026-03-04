@@ -20,15 +20,15 @@ def upgrade() -> None:
     # ── ENUM types ────────────────────────────────────────
     platform_type = postgresql.ENUM(
         "YOUTUBE", "INSTAGRAM", "FACEBOOK", "X", "NAVER_BLOG",
-        name="platformtype", create_type=True,
+        name="platformtype", create_type=False,
     )
     channel_status = postgresql.ENUM(
         "DISCONNECTED", "ACTIVE", "EXPIRING", "EXPIRED",
-        name="channelstatus", create_type=True,
+        name="channelstatus", create_type=False,
     )
     channel_event_type = postgresql.ENUM(
         "CONNECTED", "DISCONNECTED", "TOKEN_REFRESHED", "TOKEN_EXPIRED", "STATUS_CHANGED",
-        name="channeleventtype", create_type=True,
+        name="channeleventtype", create_type=False,
     )
     platform_type.create(op.get_bind(), checkfirst=True)
     channel_status.create(op.get_bind(), checkfirst=True)

@@ -20,11 +20,11 @@ def upgrade() -> None:
     # ── ENUM types ────────────────────────────────────────
     approval_status = postgresql.ENUM(
         "PENDING_REVIEW", "IN_REVIEW", "APPROVED", "REJECTED",
-        name="approvalstatus", create_type=True,
+        name="approvalstatus", create_type=False,
     )
     approval_action = postgresql.ENUM(
         "SUBMIT", "APPROVE", "REJECT", "REQUEST_CHANGES",
-        name="approvalaction", create_type=True,
+        name="approvalaction", create_type=False,
     )
     approval_status.create(op.get_bind(), checkfirst=True)
     approval_action.create(op.get_bind(), checkfirst=True)

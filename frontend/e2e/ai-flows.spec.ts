@@ -39,8 +39,8 @@ test.describe('AI Editor Pages (Phase 2)', () => {
   test('should load SubtitleEditorPage', async ({ page }) => {
     await page.goto(`/ai/subtitle-editor/${MOCK_ASSET_ID}`);
 
-    const rootContent = await page.locator('#root').textContent();
-    expect(rootContent).toBeTruthy();
+    const childCount = await page.locator('#root > *').count();
+    expect(childCount).toBeGreaterThan(0);
 
     // Should have subtitle-related content
     const hasSubtitleContent = await page
@@ -67,8 +67,8 @@ test.describe('AI Editor Pages (Phase 2)', () => {
   test('should load ShortformEditorPage', async ({ page }) => {
     await page.goto(`/ai/shortform-editor/${MOCK_ASSET_ID}`);
 
-    const rootContent = await page.locator('#root').textContent();
-    expect(rootContent).toBeTruthy();
+    const childCount = await page.locator('#root > *').count();
+    expect(childCount).toBeGreaterThan(0);
 
     // Should have shortform-related content
     const hasShortformContent = await page

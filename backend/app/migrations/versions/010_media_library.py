@@ -5,6 +5,7 @@ Creates media library tables with ENUMs and RLS policies.
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
 
 revision = "010"
@@ -42,8 +43,7 @@ def upgrade() -> None:
         sa.Column("filename", sa.String(500), nullable=False),
         sa.Column("original_filename", sa.String(500), nullable=False),
         sa.Column("mime_type", sa.String(100), nullable=False),
-        sa.Column("media_type", sa.Enum("IMAGE", "VIDEO", "AUDIO", "DOCUMENT",
-                                         name="mediatype", create_type=False), nullable=False),
+        sa.Column("media_type", postgresql.ENUM(name="mediatype", create_type=False), nullable=False),
         sa.Column("object_key", sa.String(1024), nullable=False, unique=True),
         sa.Column("file_size", sa.Integer, nullable=False),
         sa.Column("duration", sa.Float, nullable=True),
