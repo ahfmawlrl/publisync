@@ -60,6 +60,28 @@ class Settings(BaseSettings):
     # ── Sentry ─────────────────────────────────────────────
     SENTRY_DSN: str = ""
 
+    # ── Platform OAuth — YouTube ────────────────────────────
+    YOUTUBE_CLIENT_ID: str = ""
+    YOUTUBE_CLIENT_SECRET: str = ""
+
+    # ── Platform OAuth — Instagram / Facebook (Meta) ──────
+    META_APP_ID: str = ""
+    META_APP_SECRET: str = ""
+    INSTAGRAM_APP_ID: str = ""
+    INSTAGRAM_APP_SECRET: str = ""
+    INSTAGRAM_ACCESS_TOKEN: str = ""
+
+    # ── Platform OAuth — X (Twitter) ──────────────────────
+    X_CLIENT_ID: str = ""
+    X_CLIENT_SECRET: str = ""
+
+    # ── Platform OAuth — Naver Blog ───────────────────────
+    NAVER_CLIENT_ID: str = ""
+    NAVER_CLIENT_SECRET: str = ""
+
+    # ── Platform — OAuth Redirect ─────────────────────────
+    OAUTH_REDIRECT_BASE_URL: str = "http://localhost:5173/channels/callback"
+
     # ── AI (litellm) ────────────────────────────────────────
     OPENAI_API_KEY: str = ""
     ANTHROPIC_API_KEY: str = ""
