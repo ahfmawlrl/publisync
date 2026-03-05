@@ -1,0 +1,68 @@
+# ===== PubliSync Backend Dependencies =====
+# Generated from pyproject.toml — keep in sync
+
+# Core
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+pydantic>=2.10.0
+pydantic-settings>=2.7.0
+email-validator>=2.2.0
+
+# Database
+sqlalchemy[asyncio]>=2.0.36
+asyncpg>=0.30.0
+psycopg2-binary>=2.9.9
+alembic>=1.14.0
+
+# Redis
+redis[hiredis]>=5.2.0
+
+# Auth
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+authlib>=1.4.0
+
+# HTTP
+httpx>=0.28.0
+
+# Email
+fastapi-mail>=1.4.2
+jinja2>=3.1.4
+
+# Celery
+celery[redis]>=5.4.0
+
+# SSE
+sse-starlette>=2.2.0
+
+# Security
+cryptography>=44.0.0
+slowapi>=0.1.9
+
+# Logging
+structlog>=24.4.0
+
+# Storage
+minio>=7.2.12
+pillow>=11.0.0
+
+# Search
+meilisearch>=0.31.0
+
+# Media Processing
+ffmpeg-python>=0.2.0
+
+# PDF
+weasyprint>=62.0
+
+# AI
+litellm>=1.50.0
+
+# Telegram
+python-telegram-bot>=21.0
+
+# Monitoring
+sentry-sdk[fastapi]>=2.0.0
+
+# Misc
+python-multipart>=0.0.18
