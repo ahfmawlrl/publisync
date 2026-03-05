@@ -55,6 +55,7 @@ def upgrade() -> None:
                   sa.ForeignKey("media_folders.id", ondelete="SET NULL"), nullable=True),
         sa.Column("version", sa.Integer, server_default="1", nullable=False),
         sa.Column("created_by", UUID(as_uuid=True), sa.ForeignKey("users.id"), nullable=False),
+        sa.Column("thumbnail_url", sa.String(1024), nullable=True),
         sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),

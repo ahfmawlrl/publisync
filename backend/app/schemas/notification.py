@@ -19,7 +19,7 @@ class NotificationResponse(BaseModel):
 
 
 class NotificationSettingResponse(BaseModel):
-    id: str
+    id: str | None = None
     organization_id: str
     user_id: str
     channels: dict
