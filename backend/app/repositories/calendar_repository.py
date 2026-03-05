@@ -7,7 +7,6 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.calendar import CalendarEvent
-from app.models.enums import CalendarEventType
 
 
 class CalendarRepository:

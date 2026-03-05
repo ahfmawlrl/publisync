@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-import structlog
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from app.core.exceptions import ContentNotFoundError, ValidationError, WorkflowStateConflictError
+import structlog
+
+from app.core.exceptions import ContentNotFoundError, WorkflowStateConflictError
 from app.models.content import Content, ContentVersion, PublishResult
 from app.models.enums import ContentStatus, PublishResultStatus
 from app.repositories.content_repository import ContentRepository
@@ -25,7 +26,9 @@ _VALID_TRANSITIONS: dict[ContentStatus, set[ContentStatus]] = {
     ContentStatus.APPROVED: {ContentStatus.PUBLISHING, ContentStatus.SCHEDULED, ContentStatus.DRAFT},
     ContentStatus.REJECTED: {ContentStatus.DRAFT},
     ContentStatus.SCHEDULED: {ContentStatus.PUBLISHING, ContentStatus.CANCELLED, ContentStatus.DRAFT},
-    ContentStatus.PUBLISHING: {ContentStatus.PUBLISHED, ContentStatus.PARTIALLY_PUBLISHED, ContentStatus.PUBLISH_FAILED},
+    ContentStatus.PUBLISHING: {
+        ContentStatus.PUBLISHED, ContentStatus.PARTIALLY_PUBLISHED, ContentStatus.PUBLISH_FAILED,
+    },
     ContentStatus.PUBLISHED: {ContentStatus.ARCHIVED},
     ContentStatus.PARTIALLY_PUBLISHED: {ContentStatus.PUBLISHING, ContentStatus.ARCHIVED},
     ContentStatus.PUBLISH_FAILED: {ContentStatus.PUBLISHING, ContentStatus.DRAFT, ContentStatus.ARCHIVED},

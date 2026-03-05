@@ -14,9 +14,9 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.api.v1 import admin as admin_router
 from app.api.v1 import ai as ai_router
 from app.api.v1 import analytics as analytics_router
-from app.api.v1 import auth as auth_router
 from app.api.v1 import approvals as approvals_router
 from app.api.v1 import audit_logs as audit_logs_router
+from app.api.v1 import auth as auth_router
 from app.api.v1 import calendar as calendar_router
 from app.api.v1 import channels as channels_router
 from app.api.v1 import comments as comments_router
@@ -153,7 +153,11 @@ app.include_router(approvals_router.router, prefix="/api/v1/approvals", tags=["a
 app.include_router(dashboard_router.router, prefix="/api/v1/dashboard", tags=["dashboard"])
 app.include_router(media_router.router, prefix="/api/v1/media", tags=["media"])
 app.include_router(notifications_router.router, prefix="/api/v1/notifications", tags=["notifications"])
-app.include_router(settings_notifications_router.router, prefix="/api/v1/notification-settings", tags=["notification-settings"])
+app.include_router(
+    settings_notifications_router.router,
+    prefix="/api/v1/notification-settings",
+    tags=["notification-settings"],
+)
 app.include_router(analytics_router.router, prefix="/api/v1/analytics", tags=["analytics"])
 app.include_router(audit_logs_router.router, prefix="/api/v1/audit-logs", tags=["audit-logs"])
 app.include_router(reply_templates_router.router, prefix="/api/v1/reply-templates", tags=["reply-templates"])

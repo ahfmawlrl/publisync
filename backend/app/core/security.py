@@ -3,7 +3,7 @@
 import hashlib
 import secrets
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from jose import JWTError, jwt
@@ -46,7 +46,7 @@ def create_access_token(
     role: str,
     extra: dict | None = None,
 ) -> str:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     payload = {
         "sub": str(user_id),
         "role": role,
@@ -68,7 +68,7 @@ def create_refresh_token(
     raw = generate_token()
     hashed = hash_token(raw)
     days = 30 if remember_me else settings.REFRESH_TOKEN_EXPIRE_DAYS
-    expires_at = datetime.now(timezone.utc) + timedelta(days=days)
+    expires_at = datetime.now(UTC) + timedelta(days=days)
     return raw, hashed, expires_at
 
 

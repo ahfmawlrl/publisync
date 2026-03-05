@@ -1,5 +1,7 @@
 """System queue tasks — token refresh, cache management, cleanup."""
 
+from datetime import UTC
+
 import structlog
 from celery import shared_task
 
@@ -12,7 +14,7 @@ def check_token_expiry() -> dict:
 
     Runs every 1 hour via Celery Beat.
     """
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime
 
     logger.info("check_token_expiry_start")
 
@@ -25,7 +27,7 @@ def check_token_expiry() -> dict:
     #    d. On failure: set EXPIRED, record history
 
     return {
-        "checked_at": datetime.now(timezone.utc).isoformat(),
+        "checked_at": datetime.now(UTC).isoformat(),
         "refreshed": 0,
         "expired": 0,
     }
@@ -55,7 +57,7 @@ def clean_expired_sessions() -> dict:
 
     Runs every 6 hours via Celery Beat.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     logger.info("clean_expired_sessions_start")
 
@@ -65,7 +67,7 @@ def clean_expired_sessions() -> dict:
     # 3. DELETE FROM password_reset_tokens WHERE expires_at < now
     # 4. Update expired invitations: SET status='EXPIRED' WHERE expires_at < now
 
-    return {"cleaned_at": datetime.now(timezone.utc).isoformat()}
+    return {"cleaned_at": datetime.now(UTC).isoformat()}
 
 
 @shared_task(name="app.tasks.system.clean_deleted_media")
@@ -75,7 +77,7 @@ def clean_deleted_media() -> dict:
     Runs daily via Celery Beat.
     """
     import asyncio
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from app.core.database import async_session_factory
     from app.integrations.storage import delete_object
@@ -122,7 +124,7 @@ def clean_deleted_media() -> dict:
             await session.commit()
 
         return {
-            "cleaned_at": datetime.now(timezone.utc).isoformat(),
+            "cleaned_at": datetime.now(UTC).isoformat(),
             "deleted_count": deleted_count,
             "error_count": error_count,
         }
@@ -137,7 +139,7 @@ def check_storage_quota() -> dict:
     Runs daily via Celery Beat.
     """
     import asyncio
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from sqlalchemy import select
 
@@ -174,7 +176,7 @@ def check_storage_quota() -> dict:
                     )
 
         return {
-            "checked_at": datetime.now(timezone.utc).isoformat(),
+            "checked_at": datetime.now(UTC).isoformat(),
             "total_orgs": len(org_ids),
             "warning_orgs": warning_orgs,
         }

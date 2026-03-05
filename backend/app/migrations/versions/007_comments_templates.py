@@ -3,10 +3,10 @@
 Create comments and reply_templates tables with ENUMs and RLS policies.
 """
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects.postgresql import UUID
 
 revision = "007"
 down_revision = "006"

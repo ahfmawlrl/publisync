@@ -9,7 +9,6 @@ from app.core.database import get_db_session
 from app.core.deps import WorkspaceContext, get_workspace_context, require_roles
 from app.models.comment import Comment
 from app.models.enums import UserRole
-from app.models.user import User
 from app.repositories.comment_repository import CommentRepository
 from app.schemas.comment import (
     CommentDeleteRequest,

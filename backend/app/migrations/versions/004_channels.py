@@ -4,16 +4,16 @@ Revision ID: 004
 Revises: 003
 Create Date: 2026-03-04
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "004"
-down_revision: Union[str, None] = "003"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "003"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -49,7 +49,10 @@ def upgrade() -> None:
         sa.Column("metadata", postgresql.JSONB(), server_default="{}"),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.UniqueConstraint("organization_id", "platform", "platform_account_id", name="uq_channel_org_platform_account"),
+        sa.UniqueConstraint(
+            "organization_id", "platform", "platform_account_id",
+            name="uq_channel_org_platform_account",
+        ),
     )
     op.create_index("idx_channels_org_id", "channels", ["organization_id"])
     op.create_index("idx_channels_status", "channels", ["status"])

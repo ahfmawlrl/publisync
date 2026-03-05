@@ -1,6 +1,6 @@
 """Repository for MediaAsset, MediaFolder — Phase 2 (F11)."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import delete as sa_delete
@@ -81,7 +81,7 @@ class MediaRepository:
         asset = await self.get_asset(asset_id, org_id)
         if asset is None:
             return False
-        asset.deleted_at = datetime.now(timezone.utc)
+        asset.deleted_at = datetime.now(UTC)
         await self._db.flush()
         return True
 
@@ -110,7 +110,7 @@ class MediaRepository:
         Returns:
             영구 삭제 대상 MediaAsset 목록.
         """
-        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        cutoff = datetime.now(UTC) - timedelta(days=days)
         stmt = select(MediaAsset).where(
             MediaAsset.deleted_at.is_not(None),
             MediaAsset.deleted_at < cutoff,

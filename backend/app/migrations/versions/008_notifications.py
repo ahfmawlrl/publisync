@@ -3,10 +3,10 @@
 Create notification tables with ENUMs and RLS policies.
 """
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 revision = "008"
 down_revision = "007"

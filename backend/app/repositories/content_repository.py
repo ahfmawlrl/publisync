@@ -1,5 +1,6 @@
 """Repository for Content, ContentVersion, PublishResult — S5 (F01)."""
 
+from datetime import UTC
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -7,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.content import Content, ContentVersion, PublishResult
-from app.models.enums import ContentStatus, PublishResultStatus
+from app.models.enums import ContentStatus
 
 
 class ContentRepository:
@@ -70,9 +71,9 @@ class ContentRepository:
         return content
 
     async def soft_delete(self, content: Content) -> None:
-        from datetime import datetime, timezone
+        from datetime import datetime
 
-        content.deleted_at = datetime.now(timezone.utc)
+        content.deleted_at = datetime.now(UTC)
         await self._db.flush()
 
     async def get_scheduled_contents(self, before_dt: str) -> list[Content]:

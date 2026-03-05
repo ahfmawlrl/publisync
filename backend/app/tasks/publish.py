@@ -1,5 +1,7 @@
 """Publish queue tasks — content publishing, retry, scheduled check."""
 
+from datetime import UTC
+
 import structlog
 from celery import shared_task
 
@@ -18,12 +20,6 @@ def publish_content(self, content_id: str, org_id: str) -> dict:
     Uses PlatformAdapter for each channel, creates PublishResult records,
     and determines final content status (PUBLISHED / PARTIALLY_PUBLISHED / PUBLISH_FAILED).
     """
-    from app.core.database import sync_session_factory
-    from app.core.encryption import decrypt_token
-    from app.integrations.platforms import get_adapter
-    from app.models.content import Content, PublishResult
-    from app.models.channel import Channel
-    from app.models.enums import ContentStatus, PublishResultStatus
 
     logger.info("publish_content_start", content_id=content_id, org_id=org_id, attempt=self.request.retries)
 
@@ -45,7 +41,7 @@ def check_scheduled_contents() -> dict:
 
     Runs every 1 minute via Celery Beat.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     logger.info("check_scheduled_contents_start")
 
@@ -55,7 +51,7 @@ def check_scheduled_contents() -> dict:
     #    a. Update status to PUBLISHING
     #    b. Trigger publish_content.delay(content_id, org_id)
 
-    return {"checked_at": datetime.now(timezone.utc).isoformat(), "triggered": 0}
+    return {"checked_at": datetime.now(UTC).isoformat(), "triggered": 0}
 
 
 @shared_task(
@@ -78,4 +74,4 @@ def retry_failed_publish(self, content_id: str, org_id: str) -> dict:
     try:
         return publish_content(content_id, org_id)
     except Exception as exc:
-        raise self.retry(exc=exc, countdown=current_delay)
+        raise self.retry(exc=exc, countdown=current_delay) from exc

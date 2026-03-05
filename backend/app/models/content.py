@@ -46,7 +46,9 @@ class Content(Base, TimestampMixin):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     versions: Mapped[list["ContentVersion"]] = relationship(back_populates="content", cascade="all, delete-orphan")
-    publish_results: Mapped[list["PublishResult"]] = relationship(back_populates="content", cascade="all, delete-orphan")
+    publish_results: Mapped[list["PublishResult"]] = relationship(
+        back_populates="content", cascade="all, delete-orphan",
+    )
 
     __table_args__ = (
         Index("idx_contents_org_id", "organization_id"),

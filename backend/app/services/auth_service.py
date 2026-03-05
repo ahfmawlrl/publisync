@@ -1,7 +1,8 @@
 """Auth business logic — login, refresh, password reset, invite accept."""
 
+from datetime import UTC, datetime, timedelta
+
 import structlog
-from datetime import datetime, timedelta, timezone
 
 from app.core.exceptions import (
     AccountLockedError,
@@ -56,7 +57,7 @@ class AuthService:
             raise InvalidCredentialsError()
 
         # Check lock
-        if user.locked_until and user.locked_until > datetime.now(timezone.utc):
+        if user.locked_until and user.locked_until > datetime.now(UTC):
             raise AccountLockedError()
 
         # Verify password
@@ -65,7 +66,7 @@ class AuthService:
             if user.failed_login_count >= MAX_FAILED_ATTEMPTS:
                 await self._repo.lock_account(
                     user,
-                    datetime.now(timezone.utc) + timedelta(minutes=LOCK_DURATION_MINUTES),
+                    datetime.now(UTC) + timedelta(minutes=LOCK_DURATION_MINUTES),
                 )
                 logger.warning("account_locked", user_id=str(user.id), email=email)
                 raise AccountLockedError()
@@ -144,7 +145,7 @@ class AuthService:
 
         raw = generate_token()
         token_hash = hash_token(raw)
-        expires_at = datetime.now(timezone.utc) + timedelta(hours=PASSWORD_RESET_TOKEN_HOURS)
+        expires_at = datetime.now(UTC) + timedelta(hours=PASSWORD_RESET_TOKEN_HOURS)
 
         await self._repo.create_password_reset_token(
             PasswordResetToken(

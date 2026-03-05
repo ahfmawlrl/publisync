@@ -1,8 +1,9 @@
 """Comment and ReplyTemplate business logic — S9 (F04)."""
 
-import structlog
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
+
+import structlog
 
 from app.core.exceptions import NotFoundError, ValidationError, WorkflowStateConflictError
 from app.models.comment import Comment, ReplyTemplate
@@ -101,7 +102,7 @@ class CommentService:
         if comment.status == CommentStatus.DELETED:
             raise WorkflowStateConflictError("Cannot reply to a deleted comment")
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         comment = await self._repo.update_comment(comment, {
             "reply_text": text,
             "replied_at": now,

@@ -1,5 +1,6 @@
 """Repository for Organization and Agency tables."""
 
+from datetime import UTC
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -49,8 +50,8 @@ class OrgRepository:
         return org
 
     async def soft_delete_org(self, org: Organization) -> None:
-        from datetime import datetime, timezone
-        org.deleted_at = datetime.now(timezone.utc)
+        from datetime import datetime
+        org.deleted_at = datetime.now(UTC)
         await self._db.flush()
 
     # ── Workspace queries ────────────────────────────────

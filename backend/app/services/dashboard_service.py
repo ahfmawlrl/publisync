@@ -1,19 +1,23 @@
 """Dashboard business logic — S7."""
 
-import structlog
-from datetime import datetime, time, timezone
+from datetime import UTC, datetime, time
 from uuid import UUID
 
+import structlog
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.approval import ApprovalRequest
 from app.models.channel import Channel
-from app.models.content import Content, PublishResult
-from app.models.enums import ApprovalStatus, ChannelStatus, ContentStatus, PublishResultStatus
-from app.models.user import Organization
 from app.models.comment import Comment
-from app.models.enums import CommentSentiment
+from app.models.content import Content, PublishResult
+from app.models.enums import (
+    ApprovalStatus,
+    ChannelStatus,
+    ContentStatus,
+    PublishResultStatus,
+)
+from app.models.user import Organization
 from app.schemas.dashboard import (
     ApprovalStatusItem,
     DashboardSummaryResponse,
@@ -154,9 +158,9 @@ class DashboardService:
 
     async def get_today_schedule(self, org_id: UUID) -> list[TodayScheduleItem]:
         """Get contents scheduled for today."""
-        now = datetime.now(timezone.utc)
-        today_start = datetime.combine(now.date(), time.min, tzinfo=timezone.utc)
-        today_end = datetime.combine(now.date(), time.max, tzinfo=timezone.utc)
+        now = datetime.now(UTC)
+        today_start = datetime.combine(now.date(), time.min, tzinfo=UTC)
+        today_end = datetime.combine(now.date(), time.max, tzinfo=UTC)
 
         stmt = (
             select(Content)

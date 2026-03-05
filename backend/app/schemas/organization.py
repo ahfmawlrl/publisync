@@ -4,7 +4,6 @@ from pydantic import BaseModel
 
 from app.models.enums import OrgPlan, OrgStatus
 
-
 # ── Organization ─────────────────────────────────────────
 
 class OrgCreateRequest(BaseModel):

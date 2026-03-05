@@ -1,6 +1,5 @@
 """Notifications endpoint tests."""
 
-import pytest
 from httpx import AsyncClient
 
 

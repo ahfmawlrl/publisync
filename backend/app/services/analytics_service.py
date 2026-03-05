@@ -3,9 +3,11 @@
 import csv
 import io
 import re
-import structlog
 from collections import defaultdict
+from datetime import UTC
 from uuid import UUID
+
+import structlog
 
 from app.repositories.analytics_repository import AnalyticsRepository
 from app.schemas.analytics import EngagementHeatmapItem, PerformanceDataResponse
@@ -164,7 +166,10 @@ class AnalyticsService:
                 {
                     "keyword": word,
                     "count": data["count"],
-                    "sentiment": max(data["sentiments"], key=data["sentiments"].get) if data["sentiments"] else "NEUTRAL",
+                    "sentiment": (
+                        max(data["sentiments"], key=data["sentiments"].get)
+                        if data["sentiments"] else "NEUTRAL"
+                    ),
                     "change": 0.0,
                 }
                 for word, data in word_counts.items()
@@ -277,7 +282,7 @@ class AnalyticsService:
         period: str = "30d",
     ) -> dict:
         """Generate benchmark analysis comparing org vs industry average."""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         period_days = {"7d": 7, "30d": 30, "90d": 90}.get(period, 30)
         raw = await self._repo.get_benchmark_data(org_id, period_days=period_days)
@@ -332,7 +337,7 @@ class AnalyticsService:
 
             # Calculate averages
             avg_views = sum(o["total_views"] for o in orgs) / total_orgs if total_orgs > 0 else 0
-            avg_likes = sum(o["total_likes"] for o in orgs) / total_orgs if total_orgs > 0 else 0
+            _avg_likes = sum(o["total_likes"] for o in orgs) / total_orgs if total_orgs > 0 else 0
             avg_posts = sum(o["post_count"] for o in orgs) / total_orgs if total_orgs > 0 else 0
             avg_engagement = sum(o["engagement_rate"] for o in orgs) / total_orgs if total_orgs > 0 else 0
 
@@ -395,7 +400,7 @@ class AnalyticsService:
             "period": period,
             "platforms": platforms,
             "overall_score": overall_score,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(UTC).isoformat(),
         }
 
     async def get_org_comparison(

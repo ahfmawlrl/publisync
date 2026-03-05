@@ -4,10 +4,10 @@ Creates report_period/report_status ENUMs, reports table with RLS.
 Adds REPORT value to aijobtype ENUM.
 """
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 revision = "015"
 down_revision = "014"

@@ -1,7 +1,8 @@
 """Notification business logic — S10 (F13/F07)."""
 
-import structlog
 from uuid import UUID
+
+import structlog
 
 from app.api.v1.sse import publish_sse_event
 from app.core.exceptions import NotFoundError

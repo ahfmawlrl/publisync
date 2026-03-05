@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel
 
-from app.models.enums import ChannelStatus, PlatformType
+from app.models.enums import PlatformType
 
 
 class ChannelResponse(BaseModel):

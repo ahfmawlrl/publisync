@@ -3,9 +3,9 @@
 Creates analytics snapshot storage and search index configuration tables with RLS.
 """
 
-from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from alembic import op
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 revision = "014"
 down_revision = "013"

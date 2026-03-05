@@ -1,12 +1,13 @@
 """Channel integration business logic — S4 (F12)."""
 
 import secrets
-import structlog
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
+import structlog
+
 from app.core.encryption import decrypt_token, encrypt_token
-from app.core.exceptions import ConflictError, ExternalServiceError, NotFoundError
+from app.core.exceptions import ExternalServiceError, NotFoundError
 from app.integrations.platforms import get_adapter
 from app.models.channel import Channel, ChannelHistory
 from app.models.enums import ChannelEventType, ChannelStatus, PlatformType
@@ -69,7 +70,7 @@ class ChannelService:
             channel_info = await adapter.get_channel_info(token_info.access_token)
         except Exception as e:
             logger.error("oauth_callback_failed", platform=platform.value, error=str(e))
-            raise ExternalServiceError(f"OAuth callback failed: {e}")
+            raise ExternalServiceError(f"OAuth callback failed: {e}") from e
 
         # Check for existing channel
         existing = await self._repo.get_by_org_platform_account(
@@ -78,7 +79,7 @@ class ChannelService:
 
         expires_at = None
         if token_info.expires_in:
-            expires_at = datetime.now(timezone.utc) + timedelta(seconds=token_info.expires_in)
+            expires_at = datetime.now(UTC) + timedelta(seconds=token_info.expires_in)
 
         if existing:
             # Update tokens
@@ -86,7 +87,10 @@ class ChannelService:
                 "name": channel_info.name,
                 "status": ChannelStatus.ACTIVE,
                 "access_token_enc": encrypt_token(token_info.access_token),
-                "refresh_token_enc": encrypt_token(token_info.refresh_token) if token_info.refresh_token else existing.refresh_token_enc,
+                "refresh_token_enc": (
+                    encrypt_token(token_info.refresh_token)
+                    if token_info.refresh_token else existing.refresh_token_enc
+                ),
                 "token_expires_at": expires_at,
                 "metadata_": channel_info.metadata,
             })
@@ -152,16 +156,19 @@ class ChannelService:
                 details={"error": str(e)},
                 actor_id=actor_id,
             ))
-            raise ExternalServiceError(f"Token refresh failed: {e}")
+            raise ExternalServiceError(f"Token refresh failed: {e}") from e
 
         expires_at = None
         if token_info.expires_in:
-            expires_at = datetime.now(timezone.utc) + timedelta(seconds=token_info.expires_in)
+            expires_at = datetime.now(UTC) + timedelta(seconds=token_info.expires_in)
 
         await self._repo.update(channel, {
             "status": ChannelStatus.ACTIVE,
             "access_token_enc": encrypt_token(token_info.access_token),
-            "refresh_token_enc": encrypt_token(token_info.refresh_token) if token_info.refresh_token else channel.refresh_token_enc,
+            "refresh_token_enc": (
+                encrypt_token(token_info.refresh_token)
+                if token_info.refresh_token else channel.refresh_token_enc
+            ),
             "token_expires_at": expires_at,
         })
 

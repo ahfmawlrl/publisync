@@ -6,10 +6,8 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db_session
-from app.core.deps import WorkspaceContext, get_workspace_context, require_roles
+from app.core.deps import WorkspaceContext, get_workspace_context
 from app.models.content import Content, PublishResult
-from app.models.enums import UserRole
-from app.models.user import User
 from app.repositories.content_repository import ContentRepository
 from app.schemas.common import ApiResponse, PaginatedResponse, PaginationMeta
 from app.schemas.content import (

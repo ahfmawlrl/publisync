@@ -1,5 +1,7 @@
 """Comment collection task — collect comments from platforms every 5 minutes."""
 
+from datetime import UTC
+
 import structlog
 from celery import shared_task
 
@@ -14,7 +16,7 @@ def collect_comments(self) -> dict:
     For each active channel, calls the platform adapter to fetch new comments
     and stores them in the comments table.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     logger.info("collect_comments_start")
 
@@ -26,7 +28,7 @@ def collect_comments(self) -> dict:
     # 5. Queue sentiment analysis for new comments
 
     return {
-        "collected_at": datetime.now(timezone.utc).isoformat(),
+        "collected_at": datetime.now(UTC).isoformat(),
         "channels_checked": 0,
         "new_comments": 0,
     }

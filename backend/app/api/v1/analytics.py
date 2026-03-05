@@ -109,6 +109,7 @@ async def get_benchmark_organizations(
     """Organization comparison — AM only, compare managed orgs."""
     # Get organizations managed by the current user
     from sqlalchemy import select
+
     from app.models.user import UserOrganization
 
     stmt = select(UserOrganization.organization_id).where(

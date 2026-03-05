@@ -1,7 +1,8 @@
 """Media Library business logic — Phase 2 (F11)."""
 
-import structlog
 from uuid import UUID
+
+import structlog
 
 from app.core.exceptions import NotFoundError, ValidationError
 from app.integrations.storage import ALLOWED_CONTENT_TYPES, generate_thumbnail
@@ -110,7 +111,11 @@ class MediaService:
 
         folder_id = None
         if upload_data.get("folder_id"):
-            folder_id = UUID(upload_data["folder_id"]) if isinstance(upload_data["folder_id"], str) else upload_data["folder_id"]
+            folder_id = (
+                UUID(upload_data["folder_id"])
+                if isinstance(upload_data["folder_id"], str)
+                else upload_data["folder_id"]
+            )
 
         asset_data = {
             "organization_id": org_id,

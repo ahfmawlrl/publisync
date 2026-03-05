@@ -4,7 +4,6 @@ from pydantic import BaseModel, EmailStr
 
 from app.models.enums import UserRole, UserStatus
 
-
 # ── Request ──────────────────────────────────────────────
 
 class UserCreateRequest(BaseModel):

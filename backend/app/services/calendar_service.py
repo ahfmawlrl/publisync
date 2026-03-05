@@ -1,8 +1,9 @@
 """Calendar business logic — S16 (F10, Phase 2)."""
 
-import structlog
 from datetime import date, datetime
 from uuid import UUID
+
+import structlog
 
 from app.core.exceptions import NotFoundError
 from app.models.calendar import CalendarEvent

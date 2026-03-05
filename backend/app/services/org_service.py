@@ -1,12 +1,19 @@
 """Organization and Agency business logic."""
 
-import structlog
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 from uuid import UUID
+
+import structlog
 
 from app.core.exceptions import ConflictError, NotFoundError
 from app.models.user import Agency, Organization
 from app.repositories.org_repository import OrgRepository
 from app.schemas.organization import AgencyCreateRequest, OrgCreateRequest, OrgUpdateRequest
+
+if TYPE_CHECKING:
+    from app.models.enums import UserRole
 
 logger = structlog.get_logger()
 
@@ -63,7 +70,7 @@ class OrgService:
     async def get_user_workspaces(self, user_id: UUID) -> list[dict]:
         return await self._repo.get_user_workspaces(user_id)
 
-    async def get_badge_counts(self, org_id: UUID, user_role: "UserRole | None" = None) -> dict:
+    async def get_badge_counts(self, org_id: UUID, user_role: UserRole | None = None) -> dict:
         # Placeholder — actual counts come from contents/approvals/comments tables (S4+)
         # user_role will be used for role-specific badge logic
         return {

@@ -1,11 +1,12 @@
 """User CRUD business logic."""
 
-import structlog
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
+import structlog
+
 from app.core.exceptions import ConflictError, NotFoundError
-from app.core.security import generate_token, hash_password, hash_token
+from app.core.security import generate_token, hash_token
 from app.models.enums import UserRole, UserStatus
 from app.models.user import Invitation, User, UserOrganization
 from app.repositories.user_repository import UserRepository
@@ -70,7 +71,7 @@ class UserService:
             role=data.role,
             token_hash=hash_token(token),
             invited_by=user.id,  # Will be overridden by caller if needed
-            expires_at=datetime.now(timezone.utc) + timedelta(days=INVITE_TOKEN_EXPIRE_DAYS),
+            expires_at=datetime.now(UTC) + timedelta(days=INVITE_TOKEN_EXPIRE_DAYS),
         )
         await self._repo.create_invitation(invitation)
 

@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.channel import Channel
 from app.models.comment import Comment
 from app.models.content import Content, PublishResult
-from app.models.enums import PublishResultStatus, ReportStatus
+from app.models.enums import PublishResultStatus
 from app.models.report import Report
 
 

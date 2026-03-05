@@ -3,8 +3,9 @@
 import io
 import json
 import time
+from datetime import UTC, datetime
+
 import structlog
-from datetime import datetime, timezone
 
 from app.tasks import celery_app
 
@@ -41,7 +42,7 @@ def generate_report_task(self, job_id: str, report_id: str, org_id: str) -> dict
         if not job:
             return {"error": "Job not found"}
         job.status = AiJobStatus.PROCESSING
-        job.started_at = datetime.now(timezone.utc)
+        job.started_at = datetime.now(UTC)
         session.commit()
 
         # Get report
@@ -204,7 +205,7 @@ def generate_report_task(self, job_id: str, report_id: str, org_id: str) -> dict
         job.status = AiJobStatus.COMPLETED
         job.progress = 100
         job.result = {"report_id": report_id, "pdf_url": pdf_url}
-        job.completed_at = datetime.now(timezone.utc)
+        job.completed_at = datetime.now(UTC)
         session.commit()
 
         # Log AI usage
@@ -234,7 +235,7 @@ def generate_report_task(self, job_id: str, report_id: str, org_id: str) -> dict
             if job:
                 job.status = AiJobStatus.FAILED
                 job.error_message = str(exc)[:500]
-                job.completed_at = datetime.now(timezone.utc)
+                job.completed_at = datetime.now(UTC)
             report_obj = session.get(Report, UUID(report_id))
             if report_obj:
                 report_obj.status = ReportStatus.DRAFT
@@ -243,7 +244,7 @@ def generate_report_task(self, job_id: str, report_id: str, org_id: str) -> dict
         except Exception:
             session.rollback()
         if self.request.retries < self.max_retries:
-            raise self.retry(exc=exc)
+            raise self.retry(exc=exc) from exc
         raise
     finally:
         session.close()

@@ -9,7 +9,6 @@ from app.core.database import get_db_session
 from app.core.deps import WorkspaceContext, get_workspace_context, require_roles
 from app.integrations.storage import (
     ALLOWED_CONTENT_TYPES,
-    MAX_FILE_SIZE,
     generate_presigned_upload_url,
 )
 from app.models.enums import UserRole

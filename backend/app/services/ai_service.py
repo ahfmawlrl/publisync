@@ -4,13 +4,20 @@ Generates titles, descriptions, and hashtags using litellm,
 then logs usage to ai_usage_logs for cost tracking.
 """
 
+from __future__ import annotations
+
 import json
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 import structlog
 
 from app.integrations.ai import PROMPTS, generate_text
 from app.models.ai_usage import AiUsageLog
+
+if TYPE_CHECKING:
+    from app.models.ai_usage import AiJob
+    from app.schemas.ai import AiTranslateResponse
 from app.models.enums import AiTaskType
 from app.repositories.ai_usage_repository import AiUsageRepository
 from app.schemas.ai import (
@@ -257,7 +264,7 @@ class AiService:
         media_asset_id: UUID,
         language: str,
         include_timestamps: bool,
-    ) -> "AiJob":
+    ) -> AiJob:
         """Create async subtitle generation job."""
         from app.models.ai_usage import AiJob
         from app.models.enums import AiJobStatus, AiJobType
@@ -291,7 +298,7 @@ class AiService:
         target_duration: int,
         count: int,
         style: str,
-    ) -> "AiJob":
+    ) -> AiJob:
         """Create async shortform extraction job."""
         from app.models.ai_usage import AiJob
         from app.models.enums import AiJobStatus, AiJobType
@@ -317,7 +324,7 @@ class AiService:
         extract_shortform_task.delay(str(job.id))
         return job
 
-    async def get_job_status(self, job_id: str, org_id: UUID) -> "AiJob | None":
+    async def get_job_status(self, job_id: str, org_id: UUID) -> AiJob | None:
         """Get async job status by ID."""
         from uuid import UUID as PyUUID
 
@@ -601,7 +608,7 @@ class AiService:
         style: str,
         count: int,
         aspect_ratio: str,
-    ) -> "AiJob":
+    ) -> AiJob:
         """Create async thumbnail generation job (F16)."""
         from app.models.ai_usage import AiJob
         from app.models.enums import AiJobStatus, AiJobType
@@ -634,7 +641,7 @@ class AiService:
         preserve_formatting: bool,
         org_id: UUID | None = None,
         user_id: UUID | None = None,
-    ) -> "AiTranslateResponse":
+    ) -> AiTranslateResponse:
         """Translate content synchronously (F22, < 10s)."""
         from app.schemas.ai import AiTranslateResponse
 

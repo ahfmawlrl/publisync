@@ -2,8 +2,9 @@
 
 import csv
 import io
-import structlog
 from uuid import UUID
+
+import structlog
 
 from app.core.exceptions import NotFoundError
 from app.models.audit import AuditLog

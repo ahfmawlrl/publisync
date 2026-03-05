@@ -1,7 +1,8 @@
 """Approval workflow business logic — S6 (F09)."""
 
-import structlog
 from uuid import UUID
+
+import structlog
 
 from app.core.exceptions import NotFoundError, WorkflowStateConflictError
 from app.models.approval import ApprovalHistory, ApprovalRequest, ApprovalWorkflow
@@ -29,7 +30,9 @@ class ApprovalService:
             raise NotFoundError("Approval request not found")
         return req
 
-    async def approve(self, request_id: UUID, org_id: UUID, reviewer_id: UUID, comment: str | None = None) -> ApprovalRequest:
+    async def approve(
+        self, request_id: UUID, org_id: UUID, reviewer_id: UUID, comment: str | None = None,
+    ) -> ApprovalRequest:
         req = await self.get_approval(request_id, org_id)
 
         if req.status not in (ApprovalStatus.PENDING_REVIEW, ApprovalStatus.IN_REVIEW):
@@ -55,7 +58,9 @@ class ApprovalService:
         logger.info("approval_approved", request_id=str(request_id))
         return req
 
-    async def reject(self, request_id: UUID, org_id: UUID, reviewer_id: UUID, comment: str | None = None) -> ApprovalRequest:
+    async def reject(
+        self, request_id: UUID, org_id: UUID, reviewer_id: UUID, comment: str | None = None,
+    ) -> ApprovalRequest:
         req = await self.get_approval(request_id, org_id)
 
         if req.status not in (ApprovalStatus.PENDING_REVIEW, ApprovalStatus.IN_REVIEW):

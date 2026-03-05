@@ -72,7 +72,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.ruff]
 target-version = "py311"
-line-length = 100
+line-length = 120
 
 [tool.ruff.lint]
 select = [
@@ -89,7 +89,22 @@ select = [
     "T20", # flake8-print
     "RUF", # ruff-specific
 ]
-ignore = ["S101", "B008"]  # allow assert in tests, allow Depends() in defaults
+ignore = [
+    "S101",  # allow assert in tests
+    "B008",  # allow Depends() in defaults
+    "N815",  # Pydantic Settings uppercase fields
+    "S105",  # hardcoded password defaults
+    "A002",  # builtin shadowing in params like `id`, `type`
+    "A003",  # builtin attribute shadowing
+    "N811",  # constant imported as non-constant
+    "UP042", # StrEnum — not all enums should be StrEnum
+    "N806",  # non-lowercase variable in function
+    "S112",  # try-except-continue (intentional in retry logic)
+    "RUF002", # ambiguous unicode in Korean docstrings
+]
+
+[tool.ruff.lint.per-file-ignores]
+"app/migrations/**" = ["E501"]  # SQL strings in migrations are long by nature
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]

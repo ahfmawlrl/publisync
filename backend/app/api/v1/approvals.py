@@ -14,7 +14,6 @@ from app.repositories.approval_repository import ApprovalRepository
 from app.repositories.content_repository import ContentRepository
 from app.schemas.approval import (
     ApprovalActionRequest,
-    ApprovalHistoryResponse,
     ApprovalRequestResponse,
     WorkflowResponse,
     WorkflowUpdateRequest,

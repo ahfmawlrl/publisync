@@ -1,8 +1,9 @@
 """Report business logic — S18 (F19)."""
 
-import structlog
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
+
+import structlog
 
 from app.models.ai_usage import AiJob
 from app.models.enums import AiJobStatus, AiJobType, ReportStatus
@@ -112,7 +113,7 @@ class ReportService:
             return None
 
         report.status = ReportStatus.FINALIZED
-        report.finalized_at = datetime.now(timezone.utc)
+        report.finalized_at = datetime.now(UTC)
         report = await self._repo.update(report)
         await self._repo.db.commit()
         logger.info("report_finalized", report_id=str(report_id))

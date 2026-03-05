@@ -1,6 +1,6 @@
 """Analytics repository — query layer for analytics data (Phase 1-B + Phase 3)."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import extract, func, select
@@ -79,7 +79,7 @@ class AnalyticsRepository:
         days: int = 30,
     ) -> list:
         """Daily sentiment distribution from comments."""
-        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        cutoff = datetime.now(UTC) - timedelta(days=days)
         stmt = (
             select(
                 func.date(Comment.created_at).label("date"),
@@ -102,7 +102,7 @@ class AnalyticsRepository:
         days: int = 30,
     ) -> list:
         """Recent comment bodies for keyword extraction."""
-        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        cutoff = datetime.now(UTC) - timedelta(days=days)
         stmt = (
             select(Comment.body, Comment.sentiment)
             .where(
@@ -123,7 +123,7 @@ class AnalyticsRepository:
         content_id: UUID | None = None,
     ) -> dict:
         """Gather historical performance data for prediction."""
-        cutoff_6m = datetime.now(timezone.utc) - timedelta(days=180)
+        cutoff_6m = datetime.now(UTC) - timedelta(days=180)
 
         count_stmt = (
             select(func.count(PublishResult.id))
@@ -205,9 +205,8 @@ class AnalyticsRepository:
         period_days: int = 30,
     ) -> dict:
         """Get benchmark data comparing org performance vs all orgs."""
-        from app.models.user import Organization
 
-        cutoff = datetime.now(timezone.utc) - timedelta(days=period_days)
+        cutoff = datetime.now(UTC) - timedelta(days=period_days)
 
         # Org's own performance
         org_stmt = (
@@ -261,7 +260,7 @@ class AnalyticsRepository:
         """Get comparison data across multiple organizations."""
         from app.models.user import Organization
 
-        cutoff = datetime.now(timezone.utc) - timedelta(days=period_days)
+        cutoff = datetime.now(UTC) - timedelta(days=period_days)
 
         stmt = (
             select(

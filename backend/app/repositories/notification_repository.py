@@ -1,6 +1,6 @@
 """Repository for Notification, NotificationSetting — S10 (F13/F07)."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import and_, func, select, update
@@ -50,7 +50,7 @@ class NotificationRepository:
         if notification is None:
             return None
         notification.is_read = True
-        notification.read_at = datetime.now(timezone.utc).isoformat()
+        notification.read_at = datetime.now(UTC).isoformat()
         await self._db.flush()
         return notification
 
@@ -64,7 +64,7 @@ class NotificationRepository:
                     Notification.is_read.is_(False),
                 )
             )
-            .values(is_read=True, read_at=datetime.now(timezone.utc))
+            .values(is_read=True, read_at=datetime.now(UTC))
         )
         result = await self._db.execute(stmt)
         await self._db.flush()
@@ -116,7 +116,7 @@ class NotificationRepository:
             .values(**insert_values)
             .on_conflict_do_update(
                 constraint="uq_notification_settings_org_user",
-                set_={k: v for k, v in data.items()},
+                set_=dict(data.items()),
             )
             .returning(NotificationSetting)
         )

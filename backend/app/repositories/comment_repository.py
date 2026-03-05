@@ -1,13 +1,13 @@
 """Repository for Comment and ReplyTemplate — S9 (F04)."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.comment import Comment, ReplyTemplate
-from app.models.enums import CommentSentiment, CommentStatus
+from app.models.enums import CommentSentiment
 
 
 class CommentRepository:
@@ -123,5 +123,5 @@ class CommentRepository:
         return template
 
     async def soft_delete_template(self, template: ReplyTemplate) -> None:
-        template.deleted_at = datetime.now(timezone.utc)
+        template.deleted_at = datetime.now(UTC)
         await self._db.flush()

@@ -29,4 +29,4 @@ class SoftDeleteMixin:
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
 
 
-__all__ = ["Base", "TimestampMixin", "SoftDeleteMixin", "generate_uuid"]
+__all__ = ["Base", "SoftDeleteMixin", "TimestampMixin", "generate_uuid"]

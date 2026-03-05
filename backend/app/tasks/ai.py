@@ -1,5 +1,7 @@
 """AI queue tasks — sentiment analysis batch processing + async jobs (S18 F03/F15)."""
 
+from datetime import UTC
+
 import structlog
 from celery import shared_task
 
@@ -15,7 +17,7 @@ def analyze_sentiment_batch(self) -> dict:
     Runs every 10 minutes via Celery Beat.
     Uses litellm to classify comment sentiment (POSITIVE/NEUTRAL/NEGATIVE/DANGEROUS).
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     logger.info("analyze_sentiment_batch_start")
 
@@ -27,7 +29,7 @@ def analyze_sentiment_batch(self) -> dict:
     # 5. Log AI usage to ai_usage_logs
 
     return {
-        "analyzed_at": datetime.now(timezone.utc).isoformat(),
+        "analyzed_at": datetime.now(UTC).isoformat(),
         "processed": 0,
         "dangerous_found": 0,
     }
@@ -65,7 +67,7 @@ def generate_subtitles_task(self, job_id: str) -> None:
     Updates AiJob status/progress/result in DB.
     """
     import time
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from sqlalchemy import create_engine
     from sqlalchemy.orm import Session
@@ -86,7 +88,7 @@ def generate_subtitles_task(self, job_id: str) -> None:
 
         try:
             job.status = AiJobStatus.PROCESSING
-            job.started_at = datetime.now(timezone.utc)
+            job.started_at = datetime.now(UTC)
             job.progress = 10
             session.commit()
 
@@ -115,15 +117,15 @@ def generate_subtitles_task(self, job_id: str) -> None:
             job.status = AiJobStatus.COMPLETED
             job.progress = 100
             job.result = result
-            job.completed_at = datetime.now(timezone.utc)
+            job.completed_at = datetime.now(UTC)
             session.commit()
 
         except Exception as exc:
             job.status = AiJobStatus.FAILED
             job.error_message = str(exc)
-            job.completed_at = datetime.now(timezone.utc)
+            job.completed_at = datetime.now(UTC)
             session.commit()
-            raise self.retry(exc=exc)
+            raise self.retry(exc=exc) from exc
         finally:
             engine.dispose()
 
@@ -135,7 +137,7 @@ def extract_shortform_task(self, job_id: str) -> None:
     Simulates AI shortform extraction. In production, would use video analysis + ffmpeg.
     """
     import time
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from sqlalchemy import create_engine
     from sqlalchemy.orm import Session
@@ -155,7 +157,7 @@ def extract_shortform_task(self, job_id: str) -> None:
 
         try:
             job.status = AiJobStatus.PROCESSING
-            job.started_at = datetime.now(timezone.utc)
+            job.started_at = datetime.now(UTC)
             job.progress = 10
             session.commit()
 
@@ -196,15 +198,15 @@ def extract_shortform_task(self, job_id: str) -> None:
             job.status = AiJobStatus.COMPLETED
             job.progress = 100
             job.result = result
-            job.completed_at = datetime.now(timezone.utc)
+            job.completed_at = datetime.now(UTC)
             session.commit()
 
         except Exception as exc:
             job.status = AiJobStatus.FAILED
             job.error_message = str(exc)
-            job.completed_at = datetime.now(timezone.utc)
+            job.completed_at = datetime.now(UTC)
             session.commit()
-            raise self.retry(exc=exc)
+            raise self.retry(exc=exc) from exc
         finally:
             engine.dispose()
 
@@ -220,7 +222,7 @@ def generate_thumbnail_task(self, job_id: str) -> None:
     In production, would call DALL-E/Stable Diffusion for image generation.
     """
     import time
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from sqlalchemy import create_engine
     from sqlalchemy.orm import Session
@@ -240,12 +242,12 @@ def generate_thumbnail_task(self, job_id: str) -> None:
 
         try:
             job.status = AiJobStatus.PROCESSING
-            job.started_at = datetime.now(timezone.utc)
+            job.started_at = datetime.now(UTC)
             job.progress = 10
             session.commit()
 
             params = job.input_params or {}
-            content_text = params.get("content_text", "")
+            _content_text = params.get("content_text", "")
             style = params.get("style", "modern")
             count = params.get("count", 3)
             aspect_ratio = params.get("aspect_ratio", "16:9")
@@ -299,14 +301,14 @@ def generate_thumbnail_task(self, job_id: str) -> None:
             job.status = AiJobStatus.COMPLETED
             job.progress = 100
             job.result = result
-            job.completed_at = datetime.now(timezone.utc)
+            job.completed_at = datetime.now(UTC)
             session.commit()
 
         except Exception as exc:
             job.status = AiJobStatus.FAILED
             job.error_message = str(exc)
-            job.completed_at = datetime.now(timezone.utc)
+            job.completed_at = datetime.now(UTC)
             session.commit()
-            raise self.retry(exc=exc)
+            raise self.retry(exc=exc) from exc
         finally:
             engine.dispose()

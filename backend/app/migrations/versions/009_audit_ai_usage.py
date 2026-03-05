@@ -4,10 +4,10 @@ Create audit and AI tracking tables with ENUMs and RLS policies.
 audit_logs: INSERT-ONLY (UPDATE/DELETE blocked via trigger).
 """
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 revision = "009"
 down_revision = "008"

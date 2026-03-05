@@ -1,6 +1,6 @@
 """Repository for User and related auth tables."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import func, select, update
@@ -51,7 +51,7 @@ class UserRepository:
         await self._db.flush()
 
     async def update_last_login(self, user: User) -> None:
-        user.last_login_at = datetime.now(timezone.utc)
+        user.last_login_at = datetime.now(UTC)
         await self._db.flush()
 
     async def update_password(self, user: User, password_hash: str) -> None:
@@ -91,7 +91,7 @@ class UserRepository:
         stmt = select(RefreshToken).where(
             RefreshToken.token_hash == token_hash,
             RefreshToken.is_revoked.is_(False),
-            RefreshToken.expires_at > datetime.now(timezone.utc),
+            RefreshToken.expires_at > datetime.now(UTC),
         )
         result = await self._db.execute(stmt)
         return result.scalar_one_or_none()
@@ -118,7 +118,7 @@ class UserRepository:
         stmt = select(PasswordResetToken).where(
             PasswordResetToken.token_hash == token_hash,
             PasswordResetToken.is_used.is_(False),
-            PasswordResetToken.expires_at > datetime.now(timezone.utc),
+            PasswordResetToken.expires_at > datetime.now(UTC),
         )
         result = await self._db.execute(stmt)
         return result.scalar_one_or_none()
@@ -133,7 +133,7 @@ class UserRepository:
         stmt = select(Invitation).where(
             Invitation.token_hash == token_hash,
             Invitation.status == "PENDING",
-            Invitation.expires_at > datetime.now(timezone.utc),
+            Invitation.expires_at > datetime.now(UTC),
         )
         result = await self._db.execute(stmt)
         return result.scalar_one_or_none()
@@ -147,7 +147,7 @@ class UserRepository:
 
     async def accept_invitation(self, invitation: Invitation) -> None:
         invitation.status = "ACCEPTED"
-        invitation.accepted_at = datetime.now(timezone.utc)
+        invitation.accepted_at = datetime.now(UTC)
         await self._db.flush()
 
     # ── User listing / update / delete ───────────────────
@@ -183,7 +183,7 @@ class UserRepository:
         return user
 
     async def soft_delete_user(self, user: User) -> None:
-        user.deleted_at = datetime.now(timezone.utc)
+        user.deleted_at = datetime.now(UTC)
         await self._db.flush()
 
     async def get_user_org_mappings(self, user_id: UUID) -> list[UserOrganization]:

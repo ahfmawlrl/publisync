@@ -3,10 +3,10 @@
 Creates media library tables with ENUMs and RLS policies.
 """
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
-from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 
 revision = "010"
 down_revision = "009"
