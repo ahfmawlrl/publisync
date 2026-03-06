@@ -18,6 +18,7 @@ export function useComments(params: {
   platform?: string;
   channel_id?: string;
   search?: string;
+  sentiment?: string;
 }) {
   return useQuery({
     queryKey: ['comments', params],
@@ -39,7 +40,7 @@ export function useComment(commentId: string | null) {
   });
 }
 
-export function useDangerousComments(params: { page?: number; limit?: number }) {
+export function useDangerousComments(params: { page?: number; limit?: number; status?: string }) {
   return useQuery({
     queryKey: ['comments', 'dangerous', params],
     queryFn: async () => {

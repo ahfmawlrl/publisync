@@ -1,5 +1,5 @@
 import { DeleteOutlined, EditOutlined, EyeOutlined, PlusOutlined, SendOutlined } from '@ant-design/icons';
-import { App, Button, Input, Popconfirm, Select, Space, Table, Tag, Typography } from 'antd';
+import { App, Button, Input, Popconfirm, Select, Space, Table, Tabs, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
@@ -11,11 +11,11 @@ const { Title } = Typography;
 const { Search } = Input;
 
 const STATUS_CONFIG: Record<string, { color: string; text: string }> = {
-  DRAFT: { color: 'default', text: '초안' },
-  PENDING_REVIEW: { color: 'orange', text: '검토 대기' },
+  DRAFT: { color: 'default', text: '작성 중' },
+  PENDING_REVIEW: { color: 'orange', text: '검수 대기' },
   IN_REVIEW: { color: 'processing', text: '검토 중' },
   APPROVED: { color: 'cyan', text: '승인됨' },
-  REJECTED: { color: 'red', text: '반려됨' },
+  REJECTED: { color: 'red', text: '반려' },
   SCHEDULED: { color: 'blue', text: '예약됨' },
   PUBLISHING: { color: 'processing', text: '게시 중' },
   PUBLISHED: { color: 'green', text: '게시 완료' },
@@ -25,26 +25,28 @@ const STATUS_CONFIG: Record<string, { color: string; text: string }> = {
   ARCHIVED: { color: 'default', text: '보관됨' },
 };
 
-const PLATFORM_COLORS: Record<string, string> = {
-  YOUTUBE: 'red',
-  INSTAGRAM: 'purple',
-  FACEBOOK: 'blue',
-  X: 'default',
-  NAVER_BLOG: 'green',
+const PLATFORM_SHORT: Record<string, string> = {
+  YOUTUBE: 'YT',
+  INSTAGRAM: 'IG',
+  FACEBOOK: 'FB',
+  X: 'X',
+  NAVER_BLOG: 'Blog',
 };
+
+type StatusTab = 'all' | 'DRAFT' | 'PENDING_REVIEW' | 'APPROVED' | 'PUBLISHED' | 'REJECTED';
 
 export default function ContentsListPage() {
   const navigate = useNavigate();
   const { message } = App.useApp();
   const [page, setPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState<string | undefined>();
+  const [statusTab, setStatusTab] = useState<StatusTab>('all');
   const [platformFilter, setPlatformFilter] = useState<string | undefined>();
   const [searchText, setSearchText] = useState<string | undefined>();
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
   const { data, isLoading } = useContents({
     page,
-    status: statusFilter,
+    status: statusTab === 'all' ? undefined : statusTab,
     platform: platformFilter,
     search: searchText,
   });
@@ -68,6 +70,16 @@ export default function ContentsListPage() {
 
   const columns: ColumnsType<ContentRecord> = [
     {
+      title: '상태',
+      dataIndex: 'status',
+      key: 'status',
+      width: 110,
+      render: (s: string) => {
+        const cfg = STATUS_CONFIG[s] || { color: 'default', text: s };
+        return <Tag color={cfg.color}>{cfg.text}</Tag>;
+      },
+    },
+    {
       title: '제목',
       dataIndex: 'title',
       key: 'title',
@@ -77,46 +89,34 @@ export default function ContentsListPage() {
       ),
     },
     {
-      title: '상태',
-      dataIndex: 'status',
-      key: 'status',
-      width: 120,
-      render: (s: string) => {
-        const cfg = STATUS_CONFIG[s] || { color: 'default', text: s };
-        return <Tag color={cfg.color}>{cfg.text}</Tag>;
-      },
-    },
-    {
       title: '플랫폼',
       dataIndex: 'platforms',
       key: 'platforms',
-      width: 200,
+      width: 160,
       render: (platforms: string[]) => (
-        <Space size={2} wrap>
-          {platforms.map((p) => (
-            <Tag key={p} color={PLATFORM_COLORS[p]}>{p}</Tag>
-          ))}
-        </Space>
+        <span>
+          {platforms.map((p) => PLATFORM_SHORT[p] || p).join('·')}
+        </span>
       ),
     },
     {
-      title: '예약일시',
-      dataIndex: 'scheduled_at',
-      key: 'scheduled_at',
-      width: 160,
-      render: (v: string | null) => (v ? new Date(v).toLocaleString('ko-KR') : '-'),
+      title: '작성자',
+      dataIndex: 'author_name',
+      key: 'author_name',
+      width: 100,
+      render: (name: string | undefined) => name || '-',
     },
     {
-      title: '작성일',
+      title: '날짜',
       dataIndex: 'created_at',
       key: 'created_at',
-      width: 160,
-      render: (v: string) => new Date(v).toLocaleString('ko-KR'),
+      width: 100,
+      render: (v: string) => new Date(v).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' }),
     },
     {
       title: '관리',
       key: 'actions',
-      width: 180,
+      width: 160,
       render: (_, record) => (
         <Space>
           <Button
@@ -169,22 +169,28 @@ export default function ContentsListPage() {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <Title level={4} className="!mb-0">콘텐츠 관리</Title>
+        <Title level={4} className="!mb-0">콘텐츠 목록</Title>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/contents/create')}>
-          콘텐츠 작성
+          + 새 콘텐츠
         </Button>
       </div>
 
+      <Tabs
+        activeKey={statusTab}
+        onChange={(key) => { setStatusTab(key as StatusTab); setPage(1); }}
+        items={[
+          { key: 'all', label: '전체' },
+          { key: 'DRAFT', label: '작성 중' },
+          { key: 'PENDING_REVIEW', label: '검수 대기' },
+          { key: 'APPROVED', label: '승인됨' },
+          { key: 'PUBLISHED', label: '게시 완료' },
+          { key: 'REJECTED', label: '반려' },
+        ]}
+      />
+
       <div className="mb-4 flex items-center gap-3">
         <Select
-          placeholder="상태 필터"
-          allowClear
-          style={{ width: 140 }}
-          onChange={(v) => { setStatusFilter(v); setPage(1); }}
-          options={Object.entries(STATUS_CONFIG).map(([value, { text }]) => ({ value, label: text }))}
-        />
-        <Select
-          placeholder="플랫폼"
+          placeholder="전체 플랫폼"
           allowClear
           style={{ width: 140 }}
           onChange={(v) => { setPlatformFilter(v); setPage(1); }}
@@ -196,8 +202,18 @@ export default function ContentsListPage() {
             { value: 'NAVER_BLOG', label: '네이버 블로그' },
           ]}
         />
+        <Select
+          placeholder="최근 30일"
+          style={{ width: 120 }}
+          defaultValue="30d"
+          options={[
+            { value: '7d', label: '최근 7일' },
+            { value: '30d', label: '최근 30일' },
+            { value: '90d', label: '최근 90일' },
+          ]}
+        />
         <Search
-          placeholder="제목 검색"
+          placeholder="검색..."
           allowClear
           style={{ width: 240 }}
           onSearch={(v) => { setSearchText(v || undefined); setPage(1); }}
@@ -223,7 +239,7 @@ export default function ContentsListPage() {
           total: data?.meta?.total || 0,
           pageSize: 20,
           onChange: setPage,
-          showTotal: (total) => `총 ${total}개`,
+          showTotal: (total) => `총 ${total}건${selectedRowKeys.length > 0 ? ` | 선택: ${selectedRowKeys.length}건` : ''}`,
         }}
       />
     </div>

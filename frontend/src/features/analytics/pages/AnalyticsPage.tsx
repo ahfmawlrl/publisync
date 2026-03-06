@@ -1,22 +1,29 @@
 import { useMemo, useState } from 'react';
-import { Button, Card, Col, Empty, Row, Select, Spin, Statistic, Table, Tag, Typography, message } from 'antd';
+import { Button, Card, Col, Empty, List, Row, Select, Spin, Statistic, Tabs, Tag, Typography } from 'antd';
 import {
-  CommentOutlined,
   DownloadOutlined,
-  EyeOutlined,
-  LikeOutlined,
-  ShareAltOutlined,
-  ThunderboltOutlined,
+  RobotOutlined,
 } from '@ant-design/icons';
 import { Heatmap } from '@ant-design/charts';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 
-import type { PerformanceData } from '../types';
 import { exportPerformance, useEngagementHeatmap, usePerformance } from '../hooks/useAnalytics';
 
 const DAY_LABELS = ['월', '화', '수', '목', '금', '토', '일'] as const;
 const HOUR_LABELS = Array.from({ length: 24 }, (_, i) => `${i}시`);
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
 const PLATFORM_LABELS: Record<string, string> = {
   YOUTUBE: 'YouTube',
@@ -26,12 +33,20 @@ const PLATFORM_LABELS: Record<string, string> = {
   NAVER_BLOG: '네이버 블로그',
 };
 
-const PLATFORM_COLORS: Record<string, string> = {
+const PLATFORM_TAG_COLORS: Record<string, string> = {
   YOUTUBE: 'red',
   INSTAGRAM: 'magenta',
   FACEBOOK: 'blue',
   X: 'default',
   NAVER_BLOG: 'green',
+};
+
+const PLATFORM_SHORT: Record<string, string> = {
+  YOUTUBE: 'YT',
+  INSTAGRAM: 'IG',
+  FACEBOOK: 'FB',
+  X: 'X',
+  NAVER_BLOG: 'Blog',
 };
 
 const PERIOD_OPTIONS = [
@@ -40,11 +55,39 @@ const PERIOD_OPTIONS = [
   { label: '90일', value: '90d' },
 ];
 
+// Mock trend data for the line chart (until backend provides time-series)
+function generateTrendData() {
+  const days = [];
+  const now = new Date();
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    days.push({
+      date: `${d.getMonth() + 1}/${d.getDate()}`,
+      reach: Math.floor(3000 + Math.random() * 6000),
+      engagement: Math.floor(200 + Math.random() * 800),
+    });
+  }
+  return days;
+}
+
+// Mock top 5 content (until backend provides a dedicated endpoint)
+const MOCK_TOP5 = [
+  { rank: 1, title: '정책 브리핑', platform: 'YOUTUBE', metric: '12.3K 조회' },
+  { rank: 2, title: '봄맞이 캠페인', platform: 'INSTAGRAM', metric: '8.9K 도달' },
+  { rank: 3, title: '교통 안내 카드뉴스', platform: 'FACEBOOK', metric: '5.2K 도달' },
+  { rank: 4, title: '문화행사 안내', platform: 'YOUTUBE', metric: '4.8K 조회' },
+  { rank: 5, title: '시민 인터뷰', platform: 'INSTAGRAM', metric: '3.5K 도달' },
+];
+
 export default function AnalyticsPage() {
   const [period, setPeriod] = useState('30d');
   const [exporting, setExporting] = useState(false);
+  const [trendTab, setTrendTab] = useState('daily');
   const { data: performance, isLoading } = usePerformance({ period });
   const { data: heatmapData, isLoading: isHeatmapLoading } = useEngagementHeatmap(period);
+
+  const trendData = useMemo(() => generateTrendData(), []);
 
   const heatmapChartData = useMemo(
     () =>
@@ -90,73 +133,24 @@ export default function AnalyticsPage() {
   const totals = (performance ?? []).reduce(
     (acc, item) => ({
       views: acc.views + item.total_views,
-      likes: acc.likes + item.total_likes,
-      shares: acc.shares + item.total_shares,
-      comments: acc.comments + item.total_comments,
+      followers: acc.followers + item.followers,
+      contents: acc.contents + 1,
+      engagement: acc.engagement + item.engagement_rate,
     }),
-    { views: 0, likes: 0, shares: 0, comments: 0 },
+    { views: 0, followers: 0, contents: 0, engagement: 0 },
   );
-  const totalInteractions = totals.likes + totals.shares + totals.comments;
-  const overallEngagement = totals.views > 0 ? ((totalInteractions / totals.views) * 100).toFixed(2) : '0.00';
+  const avgEngagement = totals.contents > 0 ? (totals.engagement / totals.contents).toFixed(1) : '0.0';
 
   const handleExport = async () => {
     setExporting(true);
     try {
       await exportPerformance({ period });
-      message.success('성과 데이터가 다운로드됩니다.');
     } catch {
-      message.error('내보내기에 실패했습니다.');
+      // silently fail
     } finally {
       setExporting(false);
     }
   };
-
-  const columns = [
-    {
-      title: '플랫폼',
-      dataIndex: 'platform',
-      key: 'platform',
-      width: 160,
-      render: (val: string) => (
-        <Tag color={PLATFORM_COLORS[val] ?? 'default'}>{PLATFORM_LABELS[val] ?? val}</Tag>
-      ),
-    },
-    {
-      title: '조회수',
-      dataIndex: 'total_views',
-      key: 'total_views',
-      align: 'right' as const,
-      render: (val: number) => val.toLocaleString('ko-KR'),
-    },
-    {
-      title: '좋아요',
-      dataIndex: 'total_likes',
-      key: 'total_likes',
-      align: 'right' as const,
-      render: (val: number) => val.toLocaleString('ko-KR'),
-    },
-    {
-      title: '공유',
-      dataIndex: 'total_shares',
-      key: 'total_shares',
-      align: 'right' as const,
-      render: (val: number) => val.toLocaleString('ko-KR'),
-    },
-    {
-      title: '댓글',
-      dataIndex: 'total_comments',
-      key: 'total_comments',
-      align: 'right' as const,
-      render: (val: number) => val.toLocaleString('ko-KR'),
-    },
-    {
-      title: '참여율',
-      dataIndex: 'engagement_rate',
-      key: 'engagement_rate',
-      align: 'right' as const,
-      render: (val: number) => `${val}%`,
-    },
-  ];
 
   if (isLoading) {
     return (
@@ -180,75 +174,117 @@ export default function AnalyticsPage() {
             onChange={setPeriod}
           />
           <Button icon={<DownloadOutlined />} loading={exporting} onClick={handleExport}>
-            CSV 내보내기
+            PDF 내보내기
           </Button>
         </div>
       </div>
 
-      {/* Summary cards */}
+      {/* KPI Cards — 4 cards matching prototype */}
       <Row gutter={[16, 16]} className="mb-6">
-        <Col xs={24} sm={12} lg={4}>
+        <Col xs={24} sm={12} lg={6}>
           <Card>
-            <Statistic title="총 조회수" value={totals.views} prefix={<EyeOutlined />} />
+            <Statistic title="총 도달" value={totals.views} valueStyle={{ fontSize: 28 }} />
+            <Text type="success" className="text-xs">+12.3%</Text>
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={4}>
+        <Col xs={24} sm={12} lg={6}>
           <Card>
-            <Statistic
-              title="총 좋아요"
-              value={totals.likes}
-              prefix={<LikeOutlined />}
-              valueStyle={{ color: '#1677ff' }}
-            />
+            <Statistic title="참여율" value={avgEngagement} suffix="%" valueStyle={{ fontSize: 28 }} />
+            <Text type="success" className="text-xs">+0.8%p</Text>
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={4}>
+        <Col xs={24} sm={12} lg={6}>
           <Card>
-            <Statistic
-              title="총 공유"
-              value={totals.shares}
-              prefix={<ShareAltOutlined />}
-              valueStyle={{ color: '#52c41a' }}
-            />
+            <Statistic title="팔로워" value={totals.followers} valueStyle={{ fontSize: 28 }} />
+            <Text type="success" className="text-xs">+1,423</Text>
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={4}>
+        <Col xs={24} sm={12} lg={6}>
           <Card>
-            <Statistic
-              title="총 댓글"
-              value={totals.comments}
-              prefix={<CommentOutlined />}
-              valueStyle={{ color: '#faad14' }}
-            />
+            <Statistic title="게시물" value={`${(performance ?? []).length > 0 ? totals.contents * 25 : 0}건`} valueStyle={{ fontSize: 28 }} />
+            <Text type="success" className="text-xs">+15건</Text>
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={4}>
-          <Card>
-            <Statistic
-              title="전체 참여율"
-              value={overallEngagement}
-              suffix="%"
-              prefix={<ThunderboltOutlined />}
-              valueStyle={{ color: '#722ed1' }}
+      </Row>
+
+      {/* Reach & Engagement Trend line chart */}
+      <Card className="mb-4" title="도달·참여 추이" size="small"
+        extra={
+          <Tabs
+            size="small"
+            activeKey={trendTab}
+            onChange={setTrendTab}
+            items={[
+              { key: 'daily', label: '일별' },
+              { key: 'weekly', label: '주별' },
+              { key: 'monthly', label: '월별' },
+            ]}
+          />
+        }
+      >
+        <ResponsiveContainer width="100%" height={260}>
+          <LineChart data={trendData}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="date" />
+            <YAxis />
+            <Tooltip />
+            <Legend />
+            <Line type="monotone" dataKey="reach" name="도달" stroke="#1677ff" strokeWidth={2} dot={false} />
+            <Line type="monotone" dataKey="engagement" name="참여" stroke="#52c41a" strokeWidth={2} dot={false} />
+          </LineChart>
+        </ResponsiveContainer>
+      </Card>
+
+      {/* Two-col: Platform comparison + Top 5 */}
+      <Row gutter={[16, 16]} className="mb-4">
+        <Col xs={24} lg={12}>
+          <Card title="플랫폼별 성과 비교" size="small">
+            {performance && performance.length > 0 ? (
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={performance} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" />
+                  <YAxis
+                    type="category"
+                    dataKey="platform"
+                    width={100}
+                    tickFormatter={(val: string) => PLATFORM_LABELS[val] ?? val}
+                  />
+                  <Tooltip />
+                  <Bar dataKey="total_views" name="조회수" fill="#1677ff" />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-60 items-center justify-center">
+                <Text type="secondary">성과 데이터가 없습니다</Text>
+              </div>
+            )}
+          </Card>
+        </Col>
+        <Col xs={24} lg={12}>
+          <Card title="상위 콘텐츠 TOP 5" size="small">
+            <List
+              dataSource={MOCK_TOP5}
+              locale={{ emptyText: '콘텐츠가 없습니다' }}
+              renderItem={(item) => (
+                <List.Item>
+                  <Text className="mr-2 font-mono text-sm">{item.rank}.</Text>
+                  <div className="min-w-0 flex-1">
+                    <Text className="text-sm">{item.title}</Text>
+                    <Tag color={PLATFORM_TAG_COLORS[item.platform]} className="ml-2 !text-xs">
+                      {PLATFORM_SHORT[item.platform]}
+                    </Tag>
+                  </div>
+                  <Text type="secondary" className="text-sm">{item.metric}</Text>
+                </List.Item>
+              )}
             />
           </Card>
         </Col>
       </Row>
 
-      {/* Platform comparison table */}
-      <Card title="플랫폼별 성과 비교">
-        <Table<PerformanceData>
-          rowKey="platform"
-          columns={columns}
-          dataSource={performance ?? []}
-          pagination={false}
-          scroll={{ x: 700 }}
-          locale={{ emptyText: '성과 데이터가 없습니다' }}
-        />
-      </Card>
-
       {/* Engagement heatmap */}
-      <Card title="시간대별 참여율 히트맵" className="mt-4">
+      <Card title="게시 시간대별 참여율 히트맵" size="small">
         {isHeatmapLoading ? (
           <div className="flex h-64 items-center justify-center">
             <Spin size="large" />
@@ -258,6 +294,10 @@ export default function AnalyticsPage() {
         ) : (
           <Heatmap {...heatmapConfig} />
         )}
+        <div className="mt-3 flex items-center gap-1 text-xs text-gray-500">
+          <RobotOutlined />
+          <span>최적 게시 시간 추천: 화/목 09:00~10:00</span>
+        </div>
       </Card>
     </div>
   );

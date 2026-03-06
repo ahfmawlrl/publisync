@@ -1,4 +1,4 @@
-import { ArrowLeftOutlined, CheckCircleOutlined, RobotOutlined, SwapOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, CheckCircleOutlined, RobotOutlined, SwapOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import {
   App,
   Alert,
@@ -17,6 +17,7 @@ import {
   Select,
   Space,
   Spin,
+  Tabs,
   Tag,
   Typography,
 } from 'antd';
@@ -186,16 +187,32 @@ export default function ContentCreatePage() {
 
   return (
     <div>
-      <div className="mb-4 flex items-center gap-3">
-        <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate('/contents')} />
-        <Title level={4} className="!mb-0">콘텐츠 작성</Title>
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate('/contents')} />
+          <Title level={4} className="!mb-0">새 콘텐츠 작성</Title>
+        </div>
+        <Space>
+          <Button onClick={() => navigate('/contents')}>임시 저장</Button>
+          <Button type="primary">검토 요청</Button>
+        </Space>
       </div>
+
+      <Form form={form} layout="vertical" onFinish={handleSubmit} initialValues={{ platforms: [] }}>
+        <div className="mb-4">
+          <Form.Item name="platforms" className="!mb-0">
+            <Checkbox.Group options={PLATFORM_OPTIONS} />
+          </Form.Item>
+        </div>
 
       <Row gutter={24}>
         {/* Left: Content form */}
         <Col xs={24} lg={16}>
           <Card>
-            <Form form={form} layout="vertical" onFinish={handleSubmit} initialValues={{ platforms: [] }}>
+              <Form.Item name="media_urls" label="미디어 업로드">
+                <MediaUpload maxFiles={10} />
+              </Form.Item>
+
               <Form.Item
                 name="title"
                 label="제목"
@@ -216,16 +233,27 @@ export default function ContentCreatePage() {
                 <Input placeholder="콘텐츠 제목" maxLength={500} showCount />
               </Form.Item>
 
-              <Form.Item name="body" label="본문">
-                <TextArea rows={10} placeholder="콘텐츠 본문을 작성하세요" />
+              <Form.Item name="body" label="본문/설명문">
+                <TextArea rows={8} placeholder="콘텐츠 본문을 작성하세요" />
               </Form.Item>
 
-              <Form.Item name="platforms" label="게시 플랫폼">
-                <Checkbox.Group options={PLATFORM_OPTIONS} />
-              </Form.Item>
-
-              <Form.Item name="media_urls" label="미디어 첨부">
-                <MediaUpload maxFiles={10} />
+              <Form.Item
+                name="hashtags"
+                label="해시태그"
+                extra={
+                  <Button
+                    type="link"
+                    size="small"
+                    icon={<RobotOutlined />}
+                    onClick={handleGenerateHashtags}
+                    loading={hashtagMutation.isPending}
+                    className="mt-1 !p-0"
+                  >
+                    AI 해시태그 추천
+                  </Button>
+                }
+              >
+                <Input placeholder="#서울시 #정책브리핑 #3월" />
               </Form.Item>
 
               <Form.Item name="scheduled_at" label="예약 게시일시">
@@ -240,12 +268,75 @@ export default function ContentCreatePage() {
                   <Button onClick={() => navigate('/contents')}>취소</Button>
                 </Space>
               </Form.Item>
-            </Form>
           </Card>
         </Col>
 
-        {/* Right: AI suggestion panels */}
+        {/* Right: Preview + AI panels */}
         <Col xs={24} lg={8}>
+          {/* Platform preview */}
+          <Card title="플랫폼별 미리보기" size="small" className="mb-4">
+            <Tabs
+              size="small"
+              items={[
+                {
+                  key: 'youtube',
+                  label: 'YouTube',
+                  children: (
+                    <div>
+                      <div className="mb-2 flex h-36 items-center justify-center rounded bg-gray-100 text-gray-400">
+                        🎬 영상 미리보기
+                      </div>
+                      <Typography.Text strong className="text-sm">
+                        {form.getFieldValue('title') || '제목을 입력하세요'}
+                      </Typography.Text>
+                      <br />
+                      <Typography.Text type="secondary" className="text-xs">
+                        {((form.getFieldValue('body') as string) || '').slice(0, 60) || '본문 미리보기...'}
+                      </Typography.Text>
+                      <br />
+                      <Typography.Text className="text-xs" style={{ color: '#1677ff' }}>
+                        {form.getFieldValue('hashtags') || '#해시태그'}
+                      </Typography.Text>
+                    </div>
+                  ),
+                },
+                {
+                  key: 'instagram',
+                  label: 'Instagram',
+                  children: (
+                    <div>
+                      <div className="mb-2 flex h-36 items-center justify-center rounded bg-gray-100 text-gray-400">
+                        📸 이미지 미리보기
+                      </div>
+                      <Typography.Text className="text-xs">
+                        {((form.getFieldValue('body') as string) || '').slice(0, 80) || '설명문 미리보기...'}
+                      </Typography.Text>
+                    </div>
+                  ),
+                },
+                {
+                  key: 'facebook',
+                  label: 'Facebook',
+                  children: (
+                    <div>
+                      <div className="mb-2 flex h-36 items-center justify-center rounded bg-gray-100 text-gray-400">
+                        📰 피드 미리보기
+                      </div>
+                      <Typography.Text strong className="text-sm">
+                        {form.getFieldValue('title') || '제목을 입력하세요'}
+                      </Typography.Text>
+                      <br />
+                      <Typography.Text type="secondary" className="text-xs">
+                        {((form.getFieldValue('body') as string) || '').slice(0, 100) || '본문 미리보기...'}
+                      </Typography.Text>
+                    </div>
+                  ),
+                },
+              ]}
+            />
+          </Card>
+
+          {/* AI assistant */}
           <Card
             title={
               <Space>
@@ -370,8 +461,47 @@ export default function ContentCreatePage() {
               </div>
             </Space>
           </Card>
+
+          {/* Video content features */}
+          <Card
+            title={
+              <Space>
+                <VideoCameraOutlined />
+                <span>영상 콘텐츠 추가 기능</span>
+              </Space>
+            }
+            size="small"
+            className="mt-4"
+          >
+            <div className="flex flex-wrap gap-2">
+              <Button size="small" icon={<RobotOutlined />} disabled>
+                자막 자동 생성 (F03)
+              </Button>
+              <Button size="small" icon={<RobotOutlined />} disabled>
+                숏폼 생성 (F15)
+              </Button>
+              <Button size="small" icon={<RobotOutlined />} disabled>
+                효과음/이모지 추천
+              </Button>
+            </div>
+            <Typography.Text type="secondary" className="mt-2 block text-xs">
+              Phase 2에서 활성화됩니다
+            </Typography.Text>
+          </Card>
         </Col>
       </Row>
+
+      {/* Workflow progress bar */}
+      <div className="mt-4 flex items-center justify-center gap-2 rounded bg-gray-50 py-3 text-sm">
+        <span className="font-medium text-blue-600">● 작성 중</span>
+        <span className="text-gray-400">→</span>
+        <span className="text-gray-400">○ 검토 요청</span>
+        <span className="text-gray-400">→</span>
+        <span className="text-gray-400">○ 검수 중</span>
+        <span className="text-gray-400">→</span>
+        <span className="text-gray-400">○ 게시</span>
+      </div>
+      </Form>
 
       {/* Tone Transform Modal (S17, F17) */}
       <Modal

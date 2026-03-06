@@ -1,70 +1,66 @@
 import {
   CheckOutlined,
   DeleteOutlined,
-  ExclamationCircleOutlined,
-  EyeOutlined,
-  SendOutlined,
+  EyeInvisibleOutlined,
+  RobotOutlined,
 } from '@ant-design/icons';
 import {
-  Alert,
   App,
   Button,
-  Descriptions,
+  Empty,
   Input,
   Modal,
   Popconfirm,
-  Space,
-  Table,
+  Spin,
+  Tabs,
   Tag,
   Typography,
 } from 'antd';
-import type { ColumnsType } from 'antd/es/table';
 import { useState } from 'react';
 
 import {
   useApproveDelete,
   useDangerousComments,
+  useHideComment,
   useIgnoreDangerous,
   useReplyComment,
 } from '../hooks/useComments';
 import type { CommentRecord } from '../types';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 const { TextArea } = Input;
 
-const PLATFORM_COLORS: Record<string, string> = {
-  YOUTUBE: 'red',
-  INSTAGRAM: 'purple',
-  FACEBOOK: 'blue',
-  X: 'default',
-  NAVER_BLOG: 'green',
+const PLATFORM_SHORT: Record<string, string> = {
+  YOUTUBE: 'YouTube',
+  INSTAGRAM: 'Instagram',
+  FACEBOOK: 'Facebook',
+  X: 'X',
+  NAVER_BLOG: '네이버 블로그',
 };
 
-const STATUS_CONFIG: Record<string, { color: string; text: string }> = {
-  UNPROCESSED: { color: 'default', text: '미처리' },
-  PUBLISHED: { color: 'green', text: '답변완료' },
-  HIDDEN: { color: 'warning', text: '숨김' },
-  PENDING_DELETE: { color: 'orange', text: '삭제대기' },
-  DELETED: { color: 'red', text: '삭제됨' },
-};
+type DangerTab = 'unprocessed' | 'processed' | 'archived';
 
 export default function DangerousCommentsPage() {
   const { message } = App.useApp();
   const [page, setPage] = useState(1);
-
-  // Detail modal
-  const [detailComment, setDetailComment] = useState<CommentRecord | null>(null);
-  const [detailOpen, setDetailOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<DangerTab>('unprocessed');
 
   // Reply modal
   const [replyComment, setReplyComment] = useState<CommentRecord | null>(null);
   const [replyOpen, setReplyOpen] = useState(false);
   const [replyText, setReplyText] = useState('');
 
-  const { data, isLoading } = useDangerousComments({ page });
+  const statusMap: Record<DangerTab, string | undefined> = {
+    unprocessed: 'UNPROCESSED',
+    processed: 'PUBLISHED',
+    archived: 'HIDDEN',
+  };
+
+  const { data, isLoading } = useDangerousComments({ page, status: statusMap[activeTab] });
 
   const ignoreMutation = useIgnoreDangerous();
   const approveDeleteMutation = useApproveDelete();
+  const hideMutation = useHideComment();
   const replyMutation = useReplyComment();
 
   const handleReplySubmit = () => {
@@ -83,89 +79,92 @@ export default function DangerousCommentsPage() {
     );
   };
 
-  const columns: ColumnsType<CommentRecord> = [
-    {
-      title: '작성자',
-      dataIndex: 'author_name',
-      key: 'author_name',
-      width: 120,
-      ellipsis: true,
-    },
-    {
-      title: '댓글 내용',
-      dataIndex: 'text',
-      key: 'text',
-      ellipsis: true,
-      render: (text: string, record) => (
-        <a
-          onClick={() => {
-            setDetailComment(record);
-            setDetailOpen(true);
-          }}
-          className="text-red-600"
-        >
-          {text.length > 80 ? `${text.slice(0, 80)}...` : text}
-        </a>
-      ),
-    },
-    {
-      title: '플랫폼',
-      dataIndex: 'platform',
-      key: 'platform',
-      width: 110,
-      render: (p: string) => <Tag color={PLATFORM_COLORS[p]}>{p}</Tag>,
-    },
-    {
-      title: '위험도',
-      dataIndex: 'dangerous_level',
-      key: 'dangerous_level',
-      width: 90,
-      render: (level: string | null) => (
-        <Tag color="red" icon={<ExclamationCircleOutlined />}>
-          {level || '위험'}
-        </Tag>
-      ),
-    },
-    {
-      title: '상태',
-      dataIndex: 'status',
-      key: 'status',
-      width: 100,
-      render: (s: string) => {
-        const cfg = STATUS_CONFIG[s] || { color: 'default', text: s };
-        return <Tag color={cfg.color}>{cfg.text}</Tag>;
-      },
-    },
-    {
-      title: '작성일',
-      dataIndex: 'platform_created_at',
-      key: 'platform_created_at',
-      width: 150,
-      render: (v: string | null, record) => {
-        const dt = v || record.created_at;
-        return new Date(dt).toLocaleString('ko-KR');
-      },
-    },
-    {
-      title: '관리',
-      key: 'actions',
-      width: 200,
-      render: (_, record) => (
-        <Space>
+  const items = data?.data || [];
+  const pendingCount = items.filter((i) => i.status === 'UNPROCESSED').length;
+
+  const formatTime = (comment: CommentRecord) => {
+    const dt = comment.platform_created_at || comment.created_at;
+    const diff = Date.now() - new Date(dt).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60) return `${mins}분 전`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}시간 전`;
+    return new Date(dt).toLocaleDateString('ko-KR');
+  };
+
+  const renderDangerCard = (comment: CommentRecord) => {
+    const confidence = comment.sentiment_confidence != null
+      ? (comment.sentiment_confidence * 100).toFixed(0)
+      : null;
+    const isUrgent = confidence != null && Number(confidence) >= 80;
+
+    return (
+      <div
+        key={comment.id}
+        className="mb-3 rounded-lg border-l-4 bg-white p-4 shadow-sm"
+        style={{
+          borderLeftColor: isUrgent ? '#ff4d4f' : '#faad14',
+        }}
+      >
+        <div className="mb-2 flex items-center gap-2">
+          <Tag color={isUrgent ? 'red' : 'gold'}>{isUrgent ? '긴급' : '주의'}</Tag>
+          <Text type="secondary" className="text-xs">
+            {formatTime(comment)} · {PLATFORM_SHORT[comment.platform] || comment.platform}
+            {comment.content_id && ` · 콘텐츠 ${comment.content_id.slice(0, 8)}`}
+          </Text>
+        </div>
+        <div className="my-2 text-sm">
+          <Text strong>{comment.author_name}</Text>: &quot;{comment.text}&quot;
+        </div>
+        <div className="mb-2 text-xs text-gray-500">
+          감성: 위험{confidence ? ` (${confidence}%)` : ''}
+          {comment.keywords?.length ? ` · 키워드: ${comment.keywords.join(', ')}` : ''}
+        </div>
+        <div className="flex flex-wrap gap-2">
           <Button
-            type="text"
             size="small"
-            icon={<EyeOutlined />}
+            icon={<RobotOutlined />}
             onClick={() => {
-              setDetailComment(record);
-              setDetailOpen(true);
+              setReplyComment(comment);
+              setReplyText('');
+              setReplyOpen(true);
             }}
-            title="상세"
-          />
+          >
+            AI 답글 생성
+          </Button>
+          <Popconfirm
+            title="이 댓글을 숨기시겠습니까?"
+            onConfirm={() => {
+              hideMutation.mutate(
+                { id: comment.id },
+                {
+                  onSuccess: () => message.success('댓글이 숨김 처리되었습니다'),
+                  onError: () => message.error('숨김 처리에 실패했습니다'),
+                },
+              );
+            }}
+            okText="숨기기"
+            cancelText="취소"
+          >
+            <Button size="small" icon={<EyeInvisibleOutlined />}>숨김 처리</Button>
+          </Popconfirm>
+          <Popconfirm
+            title="이 댓글의 삭제를 승인하시겠습니까?"
+            onConfirm={() => {
+              approveDeleteMutation.mutate(comment.id, {
+                onSuccess: () => message.success('삭제 요청이 등록되었습니다'),
+                onError: () => message.error('삭제 요청에 실패했습니다'),
+              });
+            }}
+            okText="요청"
+            cancelText="취소"
+          >
+            <Button size="small" danger icon={<DeleteOutlined />}>삭제 승인 요청</Button>
+          </Popconfirm>
           <Popconfirm
             title="이 댓글의 위험 표시를 해제하시겠습니까?"
             onConfirm={() => {
-              ignoreMutation.mutate(record.id, {
+              ignoreMutation.mutate(comment.id, {
                 onSuccess: () => message.success('위험 표시가 해제되었습니다'),
                 onError: () => message.error('위험 해제에 실패했습니다'),
               });
@@ -173,154 +172,54 @@ export default function DangerousCommentsPage() {
             okText="해제"
             cancelText="취소"
           >
-            <Button type="text" size="small" icon={<CheckOutlined />} title="위험 해제" />
+            <Button size="small" icon={<CheckOutlined />}>무시</Button>
           </Popconfirm>
-          <Button
-            type="text"
-            size="small"
-            icon={<SendOutlined />}
-            onClick={() => {
-              setReplyComment(record);
-              setReplyText(record.reply_draft || '');
-              setReplyOpen(true);
-            }}
-            title="답변"
-            disabled={record.status === 'DELETED'}
-          />
-          {record.status === 'PENDING_DELETE' && (
-            <Popconfirm
-              title="이 댓글의 삭제를 승인하시겠습니까?"
-              onConfirm={() => {
-                approveDeleteMutation.mutate(record.id, {
-                  onSuccess: () => message.success('삭제가 승인되었습니다'),
-                  onError: () => message.error('삭제 승인에 실패했습니다'),
-                });
-              }}
-              okText="승인"
-              cancelText="취소"
-            >
-              <Button
-                type="text"
-                size="small"
-                danger
-                icon={<DeleteOutlined />}
-                title="삭제 승인"
-              />
-            </Popconfirm>
-          )}
-        </Space>
-      ),
-    },
-  ];
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <Title level={4} className="!mb-0">
-          위험 댓글 관리
-        </Title>
+        <Title level={4} className="!mb-0">⚠️ 위험 댓글 관리</Title>
+        {pendingCount > 0 && (
+          <Text style={{ color: '#ff4d4f', fontWeight: 600 }}>🔴 {pendingCount}건 대기</Text>
+        )}
       </div>
 
-      <Alert
-        message="위험 댓글 모니터링"
-        description="AI 감성 분석에 의해 위험으로 분류된 댓글 목록입니다. 댓글을 확인하고 적절한 조치를 취해주세요."
-        type="warning"
-        showIcon
-        icon={<ExclamationCircleOutlined />}
-        className="mb-4"
+      <Tabs
+        activeKey={activeTab}
+        onChange={(key) => { setActiveTab(key as DangerTab); setPage(1); }}
+        items={[
+          { key: 'unprocessed', label: '미처리' },
+          { key: 'processed', label: '처리 완료' },
+          { key: 'archived', label: '아카이브' },
+        ]}
       />
 
-      <Table
-        columns={columns}
-        dataSource={data?.data || []}
-        rowKey="id"
-        loading={isLoading}
-        rowClassName={() => 'bg-red-50'}
-        pagination={{
-          current: page,
-          total: data?.meta?.total || 0,
-          pageSize: 20,
-          onChange: setPage,
-          showTotal: (total) => `총 ${total}개`,
-        }}
-      />
-
-      {/* Detail Modal */}
-      <Modal
-        title={
-          <Space>
-            <ExclamationCircleOutlined className="text-red-500" />
-            <span>위험 댓글 상세</span>
-          </Space>
-        }
-        open={detailOpen}
-        onCancel={() => {
-          setDetailOpen(false);
-          setDetailComment(null);
-        }}
-        footer={null}
-        width={640}
-      >
-        {detailComment && (
-          <Descriptions column={1} bordered size="small">
-            <Descriptions.Item label="작성자">{detailComment.author_name}</Descriptions.Item>
-            <Descriptions.Item label="댓글 내용">
-              <div style={{ whiteSpace: 'pre-wrap', color: '#cf1322' }}>{detailComment.text}</div>
-            </Descriptions.Item>
-            <Descriptions.Item label="플랫폼">
-              <Tag color={PLATFORM_COLORS[detailComment.platform]}>{detailComment.platform}</Tag>
-            </Descriptions.Item>
-            <Descriptions.Item label="위험도">
-              <Tag color="red" icon={<ExclamationCircleOutlined />}>
-                {detailComment.dangerous_level || '위험'}
-              </Tag>
-              {detailComment.sentiment_confidence != null && (
-                <span className="ml-2 text-gray-500">
-                  (신뢰도: {(detailComment.sentiment_confidence * 100).toFixed(1)}%)
-                </span>
-              )}
-            </Descriptions.Item>
-            <Descriptions.Item label="상태">
-              <Tag color={STATUS_CONFIG[detailComment.status]?.color || 'default'}>
-                {STATUS_CONFIG[detailComment.status]?.text || detailComment.status}
-              </Tag>
-            </Descriptions.Item>
-            {detailComment.reply_text && (
-              <Descriptions.Item label="답변 내용">
-                <div style={{ whiteSpace: 'pre-wrap' }}>{detailComment.reply_text}</div>
-              </Descriptions.Item>
-            )}
-            <Descriptions.Item label="키워드">
-              {detailComment.keywords?.length ? (
-                <Space size={2} wrap>
-                  {detailComment.keywords.map((kw) => (
-                    <Tag key={kw} color="red">
-                      {kw}
-                    </Tag>
-                  ))}
-                </Space>
-              ) : (
-                '-'
-              )}
-            </Descriptions.Item>
-            <Descriptions.Item label="작성일시">
-              {detailComment.platform_created_at
-                ? new Date(detailComment.platform_created_at).toLocaleString('ko-KR')
-                : new Date(detailComment.created_at).toLocaleString('ko-KR')}
-            </Descriptions.Item>
-          </Descriptions>
-        )}
-      </Modal>
+      {isLoading ? (
+        <div className="flex h-64 items-center justify-center"><Spin /></div>
+      ) : items.length > 0 ? (
+        <div>
+          {items.map(renderDangerCard)}
+          {(data?.meta?.total ?? 0) > 20 && (
+            <div className="mt-4 text-center">
+              <Button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="mr-2">이전</Button>
+              <Text type="secondary">페이지 {page}</Text>
+              <Button disabled={items.length < 20} onClick={() => setPage((p) => p + 1)} className="ml-2">다음</Button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <Empty description="위험 댓글이 없습니다" />
+      )}
 
       {/* Reply Modal */}
       <Modal
         title="댓글 답변"
         open={replyOpen}
-        onCancel={() => {
-          setReplyOpen(false);
-          setReplyText('');
-          setReplyComment(null);
-        }}
+        onCancel={() => { setReplyOpen(false); setReplyText(''); setReplyComment(null); }}
         onOk={handleReplySubmit}
         okText="답변 등록"
         cancelText="취소"
@@ -329,9 +228,7 @@ export default function DangerousCommentsPage() {
         {replyComment && (
           <div className="mb-4">
             <div className="mb-2 rounded border border-red-200 bg-red-50 p-3">
-              <div className="mb-1 text-sm font-medium text-gray-600">
-                {replyComment.author_name}
-              </div>
+              <div className="mb-1 text-sm font-medium text-gray-600">{replyComment.author_name}</div>
               <div className="text-sm text-red-700">{replyComment.text}</div>
             </div>
             <TextArea

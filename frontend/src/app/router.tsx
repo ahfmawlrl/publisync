@@ -31,6 +31,11 @@ const ReportsPage = lazy(() => import('@/features/reports/pages/ReportsPage'));
 const SentimentTrendPage = lazy(() => import('@/features/analytics/pages/SentimentTrendPage'));
 const PredictionPage = lazy(() => import('@/features/analytics/pages/PredictionPage'));
 const BenchmarkPage = lazy(() => import('@/features/analytics/pages/BenchmarkPage'));
+const ReplyTemplatesPage = lazy(() => import('@/features/comments/pages/ReplyTemplatesPage'));
+const NotificationSettingsPage = lazy(
+  () => import('@/features/notifications/pages/NotificationSettingsPage'),
+);
+const ChannelHistoryPage = lazy(() => import('@/features/channels/pages/ChannelHistoryPage'));
 
 function SuspenseLoader() {
   return (
@@ -86,7 +91,9 @@ export const router = createBrowserRouter([
           { path: '/approvals/settings', element: withSuspense(WorkflowSettingsPage) },
           { path: '/comments', element: withSuspense(CommentsListPage) },
           { path: '/comments/dangerous', element: withSuspense(DangerousCommentsPage) },
+          { path: '/comments/reply-templates', element: withSuspense(ReplyTemplatesPage) },
           { path: '/channels', element: withSuspense(ChannelsPage) },
+          { path: '/channels/history', element: withSuspense(ChannelHistoryPage) },
           { path: '/calendar', element: withSuspense(CalendarPage) },
           { path: '/media', element: withSuspense(MediaLibraryPage) },
           { path: '/analytics', element: withSuspense(AnalyticsPage) },
@@ -99,7 +106,9 @@ export const router = createBrowserRouter([
           { path: '/users', element: withSuspense(UsersPage) },
           { path: '/ai/subtitle-editor/:assetId', element: withSuspense(SubtitleEditorPage) },
           { path: '/ai/shortform-editor/:assetId', element: withSuspense(ShortformEditorPage) },
+          { path: '/settings/notifications', element: withSuspense(NotificationSettingsPage) },
           { path: '/settings', element: <PlaceholderPage title="설정" sprint="Phase 1-B" /> },
+          { path: '/help', element: <PlaceholderPage title="도움말" sprint="Phase 2" /> },
         ],
       },
     ],
