@@ -3,6 +3,11 @@ import { useLocation, useNavigate } from 'react-router';
 
 import { useUiStore } from '@/shared/stores/useUiStore';
 
+const THEME_STYLES = {
+  light: { bg: '#fff', border: '#e5e7eb', active: '#1677ff', inactive: '#8c8c8c' },
+  dark: { bg: '#141414', border: '#303030', active: '#1668dc', inactive: '#6b6b6b' },
+} as const;
+
 interface TabItem {
   key: string;
   label: string;
@@ -15,6 +20,8 @@ export default function MobileTabBar() {
   const navigate = useNavigate();
   const location = useLocation();
   const setMobileMenuOpen = useUiStore((s) => s.setMobileMenuOpen);
+  const theme = useUiStore((s) => s.theme);
+  const colors = THEME_STYLES[theme];
 
   const tabs: TabItem[] = [
     { key: '/', label: '대시보드', icon: <LayoutDashboard size={20} />, path: '/' },
@@ -46,8 +53,8 @@ export default function MobileTabBar() {
         left: 0,
         right: 0,
         height: 56,
-        backgroundColor: '#fff',
-        borderTop: '1px solid #e5e7eb',
+        backgroundColor: colors.bg,
+        borderTop: `1px solid ${colors.border}`,
         zIndex: 20,
         display: 'flex',
         alignItems: 'center',
@@ -72,7 +79,7 @@ export default function MobileTabBar() {
               border: 'none',
               background: 'none',
               cursor: 'pointer',
-              color: active ? '#1677ff' : '#8c8c8c',
+              color: active ? colors.active : colors.inactive,
               fontSize: 11,
               fontWeight: active ? 600 : 400,
               padding: 0,

@@ -4,7 +4,7 @@ import { App, Button, Card, Descriptions, Empty, Image, Popconfirm, Space, Spin,
 import { useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router';
 
-import { apiClient } from '@/shared/api/client';
+import apiClient from '@/shared/api/client';
 import type { PaginatedResponse } from '@/shared/api/types';
 import { getStatusConfig } from '@/shared/constants/contentStatus';
 import { CONTENT_MESSAGES } from '@/shared/constants/messages';

@@ -2,6 +2,7 @@ import { DeleteOutlined, HistoryOutlined, ReloadOutlined } from '@ant-design/ico
 import { App, Button, Card, Drawer, Modal, Popconfirm, Progress, Select, Space, Table, Tabs, Tag, Timeline, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useCallback, useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router';
 
 import { getPlatformConfig, PLATFORM_CONFIG } from '@/shared/constants/platform';
 import { CHANNEL_EVENT_LABELS, CHANNEL_STATUS_CONFIG } from '../constants';
@@ -24,10 +25,15 @@ const PLATFORM_OPTIONS = Object.entries(PLATFORM_CONFIG).map(([value, { label }]
 
 export default function ChannelsPage() {
   const { message } = App.useApp();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [connectOpen, setConnectOpen] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState<string>('YOUTUBE');
   const [historyChannelId, setHistoryChannelId] = useState<string | null>(null);
+
+  // Derive active tab from URL path
+  const activeTab = location.pathname === '/channels/api-status' ? 'api-status' : 'channels';
 
   const { data, isLoading } = useChannels(page);
   const { data: apiStatus } = useApiStatus();
@@ -157,7 +163,8 @@ export default function ChannelsPage() {
       </div>
 
       <Tabs
-        defaultActiveKey="channels"
+        activeKey={activeTab}
+        onChange={(key) => navigate(key === 'api-status' ? '/channels/api-status' : '/channels', { replace: true })}
         items={[
           {
             key: 'channels',

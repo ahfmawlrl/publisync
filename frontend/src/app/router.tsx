@@ -159,6 +159,7 @@ export const router = createBrowserRouter([
             element: <RouteGuard requiredRoles={[SA, AM]} />,
             children: [
               { path: '/channels', element: withSuspense(ChannelsPage) },
+              { path: '/channels/api-status', element: withSuspense(ChannelsPage) },
               { path: '/channels/history', element: withSuspense(ChannelHistoryPage) },
             ],
           },
@@ -196,6 +197,14 @@ export const router = createBrowserRouter([
             children: [
               { path: '/ai/subtitle-editor/:assetId', element: withSuspense(SubtitleEditorPage) },
               { path: '/ai/shortform-editor/:assetId', element: withSuspense(ShortformEditorPage) },
+            ],
+          },
+
+          // ── Admin (SA only) ──
+          {
+            element: <RouteGuard requiredRoles={[SA]} />,
+            children: [
+              { path: '/admin', element: <PlaceholderPage title="시스템 관리" sprint="Phase 1-B" /> },
             ],
           },
 

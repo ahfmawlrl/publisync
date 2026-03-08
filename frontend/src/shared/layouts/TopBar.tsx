@@ -45,16 +45,16 @@ export default function TopBar({ isMobile = false }: TopBarProps) {
   const { data: unread } = useUnreadCount();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const isAgencyManager = (user?.role as Role) === 'AGENCY_MANAGER';
+  const isAgencyRole = (user?.role as Role) === 'AGENCY_MANAGER' || (user?.role as Role) === 'AGENCY_OPERATOR';
 
-  /** Build workspace options — prepend "전체 기관" for AM role */
+  /** Build workspace options — prepend "전체 기관" for agency roles (AM, AO) */
   const workspaceOptions = useMemo(() => {
     const orgOptions = workspaces.map((w) => ({ value: w.id, label: w.name }));
-    if (isAgencyManager) {
+    if (isAgencyRole) {
       return [{ value: 'all', label: '전체 기관' }, ...orgOptions];
     }
     return orgOptions;
-  }, [workspaces, isAgencyManager]);
+  }, [workspaces, isAgencyRole]);
 
   const handleLogout = () => {
     logout();
@@ -107,31 +107,28 @@ export default function TopBar({ isMobile = false }: TopBarProps) {
           position: 'fixed',
           top: 0,
           right: 0,
-          left: isMobile ? 0 : collapsed ? 80 : 240,
+          left: isMobile ? 0 : collapsed ? 64 : 240,
           zIndex: 9,
           height: 64,
           padding: isMobile ? '0 12px' : '0 24px',
           transition: 'left 0.2s',
         }}
       >
-        {/* Left side: Workspace switcher + Search (hidden on mobile) */}
-        <Space size="middle">
-          {!isMobile && (
-            <>
-              <Select
-                value={currentOrgId || undefined}
-                onChange={switchWorkspace}
-                placeholder="워크스페이스 선택"
-                style={{ width: 200 }}
-                options={workspaceOptions}
-              />
-              <SearchBar />
-            </>
-          )}
-          {isMobile && (
-            <Text strong className="text-base">PubliSync</Text>
-          )}
-        </Space>
+        {/* Left side: Workspace switcher + Search (desktop) / Logo (mobile) */}
+        {isMobile ? (
+          <Text strong className="text-base">PubliSync</Text>
+        ) : (
+          <Space size="middle" split={<div className="h-6 w-px bg-gray-300 dark:bg-gray-600" />}>
+            <Select
+              value={currentOrgId || undefined}
+              onChange={switchWorkspace}
+              placeholder="워크스페이스 선택"
+              style={{ width: 200 }}
+              options={workspaceOptions}
+            />
+            <SearchBar />
+          </Space>
+        )}
 
         {/* Right side */}
         <Space size="middle">

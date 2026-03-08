@@ -13,6 +13,7 @@ import {
   LayoutDashboard,
   Link2,
   MessageSquare,
+  Monitor,
   PenLine,
   ScrollText,
   Settings,
@@ -80,6 +81,8 @@ const ROLE_MENUS: Record<string, Role[]> = {
   '/approvals/settings': [SA, AM, CD],
   '/settings/notifications': ALL_ROLES,
   '/audit-logs': [SA, AM, CD],
+  // 시스템 관리 (SA 전용)
+  '/admin': [SA],
   // 도움말
   '/help': ALL_ROLES,
 };
@@ -105,6 +108,7 @@ const PHASE_MENUS: Record<Phase, string[]> = {
     '/users',
     '/approvals/settings',
     '/settings/notifications',
+    '/admin',
     '/help',
   ],
   '1-B': [
@@ -258,6 +262,9 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
         { key: '/audit-logs', icon: <ScrollText size={18} />, label: '감사 로그' },
       ],
     },
+
+    // ── 시스템 관리 (SA 전용) ──
+    { key: '/admin', icon: <Monitor size={18} />, label: '시스템 관리' },
   ];
 
   const helpItems: MenuProps['items'] = [
@@ -295,6 +302,23 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
   const filteredMainItems = filterByRoleAndPhase(mainItems);
   const filteredHelpItems = filterByRoleAndPhase(helpItems);
 
+  // Compute the best matching menu key for the current pathname.
+  // For example, /contents/123 should highlight /contents, /contents/123/edit → /contents.
+  const ALL_MENU_KEYS = Object.keys(ROLE_MENUS);
+  const selectedKey = (() => {
+    const path = location.pathname;
+    // Exact match first
+    if (ALL_MENU_KEYS.includes(path)) return path;
+    // Longest prefix match (skip '/' to avoid it always matching)
+    let best = '';
+    for (const key of ALL_MENU_KEYS) {
+      if (key !== '/' && path.startsWith(key) && key.length > best.length) {
+        best = key;
+      }
+    }
+    return best || '/';
+  })();
+
   const handleClick: MenuProps['onClick'] = ({ key }) => {
     navigate(key);
     if (isMobile) {
@@ -314,7 +338,7 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
         <Menu
           theme="dark"
           mode="inline"
-          selectedKeys={[location.pathname]}
+          selectedKeys={[selectedKey]}
           items={filteredMainItems}
           onClick={handleClick}
         />
@@ -324,7 +348,7 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
           <Menu
             theme="dark"
             mode="inline"
-            selectedKeys={[location.pathname]}
+            selectedKeys={[selectedKey]}
             items={filteredHelpItems}
             onClick={handleClick}
           />
@@ -356,6 +380,7 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
       collapsed={collapsed}
       onCollapse={toggleSidebar}
       width={240}
+      collapsedWidth={64}
       className="!fixed left-0 top-0 bottom-0 z-10"
       style={{ overflow: 'hidden', height: '100vh' }}
     >

@@ -37,7 +37,7 @@ export default function GlobalLayout() {
         <Content
           className="p-6"
           style={{
-            marginLeft: isMobile ? 0 : collapsed ? 80 : 240,
+            marginLeft: isMobile ? 0 : collapsed ? 64 : 240,
             marginTop: 64,
             paddingBottom: isMobile ? 72 : undefined,
             transition: 'margin-left 0.2s',

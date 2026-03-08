@@ -140,8 +140,13 @@ export default function ContentCreatePage() {
   /** Save as DRAFT and navigate to detail page. */
   const handleSaveDraft = async () => {
     try {
-      const values = await form.validateFields(['title']);
-      const data = buildCreateData({ ...form.getFieldsValue(true), ...values });
+      await form.validateFields(['title']);
+    } catch {
+      // 제목 미입력 — Ant Design이 인라인 에러 표시하므로 별도 토스트 불필요
+      return;
+    }
+    try {
+      const data = buildCreateData(form.getFieldsValue(true));
       const result = await createMutation.mutateAsync(data);
       message.success(CONTENT_MESSAGES.SAVE_DRAFT_SUCCESS);
       navigate(`/contents/${result.id}`);
@@ -161,17 +166,6 @@ export default function ContentCreatePage() {
       navigate(`/contents/${result.id}`);
     } catch {
       message.error(CONTENT_MESSAGES.REQUEST_REVIEW_ERROR);
-    }
-  };
-
-  const handleSubmit = async (values: Record<string, unknown>) => {
-    const data = buildCreateData(values);
-    try {
-      const result = await createMutation.mutateAsync(data);
-      message.success(CONTENT_MESSAGES.CREATE_SUCCESS);
-      navigate(`/contents/${result.id}`);
-    } catch {
-      message.error(CONTENT_MESSAGES.CREATE_ERROR);
     }
   };
 
@@ -225,23 +219,18 @@ export default function ContentCreatePage() {
     const contentText = getContentText();
     if (!contentText) return;
     setToneModalOpen(true);
-    toneTransformMutation.mutate(
-      {
-        content_text: contentText,
-        target_platform: tonePlatform,
-        target_tone: toneTone,
-        count: 2,
-      },
-      { onError: () => message.error('AI 톤 변환에 실패했습니다') },
-    );
+    // 모달에서 플랫폼/톤 선택 후 "변환하기" 버튼으로 호출 (handleToneTransformRun)
   };
 
-  const handleToneTransformRerun = () => {
-    const contentText = getContentText();
-    if (!contentText) return;
+  const handleToneTransformRun = () => {
+    const body = form.getFieldValue('body') as string | undefined;
+    if (!body || body.trim().length < 10) {
+      message.warning('AI 제안을 받으려면 본문을 10자 이상 입력하세요.');
+      return;
+    }
     toneTransformMutation.mutate(
       {
-        content_text: contentText,
+        content_text: body.trim(),
         target_platform: tonePlatform,
         target_tone: toneTone,
         count: 2,
@@ -302,21 +291,25 @@ export default function ContentCreatePage() {
         </Space>
       </div>
 
-      <Form form={form} layout="vertical" onFinish={handleSubmit} initialValues={{ platforms: [] }}>
+      <Form form={form} layout="vertical" initialValues={{ platforms: [] }}>
         <div className="mb-4 flex items-center gap-4">
           <Form.Item name="platforms" className="!mb-0">
             <Checkbox.Group options={PLATFORM_OPTIONS} />
           </Form.Item>
-          {channelOptions.length > 0 && (
-            <Form.Item name="channel_ids" className="!mb-0" style={{ minWidth: 240 }}>
+          <Form.Item name="channel_ids" className="!mb-0" style={{ minWidth: 240 }}>
+            {channelOptions.length > 0 ? (
               <Select
                 mode="multiple"
                 placeholder="게시 채널 선택"
                 options={channelOptions}
                 allowClear
               />
-            </Form.Item>
-          )}
+            ) : watchedPlatforms && watchedPlatforms.length > 0 ? (
+              <Typography.Text type="secondary" className="text-xs">
+                선택한 플랫폼에 연결된 채널이 없습니다. 채널 관리에서 연동하세요.
+              </Typography.Text>
+            ) : null}
+          </Form.Item>
         </div>
 
       <Row gutter={24}>
@@ -375,12 +368,7 @@ export default function ContentCreatePage() {
               </Form.Item>
 
               <Form.Item>
-                <Space>
-                  <Button type="primary" htmlType="submit" loading={createMutation.isPending}>
-                    저장 (초안)
-                  </Button>
-                  <Button onClick={() => navigate('/contents')}>취소</Button>
-                </Space>
+                <Button onClick={() => navigate('/contents')}>취소</Button>
               </Form.Item>
           </Card>
         </Col>
@@ -451,6 +439,9 @@ export default function ContentCreatePage() {
                   label: 'X',
                   children: (
                     <div>
+                      <div className="mb-2 flex h-36 items-center justify-center rounded bg-gray-100 text-gray-400">
+                        미디어 미리보기
+                      </div>
                       <div className="rounded border border-gray-200 p-3">
                         <Typography.Text className="text-sm">
                           {(previewBody || '트윗 내용 미리보기...').slice(0, 280)}
@@ -478,7 +469,7 @@ export default function ContentCreatePage() {
                       </Typography.Text>
                       <Divider className="!my-2" />
                       <Typography.Text className="text-xs leading-relaxed">
-                        {previewBody.slice(0, 150) || '블로그 본문 미리보기...'}
+                        {previewBody.slice(0, 200) || '블로그 본문 미리보기...'}
                       </Typography.Text>
                       <br />
                       <Typography.Text className="mt-2 block text-xs" style={{ color: '#03c75a' }}>
@@ -612,11 +603,14 @@ export default function ContentCreatePage() {
                     loading={hashtagMutation.isPending}
                     onSelect={(content) => {
                       const currentHashtags = (form.getFieldValue('hashtags') as string[]) || [];
-                      const hashtag = content.startsWith('#') ? content : `#${content}`;
-                      if (!currentHashtags.includes(hashtag)) {
-                        form.setFieldValue('hashtags', [...currentHashtags, hashtag]);
-                      }
-                    }
+                      const newTags = content
+                        .split(/[\s,]+/)
+                        .map((t) => t.trim())
+                        .filter(Boolean)
+                        .map((t) => (t.startsWith('#') ? t : `#${t}`));
+                      const merged = [...currentHashtags, ...newTags.filter((t) => !currentHashtags.includes(t))];
+                      form.setFieldValue('hashtags', merged);
+                    }}
                     error={hashtagMutation.data?.error}
                     model={hashtagMutation.data?.model}
                     processingTimeMs={hashtagMutation.data?.processing_time_ms}
@@ -826,7 +820,7 @@ export default function ContentCreatePage() {
           />
           <Button
             type="primary"
-            onClick={handleToneTransformRerun}
+            onClick={handleToneTransformRun}
             loading={toneTransformMutation.isPending}
           >
             변환하기
