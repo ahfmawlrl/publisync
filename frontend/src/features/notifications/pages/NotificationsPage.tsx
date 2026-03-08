@@ -14,6 +14,7 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/ko';
 import { useState } from 'react';
+import { useNavigate } from 'react-router';
 
 import { useMarkAllRead, useMarkRead, useNotifications, useUnreadCount } from '../hooks/useNotifications';
 import type { NotificationRecord, NotificationType } from '../types';
@@ -75,6 +76,7 @@ const TYPE_OPTIONS = Object.entries(NOTIFICATION_TYPE_CONFIG).map(([value, { lab
 }));
 
 export default function NotificationsPage() {
+  const navigate = useNavigate();
   const { message } = App.useApp();
   const [page, setPage] = useState(1);
   const [typeFilter, setTypeFilter] = useState<string | undefined>();
@@ -108,7 +110,7 @@ export default function NotificationsPage() {
   const handleNotificationClick = (notification: NotificationRecord) => {
     handleMarkRead(notification);
     if (notification.action_url) {
-      window.location.href = notification.action_url;
+      navigate(notification.action_url);
     }
   };
 

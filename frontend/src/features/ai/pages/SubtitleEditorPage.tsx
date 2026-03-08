@@ -8,7 +8,7 @@
  * Workflow: Load asset -> Generate subtitles via AI -> Edit -> Export SRT
  */
 
-import { DownloadOutlined, PlusOutlined } from '@ant-design/icons';
+import { DownloadOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons';
 import { App, Button, Card, Empty, Input, List, Space, Typography } from 'antd';
 import { useCallback, useRef, useState } from 'react';
 import { useParams } from 'react-router';
@@ -17,7 +17,7 @@ import VideoPlayer from '@/shared/components/VideoPlayer';
 import WaveformViewer from '@/shared/components/WaveformViewer';
 
 import AiJobProgress from '../components/AiJobProgress';
-import { useCreateSubtitles } from '../hooks/useAiJobs';
+import { useCreateSubtitles, useSaveSubtitles } from '../hooks/useAiJobs';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -178,6 +178,24 @@ export default function SubtitleEditorPage() {
     message.success('SRT \ud30c\uc77c\uc744 \ub2e4\uc6b4\ub85c\ub4dc\ud588\uc2b5\ub2c8\ub2e4.');
   }, [subtitles, assetId, message]);
 
+  const saveSubtitlesMutation = useSaveSubtitles();
+
+  const handleSaveToServer = useCallback(async () => {
+    if (!assetId || subtitles.length === 0) {
+      message.warning('저장할 자막이 없습니다.');
+      return;
+    }
+    try {
+      await saveSubtitlesMutation.mutateAsync({
+        mediaAssetId: assetId,
+        subtitles: subtitles.map((s) => ({ index: s.index, start: s.start, end: s.end, text: s.text })),
+      });
+      message.success('자막이 서버에 저장되었습니다.');
+    } catch {
+      message.error('자막 저장에 실패했습니다.');
+    }
+  }, [assetId, subtitles, saveSubtitlesMutation, message]);
+
   const handleCloseJobProgress = useCallback(() => {
     setJobId(null);
   }, []);
@@ -210,6 +228,14 @@ export default function SubtitleEditorPage() {
             disabled={isJobRunning}
           >
             AI 자막 생성
+          </Button>
+          <Button
+            icon={<SaveOutlined />}
+            onClick={handleSaveToServer}
+            loading={saveSubtitlesMutation.isPending}
+            disabled={subtitles.length === 0}
+          >
+            서버에 저장
           </Button>
           <Button
             icon={<DownloadOutlined />}

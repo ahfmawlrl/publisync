@@ -1,6 +1,13 @@
 """ApprovalWorkflow, ApprovalRequest, ApprovalHistory — S6 (F09)."""
 
+from __future__ import annotations
+
 import uuid
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.models.content import Content
+    from app.models.user import User
 
 from sqlalchemy import Boolean, Enum, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -21,7 +28,7 @@ class ApprovalWorkflow(Base, TimestampMixin):
     steps: Mapped[dict | None] = mapped_column(JSONB, default=list)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
-    requests: Mapped[list["ApprovalRequest"]] = relationship(back_populates="workflow")
+    requests: Mapped[list[ApprovalRequest]] = relationship(back_populates="workflow")
 
     __table_args__ = (
         Index("idx_approval_workflows_org_id", "organization_id"),
@@ -51,8 +58,10 @@ class ApprovalRequest(Base, TimestampMixin):
     is_urgent: Mapped[bool] = mapped_column(Boolean, default=False)
     comment: Mapped[str | None] = mapped_column(Text)
 
-    workflow: Mapped["ApprovalWorkflow | None"] = relationship(back_populates="requests")
-    histories: Mapped[list["ApprovalHistory"]] = relationship(back_populates="request", cascade="all, delete-orphan")
+    requester: Mapped[User] = relationship(foreign_keys=[requested_by], lazy="noload")
+    content: Mapped[Content] = relationship(foreign_keys=[content_id], lazy="noload")
+    workflow: Mapped[ApprovalWorkflow | None] = relationship(back_populates="requests")
+    histories: Mapped[list[ApprovalHistory]] = relationship(back_populates="request", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("idx_approval_requests_org_id", "organization_id"),
@@ -76,7 +85,7 @@ class ApprovalHistory(Base, TimestampMixin):
     reviewer_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     comment: Mapped[str | None] = mapped_column(Text)
 
-    request: Mapped["ApprovalRequest"] = relationship(back_populates="histories")
+    request: Mapped[ApprovalRequest] = relationship(back_populates="histories")
 
     __table_args__ = (
         Index("idx_approval_histories_request_id", "request_id"),

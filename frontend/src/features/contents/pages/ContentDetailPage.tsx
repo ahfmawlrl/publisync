@@ -1,41 +1,42 @@
-import { ArrowLeftOutlined, EditOutlined, SendOutlined } from '@ant-design/icons';
-import { App, Button, Card, Descriptions, Empty, Space, Spin, Tabs, Tag, Timeline, Typography } from 'antd';
+import { ArrowLeftOutlined, DeleteOutlined, EditOutlined, ReloadOutlined, SendOutlined, StopOutlined } from '@ant-design/icons';
+import { useQuery } from '@tanstack/react-query';
+import { App, Button, Card, Descriptions, Empty, Image, Popconfirm, Space, Spin, Tabs, Tag, Timeline, Typography } from 'antd';
+import { useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router';
 
-import { useContent, usePublishHistory, useRequestReview } from '../hooks/useContents';
+import { apiClient } from '@/shared/api/client';
+import type { PaginatedResponse } from '@/shared/api/types';
+import { getStatusConfig } from '@/shared/constants/contentStatus';
+import { CONTENT_MESSAGES } from '@/shared/constants/messages';
+import { getPlatformConfig } from '@/shared/constants/platform';
+import { useCancelPublish, useContent, useDeleteContent, usePublishHistory, useRequestReview, useRetryPublish } from '../hooks/useContents';
+
+interface ApprovalHistoryItem {
+  id: string;
+  action: string;
+  reviewer_id: string | null;
+  comment: string | null;
+  created_at: string;
+}
+
+interface ApprovalRequestItem {
+  id: string;
+  content_id: string;
+  status: string;
+  requested_by: string;
+  comment: string | null;
+  histories: ApprovalHistoryItem[];
+  created_at: string;
+}
+
+const APPROVAL_ACTION_CONFIG: Record<string, { text: string; color: string }> = {
+  SUBMIT: { text: '검토 요청', color: 'blue' },
+  APPROVE: { text: '승인', color: 'green' },
+  REJECT: { text: '반려', color: 'red' },
+  REQUEST_CHANGES: { text: '수정 요청', color: 'orange' },
+};
 
 const { Title, Paragraph, Text } = Typography;
-
-const STATUS_CONFIG: Record<string, { color: string; text: string }> = {
-  DRAFT: { color: 'default', text: '초안' },
-  PENDING_REVIEW: { color: 'orange', text: '검토 대기' },
-  IN_REVIEW: { color: 'processing', text: '검토 중' },
-  APPROVED: { color: 'cyan', text: '승인됨' },
-  REJECTED: { color: 'red', text: '반려됨' },
-  SCHEDULED: { color: 'blue', text: '예약됨' },
-  PUBLISHING: { color: 'processing', text: '게시 중' },
-  PUBLISHED: { color: 'green', text: '게시 완료' },
-  PARTIALLY_PUBLISHED: { color: 'warning', text: '부분 게시' },
-  PUBLISH_FAILED: { color: 'error', text: '게시 실패' },
-  CANCELLED: { color: 'default', text: '취소됨' },
-  ARCHIVED: { color: 'default', text: '보관됨' },
-};
-
-const PLATFORM_LABELS: Record<string, string> = {
-  YOUTUBE: 'YouTube',
-  INSTAGRAM: 'Instagram',
-  FACEBOOK: 'Facebook',
-  X: 'X (Twitter)',
-  NAVER_BLOG: '네이버 블로그',
-};
-
-const PLATFORM_COLORS: Record<string, string> = {
-  YOUTUBE: 'red',
-  INSTAGRAM: 'purple',
-  FACEBOOK: 'blue',
-  X: 'default',
-  NAVER_BLOG: 'green',
-};
 
 export default function ContentDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -44,7 +45,55 @@ export default function ContentDetailPage() {
 
   const { data: content, isLoading } = useContent(id ?? null);
   const { data: publishHistory } = usePublishHistory(id ?? null);
+  const { data: approvalData } = useQuery({
+    queryKey: ['approvals', 'by-content', id],
+    queryFn: async () => {
+      const res = await apiClient.get<PaginatedResponse<ApprovalRequestItem>>('/approvals', {
+        params: { content_id: id, limit: 50 },
+      });
+      return res.data.data;
+    },
+    enabled: !!id,
+  });
   const reviewMutation = useRequestReview();
+  const deleteMutation = useDeleteContent();
+  const cancelPublishMutation = useCancelPublish();
+  const retryPublishMutation = useRetryPublish();
+
+  const approvalTimelineItems = useMemo(() => {
+    if (!approvalData || approvalData.length === 0) return null;
+    const items: Array<{ color: string; children: React.ReactNode }> = [];
+    for (const req of approvalData) {
+      items.push({
+        color: 'blue',
+        children: (
+          <div>
+            <Text strong>검토 요청</Text>
+            {req.comment && <div className="text-xs text-gray-500">{req.comment}</div>}
+            <div className="text-xs text-gray-400">
+              {new Date(req.created_at).toLocaleString('ko-KR')}
+            </div>
+          </div>
+        ),
+      });
+      for (const h of req.histories) {
+        const cfg = APPROVAL_ACTION_CONFIG[h.action] || { text: h.action, color: 'gray' };
+        items.push({
+          color: cfg.color,
+          children: (
+            <div>
+              <Text strong>{cfg.text}</Text>
+              {h.comment && <div className="text-xs text-gray-500">{h.comment}</div>}
+              <div className="text-xs text-gray-400">
+                {new Date(h.created_at).toLocaleString('ko-KR')}
+              </div>
+            </div>
+          ),
+        });
+      }
+    }
+    return items;
+  }, [approvalData]);
 
   if (isLoading) {
     return <div className="flex h-64 items-center justify-center"><Spin size="large" /></div>;
@@ -54,7 +103,7 @@ export default function ContentDetailPage() {
     return <div className="p-6"><Title level={4}>콘텐츠를 찾을 수 없습니다</Title></div>;
   }
 
-  const statusCfg = STATUS_CONFIG[content.status] || { color: 'default', text: content.status };
+  const statusCfg = getStatusConfig(content.status);
 
   return (
     <div>
@@ -74,13 +123,63 @@ export default function ContentDetailPage() {
               icon={<SendOutlined />}
               onClick={() => {
                 reviewMutation.mutate(content.id, {
-                  onSuccess: () => message.success('검토 요청 완료'),
-                  onError: () => message.error('검토 요청 실패'),
+                  onSuccess: () => message.success(CONTENT_MESSAGES.REQUEST_REVIEW_SUCCESS),
+                  onError: () => message.error(CONTENT_MESSAGES.REQUEST_REVIEW_ERROR),
                 });
               }}
             >
               검토 요청
             </Button>
+          )}
+          {content.status === 'SCHEDULED' && (
+            <Popconfirm
+              title="게시를 취소하시겠습니까?"
+              onConfirm={() => {
+                cancelPublishMutation.mutate(content.id, {
+                  onSuccess: () => message.success(CONTENT_MESSAGES.CANCEL_PUBLISH_SUCCESS),
+                  onError: () => message.error(CONTENT_MESSAGES.CANCEL_PUBLISH_ERROR),
+                });
+              }}
+              okText="취소"
+              cancelText="유지"
+            >
+              <Button danger icon={<StopOutlined />} loading={cancelPublishMutation.isPending}>
+                게시 취소
+              </Button>
+            </Popconfirm>
+          )}
+          {['PUBLISH_FAILED', 'PARTIALLY_PUBLISHED'].includes(content.status) && (
+            <Button
+              type="primary"
+              icon={<ReloadOutlined />}
+              loading={retryPublishMutation.isPending}
+              onClick={() => {
+                retryPublishMutation.mutate(content.id, {
+                  onSuccess: () => message.success('게시 재시도가 요청되었습니다'),
+                  onError: () => message.error('게시 재시도에 실패했습니다'),
+                });
+              }}
+            >
+              게시 재시도
+            </Button>
+          )}
+          {['DRAFT', 'REJECTED'].includes(content.status) && (
+            <Popconfirm
+              title={CONTENT_MESSAGES.DELETE_CONFIRM}
+              onConfirm={() => {
+                deleteMutation.mutate(content.id, {
+                  onSuccess: () => {
+                    message.success(CONTENT_MESSAGES.DELETE_SUCCESS);
+                    navigate('/contents');
+                  },
+                  onError: () => message.error(CONTENT_MESSAGES.DELETE_ERROR),
+                });
+              }}
+              okText="삭제"
+              cancelText="취소"
+            >
+              <Button danger icon={<DeleteOutlined />}>삭제</Button>
+            </Popconfirm>
           )}
         </Space>
       </div>
@@ -98,10 +197,29 @@ export default function ContentDetailPage() {
                     <Card title="본문">
                       <Paragraph>{content.body || '(본문 없음)'}</Paragraph>
                     </Card>
+                    {content.media_urls && content.media_urls.length > 0 && (
+                      <Card title="미디어" size="small">
+                        <Image.PreviewGroup>
+                          <div className="flex flex-wrap gap-2">
+                            {content.media_urls.map((url, idx) => (
+                              <Image
+                                key={idx}
+                                src={url}
+                                alt={`미디어 ${idx + 1}`}
+                                width={160}
+                                height={160}
+                                className="rounded object-cover"
+                                fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mN88P/BfwAJhAPk3KBkEgAAAABJRU5ErkJggg=="
+                              />
+                            ))}
+                          </div>
+                        </Image.PreviewGroup>
+                      </Card>
+                    )}
                     <Card title="정보" size="small">
                       <Descriptions column={1} size="small">
                         <Descriptions.Item label="플랫폼">
-                          <Space wrap>{content.platforms.map((p) => <Tag key={p} color={PLATFORM_COLORS[p]}>{PLATFORM_LABELS[p] || p}</Tag>)}</Space>
+                          <Space wrap>{content.platforms.map((p) => <Tag key={p} color={getPlatformConfig(p).color}>{getPlatformConfig(p).label}</Tag>)}</Space>
                         </Descriptions.Item>
                         <Descriptions.Item label="예약일시">
                           {content.scheduled_at ? new Date(content.scheduled_at).toLocaleString('ko-KR') : '-'}
@@ -215,75 +333,12 @@ export default function ContentDetailPage() {
               {
                 key: 'approval-history',
                 label: '승인 이력',
-                children: (
+                children: approvalTimelineItems && approvalTimelineItems.length > 0 ? (
                   <Card size="small">
-                    <Timeline
-                      items={[
-                        {
-                          color: 'blue',
-                          children: (
-                            <div>
-                              <Text strong>콘텐츠 작성</Text>
-                              <div className="text-xs text-gray-400">
-                                {new Date(content.created_at).toLocaleString('ko-KR')}
-                              </div>
-                            </div>
-                          ),
-                        },
-                        ...(content.status !== 'DRAFT'
-                          ? [
-                              {
-                                color: 'orange' as const,
-                                children: (
-                                  <div>
-                                    <Text strong>검토 요청</Text>
-                                    <div className="text-xs text-gray-400">
-                                      상태: {STATUS_CONFIG[content.status]?.text || content.status}
-                                    </div>
-                                  </div>
-                                ),
-                              },
-                            ]
-                          : []),
-                        ...(content.status === 'APPROVED' || content.status === 'PUBLISHED' || content.status === 'SCHEDULED'
-                          ? [
-                              {
-                                color: 'green' as const,
-                                children: (
-                                  <div>
-                                    <Text strong>승인 완료</Text>
-                                  </div>
-                                ),
-                              },
-                            ]
-                          : []),
-                        ...(content.status === 'REJECTED'
-                          ? [
-                              {
-                                color: 'red' as const,
-                                children: (
-                                  <div>
-                                    <Text strong>반려됨</Text>
-                                  </div>
-                                ),
-                              },
-                            ]
-                          : []),
-                        ...(content.status === 'PUBLISHED'
-                          ? [
-                              {
-                                color: 'green' as const,
-                                children: (
-                                  <div>
-                                    <Text strong>게시 완료</Text>
-                                  </div>
-                                ),
-                              },
-                            ]
-                          : []),
-                      ]}
-                    />
+                    <Timeline items={approvalTimelineItems} />
                   </Card>
+                ) : (
+                  <Empty description="승인 이력이 없습니다" />
                 ),
               },
             ]}
@@ -297,7 +352,7 @@ export default function ContentDetailPage() {
                 <Tag color={statusCfg.color}>{statusCfg.text}</Tag>
               </Descriptions.Item>
               <Descriptions.Item label="플랫폼">
-                <Space wrap>{content.platforms.map((p) => <Tag key={p} color={PLATFORM_COLORS[p]} className="text-xs">{PLATFORM_LABELS[p] || p}</Tag>)}</Space>
+                <Space wrap>{content.platforms.map((p) => <Tag key={p} color={getPlatformConfig(p).color} className="text-xs">{getPlatformConfig(p).label}</Tag>)}</Space>
               </Descriptions.Item>
               <Descriptions.Item label="예약일시">
                 {content.scheduled_at ? new Date(content.scheduled_at).toLocaleString('ko-KR') : '-'}

@@ -14,6 +14,7 @@ const DashboardPage = lazy(() => import('@/features/dashboard/pages/DashboardPag
 const UsersPage = lazy(() => import('@/features/settings/pages/UsersPage'));
 const OrganizationsPage = lazy(() => import('@/features/settings/pages/OrganizationsPage'));
 const ChannelsPage = lazy(() => import('@/features/channels/pages/ChannelsPage'));
+const OAuthCallbackPage = lazy(() => import('@/features/channels/pages/OAuthCallbackPage'));
 const ContentsListPage = lazy(() => import('@/features/contents/pages/ContentsListPage'));
 const ContentCreatePage = lazy(() => import('@/features/contents/pages/ContentCreatePage'));
 const ContentDetailPage = lazy(() => import('@/features/contents/pages/ContentDetailPage'));
@@ -82,6 +83,10 @@ export const router = createBrowserRouter([
   {
     path: '/invite',
     element: withSuspense(InvitePage),
+  },
+  {
+    path: '/channels/callback',
+    element: withSuspense(OAuthCallbackPage),
   },
 
   // ── Protected routes (with layout) ────────────────────

@@ -8,6 +8,7 @@ export interface ContentRecord {
   channel_ids: string[];
   scheduled_at: string | null;
   author_id: string;
+  author_name: string | null;
   platform_contents: Record<string, unknown> | null;
   metadata: Record<string, unknown> | null;
   ai_generated: boolean;
@@ -40,6 +41,7 @@ export interface ContentCreateData {
   scheduled_at?: string;
   platform_contents?: Record<string, unknown>;
   media_urls?: string[];
+  hashtags?: string[];
   ai_generated?: boolean;
   metadata?: Record<string, unknown>;
 }
@@ -52,5 +54,6 @@ export interface ContentUpdateData {
   scheduled_at?: string | null;
   platform_contents?: Record<string, unknown>;
   media_urls?: string[];
+  hashtags?: string[];
   metadata?: Record<string, unknown>;
 }

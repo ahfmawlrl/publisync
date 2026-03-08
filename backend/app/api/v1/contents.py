@@ -37,6 +37,7 @@ def _to_content_response(c: Content) -> ContentResponse:
         channel_ids=[str(cid) for cid in (c.channel_ids or [])],
         scheduled_at=c.scheduled_at.isoformat() if c.scheduled_at else None,
         author_id=str(c.author_id),
+        author_name=c.author.name if hasattr(c, "author") and c.author else None,
         platform_contents=c.platform_contents,
         metadata=c.metadata_,
         ai_generated=c.ai_generated,

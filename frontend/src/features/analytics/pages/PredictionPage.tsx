@@ -15,34 +15,44 @@ import {
   Tag,
   Typography,
 } from 'antd';
+import { useQuery } from '@tanstack/react-query';
 import { Target, Clock, FlaskConical } from 'lucide-react';
 
+import apiClient from '@/shared/api/client';
+import type { PaginatedResponse } from '@/shared/api/types';
+import { getPlatformConfig, PLATFORM_CONFIG } from '@/shared/constants/platform';
 import { useOptimalTime, usePrediction } from '../hooks/usePrediction';
 import type { AbTestSuggestion, OptimalTimeSlot, PredictionPlatformItem } from '../types';
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
 
-const PLATFORM_LABELS: Record<string, string> = {
-  YOUTUBE: 'YouTube',
-  INSTAGRAM: 'Instagram',
-  FACEBOOK: 'Facebook',
-  X: 'X (Twitter)',
-  NAVER_BLOG: '네이버 블로그',
-};
-
-const PLATFORM_COLORS: Record<string, string> = {
-  YOUTUBE: 'red',
-  INSTAGRAM: 'magenta',
-  FACEBOOK: 'blue',
-  X: 'default',
-  NAVER_BLOG: 'green',
-};
+const PLATFORM_OPTIONS = Object.entries(PLATFORM_CONFIG).map(([value, { label }]) => ({
+  value,
+  label,
+}));
 
 export default function PredictionPage() {
-  const [contentId, _setContentId] = useState<string | undefined>();
+  const [contentId, setContentId] = useState<string | undefined>();
+  const [contentSearch, setContentSearch] = useState('');
   const { data, isLoading } = usePrediction(contentId);
   const optimalTimeMutation = useOptimalTime();
+
+  // Fetch contents for content selection
+  const { data: contentsData } = useQuery({
+    queryKey: ['contents-for-prediction', contentSearch],
+    queryFn: async () => {
+      const res = await apiClient.get<PaginatedResponse<{ id: string; title: string; status: string }>>('/contents', {
+        params: { limit: 20, search: contentSearch || undefined },
+      });
+      return res.data.data;
+    },
+  });
+
+  const contentOptions = (contentsData || []).map((c) => ({
+    value: c.id,
+    label: `${c.title} (${c.status})`,
+  }));
 
   const [otForm, setOtForm] = useState({ content_text: '', platforms: ['YOUTUBE', 'INSTAGRAM'] });
 
@@ -102,7 +112,7 @@ export default function PredictionPage() {
       dataIndex: 'platform',
       key: 'platform',
       render: (val: string) => (
-        <Tag color={PLATFORM_COLORS[val] ?? 'default'}>{PLATFORM_LABELS[val] ?? val}</Tag>
+        <Tag color={getPlatformConfig(val).color}>{getPlatformConfig(val).label}</Tag>
       ),
     },
     {
@@ -188,6 +198,24 @@ export default function PredictionPage() {
         </Title>
         <Tag color="blue">BETA</Tag>
       </div>
+
+      {/* Content selection */}
+      <Card className="mb-4" size="small">
+        <div className="flex items-center gap-3">
+          <Text>콘텐츠 선택:</Text>
+          <Select
+            showSearch
+            allowClear
+            placeholder="콘텐츠를 검색하여 선택하세요"
+            value={contentId}
+            onChange={(val) => setContentId(val || undefined)}
+            onSearch={setContentSearch}
+            filterOption={false}
+            options={contentOptions}
+            style={{ minWidth: 400 }}
+          />
+        </div>
+      </Card>
 
       {/* Confidence bar */}
       {data && (
@@ -306,7 +334,7 @@ export default function PredictionPage() {
               mode="multiple"
               value={otForm.platforms}
               onChange={(val) => setOtForm((p) => ({ ...p, platforms: val }))}
-              options={Object.entries(PLATFORM_LABELS).map(([value, label]) => ({ value, label }))}
+              options={PLATFORM_OPTIONS}
               style={{ minWidth: 300 }}
               placeholder="플랫폼 선택"
             />

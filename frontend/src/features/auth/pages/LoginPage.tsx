@@ -1,6 +1,5 @@
 import { LockOutlined, MailOutlined } from '@ant-design/icons';
 import { App, Button, Card, Checkbox, Form, Input, Typography } from 'antd';
-import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 
 import PubliSyncLogo from '@/shared/components/PubliSyncLogo';
@@ -19,10 +18,8 @@ export default function LoginPage() {
   const { message } = App.useApp();
   const login = useLogin();
   const [form] = Form.useForm<LoginFormData>();
-  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (values: LoginFormData) => {
-    setLoading(true);
     try {
       await login.mutateAsync(values);
       message.success('로그인 성공');
@@ -41,8 +38,6 @@ export default function LoginPage() {
       } else {
         message.error('로그인에 실패했습니다. 다시 시도하세요.');
       }
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -98,7 +93,7 @@ export default function LoginPage() {
           </Form.Item>
 
           <Form.Item>
-            <Button type="primary" htmlType="submit" block size="large" loading={loading}>
+            <Button type="primary" htmlType="submit" block size="large" loading={login.isPending}>
               로그인
             </Button>
           </Form.Item>

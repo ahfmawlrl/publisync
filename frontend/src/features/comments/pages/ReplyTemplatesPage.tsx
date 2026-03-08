@@ -1,8 +1,11 @@
-import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
-import { App, Button, Form, Input, Modal, Popconfirm, Select, Space, Switch, Table, Tag, Typography } from 'antd';
+import { DeleteOutlined, EditOutlined, PlusOutlined, RobotOutlined } from '@ant-design/icons';
+import { App, Button, Form, Input, Modal, Popconfirm, Select, Space, Spin, Switch, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
 
+import apiClient from '@/shared/api/client';
+import type { ApiResponse } from '@/shared/api/types';
 import {
   useCreateReplyTemplate,
   useDeleteReplyTemplate,
@@ -44,6 +47,50 @@ export default function ReplyTemplatesPage() {
   const createMutation = useCreateReplyTemplate();
   const updateMutation = useUpdateReplyTemplate();
   const deleteMutation = useDeleteReplyTemplate();
+
+  // AI template improvement
+  const [improveModalOpen, setImproveModalOpen] = useState(false);
+  const [improvedContent, setImprovedContent] = useState('');
+  const [improvingTemplate, setImprovingTemplate] = useState<ReplyTemplateRecord | null>(null);
+  const improveMutation = useMutation({
+    mutationFn: async (data: { template_content: string; category: string }) => {
+      const res = await apiClient.post<ApiResponse<{ suggestions: { content: string }[] }>>(
+        '/ai/improve-template',
+        data,
+      );
+      return res.data.data;
+    },
+  });
+
+  const handleImprove = (record: ReplyTemplateRecord) => {
+    setImprovingTemplate(record);
+    setImprovedContent('');
+    setImproveModalOpen(true);
+    improveMutation.mutate(
+      { template_content: record.content, category: record.category },
+      {
+        onSuccess: (data) => {
+          const suggestion = data?.suggestions?.[0]?.content;
+          if (suggestion) setImprovedContent(suggestion);
+        },
+        onError: () => message.error('AI 개선에 실패했습니다'),
+      },
+    );
+  };
+
+  const handleApplyImprovement = () => {
+    if (improvingTemplate && improvedContent) {
+      form.setFieldsValue({
+        name: improvingTemplate.name,
+        category: improvingTemplate.category,
+        content: improvedContent,
+        is_active: improvingTemplate.is_active,
+      });
+      setEditingTemplate(improvingTemplate);
+      setImproveModalOpen(false);
+      setModalOpen(true);
+    }
+  };
 
   const filteredData = (templates || []).filter(
     (t) => !search || t.name.includes(search) || t.content.includes(search),
@@ -135,9 +182,16 @@ export default function ReplyTemplatesPage() {
     {
       title: '관리',
       key: 'actions',
-      width: 100,
+      width: 140,
       render: (_, record) => (
         <Space>
+          <Button
+            type="text"
+            size="small"
+            icon={<RobotOutlined />}
+            onClick={() => handleImprove(record)}
+            title="AI 개선"
+          />
           <Button
             type="text"
             size="small"
@@ -247,6 +301,49 @@ export default function ReplyTemplatesPage() {
             </Form.Item>
           )}
         </Form>
+      </Modal>
+
+      {/* AI Improve Modal */}
+      <Modal
+        title="AI 템플릿 개선"
+        open={improveModalOpen}
+        onCancel={() => setImproveModalOpen(false)}
+        footer={
+          <Space>
+            <Button onClick={() => setImproveModalOpen(false)}>취소</Button>
+            <Button
+              type="primary"
+              disabled={!improvedContent}
+              onClick={handleApplyImprovement}
+            >
+              적용
+            </Button>
+          </Space>
+        }
+        width={560}
+      >
+        {improveMutation.isPending ? (
+          <div className="flex h-32 items-center justify-center">
+            <Spin tip="AI가 템플릿을 개선하고 있습니다..." />
+          </div>
+        ) : improvedContent ? (
+          <div className="space-y-3">
+            <div>
+              <Text type="secondary" className="mb-1 block text-xs">기존 내용</Text>
+              <div className="rounded bg-gray-50 p-3 text-sm">{improvingTemplate?.content}</div>
+            </div>
+            <div>
+              <Text type="secondary" className="mb-1 block text-xs">AI 개선안</Text>
+              <TextArea
+                value={improvedContent}
+                onChange={(e) => setImprovedContent(e.target.value)}
+                rows={5}
+              />
+            </div>
+          </div>
+        ) : (
+          <Text type="secondary">개선된 내용이 없습니다.</Text>
+        )}
       </Modal>
     </div>
   );

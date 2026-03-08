@@ -19,6 +19,7 @@ import {
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { FileText, Download, Plus, CheckCircle } from 'lucide-react';
+import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import dayjs from 'dayjs';
 
 import {
@@ -216,13 +217,32 @@ export default function ReportsPage() {
       );
     }
     if (section.type === 'CHART_DATA') {
+      const chartItems = Array.isArray(section.data) ? section.data as Record<string, unknown>[] : [];
+      const dataKeys = chartItems.length > 0
+        ? Object.keys(chartItems[0]).filter((k) => k !== 'name' && k !== 'label' && k !== 'category')
+        : [];
+      const nameKey = chartItems.length > 0
+        ? (['name', 'label', 'category'].find((k) => k in chartItems[0]) ?? Object.keys(chartItems[0])[0])
+        : 'name';
+      const COLORS = ['#1677ff', '#52c41a', '#faad14', '#ff4d4f', '#722ed1', '#13c2c2'];
       return (
         <Card key={key} title={SECTION_TITLES[key] ?? key} className="mb-4">
           <Paragraph>{section.content}</Paragraph>
-          {section.data != null && (
-            <pre className="mt-2 rounded bg-gray-50 p-3 text-sm">
-              {JSON.stringify(section.data, null, 2)}
-            </pre>
+          {chartItems.length > 0 ? (
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={chartItems}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey={nameKey} />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                {dataKeys.map((dk, i) => (
+                  <Bar key={dk} dataKey={dk} fill={COLORS[i % COLORS.length]} />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <Empty description="차트 데이터가 없습니다" />
           )}
         </Card>
       );

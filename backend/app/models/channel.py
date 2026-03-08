@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, Enum, ForeignKey, Index, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -7,6 +10,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, generate_uuid
 from app.models.enums import ChannelEventType, ChannelStatus, PlatformType
+
+if TYPE_CHECKING:
+    from app.models.user import User
 
 
 class Channel(Base, TimestampMixin):
@@ -27,7 +33,7 @@ class Channel(Base, TimestampMixin):
     token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB, default=dict)
 
-    histories: Mapped[list["ChannelHistory"]] = relationship(back_populates="channel", cascade="all, delete-orphan")
+    histories: Mapped[list[ChannelHistory]] = relationship(back_populates="channel", cascade="all, delete-orphan")
 
     __table_args__ = (
         UniqueConstraint("organization_id", "platform", "platform_account_id", name="uq_channel_org_platform_account"),
@@ -50,7 +56,8 @@ class ChannelHistory(Base, TimestampMixin):
     details: Mapped[dict | None] = mapped_column(JSONB, default=dict)
     actor_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
 
-    channel: Mapped["Channel"] = relationship(back_populates="histories")
+    channel: Mapped[Channel] = relationship(back_populates="histories")
+    actor: Mapped[User] = relationship(foreign_keys=[actor_id], lazy="noload")
 
     __table_args__ = (
         Index("idx_channel_histories_channel_id", "channel_id"),

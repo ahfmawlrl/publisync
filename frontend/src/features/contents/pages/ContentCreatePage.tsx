@@ -6,6 +6,7 @@ import {
   Card,
   Checkbox,
   Col,
+  Collapse,
   DatePicker,
   Divider,
   Form,
@@ -21,8 +22,9 @@ import {
   Tag,
   Typography,
 } from 'antd';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
+import { useQuery } from '@tanstack/react-query';
 
 import AiSuggestionPanel from '@/features/ai/components/AiSuggestionPanel';
 import {
@@ -32,8 +34,11 @@ import {
   useGenerateTitle,
   useToneTransform,
 } from '@/features/ai/hooks/useAi';
+import apiClient from '@/shared/api/client';
+import type { ApiResponse, PaginatedResponse } from '@/shared/api/types';
 import MediaUpload from '@/shared/components/MediaUpload';
-import { useCreateContent } from '../hooks/useContents';
+import { CONTENT_MESSAGES } from '@/shared/constants/messages';
+import { useCreateContent, useRequestReview } from '../hooks/useContents';
 import type { ContentCreateData } from '../types';
 
 const { Title } = Typography;
@@ -52,11 +57,31 @@ export default function ContentCreatePage() {
   const { message } = App.useApp();
   const [form] = Form.useForm();
   const createMutation = useCreateContent();
+  const reviewMutation = useRequestReview();
 
   // G4: Reactive preview using Form.useWatch
   const watchedTitle = Form.useWatch('title', form);
   const watchedBody = Form.useWatch('body', form);
   const watchedHashtags = Form.useWatch('hashtags', form);
+  const watchedPlatforms = Form.useWatch('platforms', form) as string[] | undefined;
+
+  // Fetch connected channels to populate channel_ids selector
+  interface ChannelOption { id: string; name: string; platform: string; status: string }
+  const { data: channelsData } = useQuery({
+    queryKey: ['channels', 'all'],
+    queryFn: async () => {
+      const res = await apiClient.get<PaginatedResponse<ChannelOption>>('/channels', { params: { limit: 100 } });
+      return res.data.data;
+    },
+  });
+
+  // Filter channels by selected platforms
+  const channelOptions = useMemo(() => {
+    if (!channelsData || !watchedPlatforms?.length) return [];
+    return channelsData
+      .filter((ch) => watchedPlatforms.includes(ch.platform) && ch.status === 'CONNECTED')
+      .map((ch) => ({ value: ch.id, label: `${ch.name} (${ch.platform})` }));
+  }, [channelsData, watchedPlatforms]);
 
   // AI mutations
   const titleMutation = useGenerateTitle();
@@ -73,17 +98,35 @@ export default function ContentCreatePage() {
   // Content review modal (kept for launching reviews)
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
 
-  const handleSubmit = async (values: Record<string, unknown>) => {
+  // Platform-specific content overrides
+  const [platformContents, setPlatformContents] = useState<Record<string, { title?: string; body?: string }>>({});
+
+  /** Build ContentCreateData from form values. */
+  const buildCreateData = (values: Record<string, unknown>): ContentCreateData => {
     const data: ContentCreateData = {
       title: values.title as string,
       body: values.body as string | undefined,
       platforms: (values.platforms as string[]) || [],
-      channel_ids: [],
+      channel_ids: (values.channel_ids as string[]) || [],
       media_urls: (values.media_urls as string[]) || [],
     };
 
+    // Persist hashtags
+    const hashtags = values.hashtags as string[] | undefined;
+    if (hashtags && hashtags.length > 0) {
+      data.hashtags = hashtags;
+    }
+
     if (values.scheduled_at) {
       data.scheduled_at = (values.scheduled_at as { toISOString: () => string }).toISOString();
+    }
+
+    // Platform-specific content overrides
+    const validOverrides = Object.fromEntries(
+      Object.entries(platformContents).filter(([, v]) => v.title || v.body),
+    );
+    if (Object.keys(validOverrides).length > 0) {
+      data.platform_contents = validOverrides;
     }
 
     // Mark as AI-generated if any AI suggestion was used
@@ -91,12 +134,44 @@ export default function ContentCreatePage() {
       data.ai_generated = true;
     }
 
+    return data;
+  };
+
+  /** Save as DRAFT and navigate to detail page. */
+  const handleSaveDraft = async () => {
     try {
-      await createMutation.mutateAsync(data);
-      message.success('콘텐츠가 작성되었습니다');
-      navigate('/contents');
+      const values = await form.validateFields(['title']);
+      const data = buildCreateData({ ...form.getFieldsValue(true), ...values });
+      const result = await createMutation.mutateAsync(data);
+      message.success(CONTENT_MESSAGES.SAVE_DRAFT_SUCCESS);
+      navigate(`/contents/${result.id}`);
     } catch {
-      message.error('콘텐츠 작성에 실패했습니다');
+      message.error(CONTENT_MESSAGES.SAVE_DRAFT_ERROR);
+    }
+  };
+
+  /** Create content as DRAFT then immediately request review. */
+  const handleRequestReview = async () => {
+    try {
+      const values = await form.validateFields();
+      const data = buildCreateData(values);
+      const result = await createMutation.mutateAsync(data);
+      await reviewMutation.mutateAsync(result.id);
+      message.success(CONTENT_MESSAGES.REQUEST_REVIEW_SUCCESS);
+      navigate(`/contents/${result.id}`);
+    } catch {
+      message.error(CONTENT_MESSAGES.REQUEST_REVIEW_ERROR);
+    }
+  };
+
+  const handleSubmit = async (values: Record<string, unknown>) => {
+    const data = buildCreateData(values);
+    try {
+      const result = await createMutation.mutateAsync(data);
+      message.success(CONTENT_MESSAGES.CREATE_SUCCESS);
+      navigate(`/contents/${result.id}`);
+    } catch {
+      message.error(CONTENT_MESSAGES.CREATE_ERROR);
     }
   };
 
@@ -199,7 +274,9 @@ export default function ContentCreatePage() {
   // G4: Preview display values from watched fields
   const previewTitle = watchedTitle || '제목을 입력하세요';
   const previewBody = watchedBody || '';
-  const previewHashtags = watchedHashtags || '#해시태그';
+  const previewHashtags = Array.isArray(watchedHashtags) && watchedHashtags.length > 0
+    ? watchedHashtags.join(' ')
+    : '#해시태그';
 
   return (
     <div>
@@ -209,16 +286,37 @@ export default function ContentCreatePage() {
           <Title level={4} className="!mb-0">새 콘텐츠 작성</Title>
         </div>
         <Space>
-          <Button onClick={() => navigate('/contents')}>임시 저장</Button>
-          <Button type="primary">검토 요청</Button>
+          <Button
+            onClick={handleSaveDraft}
+            loading={createMutation.isPending}
+          >
+            임시 저장
+          </Button>
+          <Button
+            type="primary"
+            onClick={handleRequestReview}
+            loading={createMutation.isPending || reviewMutation.isPending}
+          >
+            검토 요청
+          </Button>
         </Space>
       </div>
 
       <Form form={form} layout="vertical" onFinish={handleSubmit} initialValues={{ platforms: [] }}>
-        <div className="mb-4">
+        <div className="mb-4 flex items-center gap-4">
           <Form.Item name="platforms" className="!mb-0">
             <Checkbox.Group options={PLATFORM_OPTIONS} />
           </Form.Item>
+          {channelOptions.length > 0 && (
+            <Form.Item name="channel_ids" className="!mb-0" style={{ minWidth: 240 }}>
+              <Select
+                mode="multiple"
+                placeholder="게시 채널 선택"
+                options={channelOptions}
+                allowClear
+              />
+            </Form.Item>
+          )}
         </div>
 
       <Row gutter={24}>
@@ -269,7 +367,7 @@ export default function ContentCreatePage() {
                   </Button>
                 }
               >
-                <Input placeholder="#서울시 #정책브리핑 #3월" />
+                <Select mode="tags" placeholder="#서울시 #정책브리핑 #3월" tokenSeparators={[' ', ',']} />
               </Form.Item>
 
               <Form.Item name="scheduled_at" label="예약 게시일시">
@@ -348,9 +446,87 @@ export default function ContentCreatePage() {
                     </div>
                   ),
                 },
+                {
+                  key: 'x',
+                  label: 'X',
+                  children: (
+                    <div>
+                      <div className="rounded border border-gray-200 p-3">
+                        <Typography.Text className="text-sm">
+                          {(previewBody || '트윗 내용 미리보기...').slice(0, 280)}
+                        </Typography.Text>
+                        {previewBody.length > 280 && (
+                          <Typography.Text type="danger" className="mt-1 block text-xs">
+                            280자 초과 ({previewBody.length}자)
+                          </Typography.Text>
+                        )}
+                        <br />
+                        <Typography.Text className="text-xs" style={{ color: '#1677ff' }}>
+                          {previewHashtags}
+                        </Typography.Text>
+                      </div>
+                    </div>
+                  ),
+                },
+                {
+                  key: 'naver',
+                  label: '네이버',
+                  children: (
+                    <div>
+                      <Typography.Text strong className="text-base">
+                        {previewTitle || '블로그 제목 미리보기'}
+                      </Typography.Text>
+                      <Divider className="!my-2" />
+                      <Typography.Text className="text-xs leading-relaxed">
+                        {previewBody.slice(0, 150) || '블로그 본문 미리보기...'}
+                      </Typography.Text>
+                      <br />
+                      <Typography.Text className="mt-2 block text-xs" style={{ color: '#03c75a' }}>
+                        {previewHashtags}
+                      </Typography.Text>
+                    </div>
+                  ),
+                },
               ]}
             />
           </Card>
+
+          {/* Platform-specific content overrides */}
+          {watchedPlatforms && watchedPlatforms.length > 1 && (
+            <Collapse
+              size="small"
+              className="mb-4"
+              items={watchedPlatforms.map((p) => ({
+                key: p,
+                label: `${p} 전용 콘텐츠`,
+                children: (
+                  <div className="space-y-2">
+                    <Input
+                      placeholder={`${p} 전용 제목 (비우면 공통 제목 사용)`}
+                      value={platformContents[p]?.title ?? ''}
+                      onChange={(e) =>
+                        setPlatformContents((prev) => ({
+                          ...prev,
+                          [p]: { ...prev[p], title: e.target.value },
+                        }))
+                      }
+                    />
+                    <TextArea
+                      rows={2}
+                      placeholder={`${p} 전용 본문 (비우면 공통 본문 사용)`}
+                      value={platformContents[p]?.body ?? ''}
+                      onChange={(e) =>
+                        setPlatformContents((prev) => ({
+                          ...prev,
+                          [p]: { ...prev[p], body: e.target.value },
+                        }))
+                      }
+                    />
+                  </div>
+                ),
+              }))}
+            />
+          )}
 
           {/* AI assistant */}
           <Card
@@ -435,10 +611,12 @@ export default function ContentCreatePage() {
                     suggestions={hashtagMutation.data?.suggestions ?? []}
                     loading={hashtagMutation.isPending}
                     onSelect={(content) => {
-                      const currentBody = (form.getFieldValue('body') as string) || '';
+                      const currentHashtags = (form.getFieldValue('hashtags') as string[]) || [];
                       const hashtag = content.startsWith('#') ? content : `#${content}`;
-                      form.setFieldValue('body', currentBody ? `${currentBody} ${hashtag}` : hashtag);
-                    }}
+                      if (!currentHashtags.includes(hashtag)) {
+                        form.setFieldValue('hashtags', [...currentHashtags, hashtag]);
+                      }
+                    }
                     error={hashtagMutation.data?.error}
                     model={hashtagMutation.data?.model}
                     processingTimeMs={hashtagMutation.data?.processing_time_ms}

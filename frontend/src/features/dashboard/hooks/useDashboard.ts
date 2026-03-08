@@ -11,6 +11,10 @@ export interface DashboardSummary {
   active_channels: number;
   total_views: number;
   total_likes: number;
+  total_comments: number;
+  views_growth: number | null;
+  contents_growth: number | null;
+  comments_growth: number | null;
 }
 
 export interface RecentContentItem {
@@ -49,11 +53,13 @@ export interface PlatformTrendItem {
   shares: number;
 }
 
-export function useDashboardSummary() {
+export function useDashboardSummary(period = '7d') {
   return useQuery({
-    queryKey: ['dashboard', 'summary'],
+    queryKey: ['dashboard', 'summary', period],
     queryFn: async () => {
-      const res = await apiClient.get<ApiResponse<DashboardSummary>>('/dashboard/summary');
+      const res = await apiClient.get<ApiResponse<DashboardSummary>>('/dashboard/summary', {
+        params: { period },
+      });
       return res.data.data;
     },
     refetchInterval: 300_000, // 5 min
@@ -95,24 +101,50 @@ export function useApprovalStatus() {
   });
 }
 
-export function useSentimentSummary() {
+export function useSentimentSummary(period = '7d') {
   return useQuery({
-    queryKey: ['dashboard', 'sentiment-summary'],
+    queryKey: ['dashboard', 'sentiment-summary', period],
     queryFn: async () => {
-      const res = await apiClient.get<ApiResponse<SentimentSummaryItem[]>>('/dashboard/sentiment-summary');
+      const res = await apiClient.get<ApiResponse<SentimentSummaryItem[]>>('/dashboard/sentiment-summary', {
+        params: { period },
+      });
       return res.data.data;
     },
     refetchInterval: 300_000,
   });
 }
 
-export function usePlatformTrends() {
+export function usePlatformTrends(period = '7d') {
   return useQuery({
-    queryKey: ['dashboard', 'platform-trends'],
+    queryKey: ['dashboard', 'platform-trends', period],
     queryFn: async () => {
-      const res = await apiClient.get<ApiResponse<PlatformTrendItem[]>>('/dashboard/platform-trends');
+      const res = await apiClient.get<ApiResponse<PlatformTrendItem[]>>('/dashboard/platform-trends', {
+        params: { period },
+      });
       return res.data.data;
     },
+    refetchInterval: 300_000,
+  });
+}
+
+export interface OrgSummaryItem {
+  id: string;
+  name: string;
+  slug: string;
+  total_contents: number;
+  published_contents: number;
+  active_channels: number;
+  pending_approvals: number;
+}
+
+export function useAllOrganizations(enabled = false) {
+  return useQuery({
+    queryKey: ['dashboard', 'all-organizations'],
+    queryFn: async () => {
+      const res = await apiClient.get<ApiResponse<OrgSummaryItem[]>>('/dashboard/all-organizations');
+      return res.data.data;
+    },
+    enabled,
     refetchInterval: 300_000,
   });
 }

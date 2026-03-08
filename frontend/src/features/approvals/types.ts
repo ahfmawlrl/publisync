@@ -8,6 +8,7 @@ export interface ApprovalRequestRecord {
   current_step: number;
   status: string;
   requested_by: string;
+  requested_by_name: string | null;
   is_urgent: boolean;
   comment: string | null;
   created_at: string;

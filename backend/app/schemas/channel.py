@@ -42,6 +42,7 @@ class ChannelHistoryResponse(BaseModel):
     event_type: str
     details: dict | None = None
     actor_id: str | None = None
+    actor_name: str | None = None
     created_at: str
 
     model_config = {"from_attributes": True}

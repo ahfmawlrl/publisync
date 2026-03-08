@@ -1,8 +1,9 @@
-"""Media Library API — 8 endpoints (Phase 2, F11)."""
+"""Media Library API — 10 endpoints (Phase 2, F11)."""
 
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db_session
@@ -231,3 +232,89 @@ async def delete_media_asset(
 ) -> None:
     """Soft delete a media asset."""
     await service.delete_asset(asset_id, workspace.org_id)
+
+
+# ── GET /media/{asset_id}/download ─────────────────────
+@router.get("/{asset_id}/download")
+async def download_media_asset(
+    asset_id: UUID,
+    workspace: WorkspaceContext = Depends(get_workspace_context),
+    _user: User = Depends(require_roles(UserRole.AGENCY_MANAGER, UserRole.AGENCY_OPERATOR)),
+    service: MediaService = Depends(_get_service),
+):
+    """Stream the original media file from MinIO storage."""
+    asset = await service.get_asset(asset_id, workspace.org_id)
+
+    try:
+        from app.core.config import settings
+        from app.integrations.storage import get_minio_client
+
+        minio_client = get_minio_client()
+        response = minio_client.get_object(settings.MINIO_BUCKET, asset.object_key)
+        return StreamingResponse(
+            response.stream(32 * 1024),
+            media_type=asset.mime_type or "application/octet-stream",
+            headers={
+                "Content-Disposition": f'inline; filename="{asset.original_filename or asset.filename}"',
+            },
+        )
+    except Exception:
+        return JSONResponse(
+            status_code=404,
+            content={
+                "success": False,
+                "error": {
+                    "code": "FILE_NOT_FOUND",
+                    "message": "파일을 불러올 수 없습니다.",
+                },
+            },
+        )
+
+
+# ── GET /media/{asset_id}/thumbnail ────────────────────
+@router.get("/{asset_id}/thumbnail")
+async def get_media_thumbnail(
+    asset_id: UUID,
+    workspace: WorkspaceContext = Depends(get_workspace_context),
+    _user: User = Depends(require_roles(UserRole.AGENCY_MANAGER, UserRole.AGENCY_OPERATOR)),
+    service: MediaService = Depends(_get_service),
+):
+    """Stream the thumbnail image for a media asset. Falls back to original for images."""
+    asset = await service.get_asset(asset_id, workspace.org_id)
+    thumbnail_key = asset.thumbnail_url or (
+        asset.object_key if asset.mime_type and asset.mime_type.startswith("image/") else None
+    )
+
+    if not thumbnail_key:
+        return JSONResponse(
+            status_code=404,
+            content={
+                "success": False,
+                "error": {
+                    "code": "THUMBNAIL_NOT_FOUND",
+                    "message": "썸네일이 존재하지 않습니다.",
+                },
+            },
+        )
+
+    try:
+        from app.core.config import settings
+        from app.integrations.storage import get_minio_client
+
+        minio_client = get_minio_client()
+        response = minio_client.get_object(settings.MINIO_BUCKET, thumbnail_key)
+        return StreamingResponse(
+            response.stream(32 * 1024),
+            media_type="image/jpeg",
+        )
+    except Exception:
+        return JSONResponse(
+            status_code=404,
+            content={
+                "success": False,
+                "error": {
+                    "code": "THUMBNAIL_NOT_FOUND",
+                    "message": "썸네일을 불러올 수 없습니다.",
+                },
+            },
+        )

@@ -1,5 +1,5 @@
 import { DeleteOutlined, EditOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
-import { App, Button, Card, Form, Input, Modal, Popconfirm, Result, Select, Space, Table, Tabs, Tag, Typography } from 'antd';
+import { App, Button, Card, Form, Input, Modal, Popconfirm, Select, Space, Table, Tabs, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -8,6 +8,8 @@ import apiClient from '@/shared/api/client';
 import type { ApiResponse, PaginatedResponse } from '@/shared/api/types';
 import { useWorkspace } from '@/shared/hooks/useWorkspace';
 import type { Role } from '@/shared/types';
+import { getRoleConfig, ROLE_OPTIONS, ROLE_FILTER_OPTIONS } from '@/shared/constants/roles';
+import { getUserStatusConfig, USER_STATUS_FILTER_OPTIONS, USER_STATUS_OPTIONS } from '@/shared/constants/userStatus';
 
 const { Title } = Typography;
 
@@ -20,49 +22,6 @@ interface UserRecord {
   last_login_at: string | null;
   created_at: string;
 }
-
-const ROLE_COLORS: Record<string, string> = {
-  SYSTEM_ADMIN: 'red',
-  AGENCY_MANAGER: 'blue',
-  AGENCY_OPERATOR: 'green',
-  CLIENT_DIRECTOR: 'orange',
-};
-
-const ROLE_LABELS: Record<string, string> = {
-  SYSTEM_ADMIN: '시스템 관리자',
-  AGENCY_MANAGER: '수탁업체 관리자',
-  AGENCY_OPERATOR: '수탁업체 실무자',
-  CLIENT_DIRECTOR: '위탁기관 담당자',
-};
-
-const ROLE_OPTIONS = [
-  { value: 'AGENCY_MANAGER', label: '수탁업체 관리자' },
-  { value: 'AGENCY_OPERATOR', label: '수탁업체 실무자' },
-  { value: 'CLIENT_DIRECTOR', label: '위탁기관 담당자' },
-];
-
-const ROLE_FILTER_OPTIONS = [
-  { value: '', label: '전체 역할' },
-  { value: 'SYSTEM_ADMIN', label: '시스템 관리자' },
-  { value: 'AGENCY_MANAGER', label: '수탁업체 관리자' },
-  { value: 'AGENCY_OPERATOR', label: '수탁업체 실무자' },
-  { value: 'CLIENT_DIRECTOR', label: '위탁기관 담당자' },
-];
-
-const STATUS_LABELS: Record<string, { color: string; text: string }> = {
-  ACTIVE: { color: 'green', text: '활성' },
-  INACTIVE: { color: 'default', text: '비활성' },
-  LOCKED: { color: 'red', text: '잠금' },
-  WITHDRAWN: { color: 'gray', text: '탈퇴' },
-};
-
-const STATUS_FILTER_OPTIONS = [
-  { value: '', label: '전체 상태' },
-  { value: 'ACTIVE', label: '활성' },
-  { value: 'INACTIVE', label: '비활성' },
-  { value: 'LOCKED', label: '잠금' },
-  { value: 'WITHDRAWN', label: '탈퇴' },
-];
 
 export default function UsersPage() {
   const { message } = App.useApp();
@@ -109,7 +68,7 @@ export default function UsersPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, ...body }: { id: string; role?: string; name?: string }) => {
+    mutationFn: async ({ id, ...body }: { id: string; role?: string; name?: string; status?: string }) => {
       const res = await apiClient.put<ApiResponse<UserRecord>>(`/users/${id}`, body);
       return res.data.data;
     },
@@ -139,7 +98,7 @@ export default function UsersPage() {
 
   const handleEdit = (user: UserRecord) => {
     setEditingUser(user);
-    editForm.setFieldsValue({ name: user.name, role: user.role });
+    editForm.setFieldsValue({ name: user.name, role: user.role, status: user.status });
     setEditOpen(true);
   };
 
@@ -166,7 +125,7 @@ export default function UsersPage() {
       dataIndex: 'role',
       key: 'role',
       render: (role: string) => (
-        <Tag color={ROLE_COLORS[role]}>{ROLE_LABELS[role] || role}</Tag>
+        <Tag color={getRoleConfig(role).color}>{getRoleConfig(role).label}</Tag>
       ),
     },
     {
@@ -174,7 +133,7 @@ export default function UsersPage() {
       dataIndex: 'status',
       key: 'status',
       render: (status: string) => {
-        const s = STATUS_LABELS[status] || { color: 'default', text: status };
+        const s = getUserStatusConfig(status);
         return <Tag color={s.color}>{s.text}</Tag>;
       },
     },
@@ -243,7 +202,7 @@ export default function UsersPage() {
                     <Select
                       value={statusFilter}
                       onChange={handleStatusFilter}
-                      options={STATUS_FILTER_OPTIONS}
+                      options={USER_STATUS_FILTER_OPTIONS}
                       style={{ width: 140 }}
                     />
                   </div>
@@ -269,10 +228,32 @@ export default function UsersPage() {
             key: 'roles',
             label: '역할 관리',
             children: (
-              <Result
-                status="info"
-                title="역할 관리"
-                subTitle="Phase 1-B에서 지원됩니다"
+              <Table
+                size="small"
+                pagination={false}
+                rowKey="feature"
+                dataSource={[
+                  { feature: '콘텐츠 작성/수정', SA: '✅', AM: '✅', AO: '✅', CD: '—' },
+                  { feature: '콘텐츠 게시 요청', SA: '✅', AM: '✅', AO: '✅', CD: '—' },
+                  { feature: '승인/반려', SA: '✅', AM: '✅', AO: '—', CD: '✅' },
+                  { feature: '댓글 관리', SA: '✅', AM: '✅', AO: '✅', CD: '조회' },
+                  { feature: '채널 연동 관리', SA: '✅', AM: '✅', AO: '—', CD: '—' },
+                  { feature: '대시보드 조회', SA: '✅', AM: '✅', AO: '✅', CD: '✅' },
+                  { feature: '기관 비교 뷰', SA: '✅', AM: '✅', AO: '—', CD: '—' },
+                  { feature: '성과 분석/리포트', SA: '✅', AM: '✅', AO: '조회', CD: '조회' },
+                  { feature: '사용자 초대/관리', SA: '✅', AM: '✅', AO: '—', CD: '—' },
+                  { feature: '워크플로우 설정', SA: '✅', AM: '✅', AO: '—', CD: '—' },
+                  { feature: '알림 설정', SA: '✅', AM: '✅', AO: '✅', CD: '✅' },
+                  { feature: '감사 로그 조회', SA: '✅', AM: '✅', AO: '—', CD: '—' },
+                  { feature: '시스템 관리', SA: '✅', AM: '—', AO: '—', CD: '—' },
+                ]}
+                columns={[
+                  { title: '기능', dataIndex: 'feature', key: 'feature', width: 200 },
+                  { title: 'SA (시스템 관리자)', dataIndex: 'SA', key: 'SA', align: 'center', width: 140 },
+                  { title: 'AM (수탁 관리자)', dataIndex: 'AM', key: 'AM', align: 'center', width: 140 },
+                  { title: 'AO (수탁 실무자)', dataIndex: 'AO', key: 'AO', align: 'center', width: 140 },
+                  { title: 'CD (위탁 담당자)', dataIndex: 'CD', key: 'CD', align: 'center', width: 140 },
+                ]}
               />
             ),
           },
@@ -343,6 +324,9 @@ export default function UsersPage() {
           </Form.Item>
           <Form.Item name="role" label="역할" rules={[{ required: true, message: '역할을 선택하세요' }]}>
             <Select options={ROLE_OPTIONS} />
+          </Form.Item>
+          <Form.Item name="status" label="상태">
+            <Select options={USER_STATUS_OPTIONS} />
           </Form.Item>
         </Form>
       </Modal>

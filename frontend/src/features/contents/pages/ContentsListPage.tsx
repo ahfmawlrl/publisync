@@ -4,40 +4,23 @@ import type { ColumnsType } from 'antd/es/table';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 
+import { getStatusConfig } from '@/shared/constants/contentStatus';
+import { CONTENT_MESSAGES } from '@/shared/constants/messages';
+import { getPlatformConfig } from '@/shared/constants/platform';
+import { useAuthStore } from '@/shared/stores/useAuthStore';
 import { useBulkAction, useContents, useDeleteContent, useRequestReview } from '../hooks/useContents';
 import type { ContentRecord } from '../types';
 
 const { Title } = Typography;
 const { Search } = Input;
 
-const STATUS_CONFIG: Record<string, { color: string; text: string }> = {
-  DRAFT: { color: 'default', text: '작성 중' },
-  PENDING_REVIEW: { color: 'orange', text: '검수 대기' },
-  IN_REVIEW: { color: 'processing', text: '검토 중' },
-  APPROVED: { color: 'cyan', text: '승인됨' },
-  REJECTED: { color: 'red', text: '반려' },
-  SCHEDULED: { color: 'blue', text: '예약됨' },
-  PUBLISHING: { color: 'processing', text: '게시 중' },
-  PUBLISHED: { color: 'green', text: '게시 완료' },
-  PARTIALLY_PUBLISHED: { color: 'warning', text: '부분 게시' },
-  PUBLISH_FAILED: { color: 'error', text: '게시 실패' },
-  CANCELLED: { color: 'default', text: '취소됨' },
-  ARCHIVED: { color: 'default', text: '보관됨' },
-};
-
-const PLATFORM_SHORT: Record<string, string> = {
-  YOUTUBE: 'YT',
-  INSTAGRAM: 'IG',
-  FACEBOOK: 'FB',
-  X: 'X',
-  NAVER_BLOG: 'Blog',
-};
-
 type StatusTab = 'all' | 'DRAFT' | 'PENDING_REVIEW' | 'APPROVED' | 'PUBLISHED' | 'REJECTED';
 
 export default function ContentsListPage() {
   const navigate = useNavigate();
   const { message } = App.useApp();
+  const userRole = useAuthStore((s) => s.user?.role);
+  const canCreate = userRole !== 'CLIENT_DIRECTOR';
   const [page, setPage] = useState(1);
   const [statusTab, setStatusTab] = useState<StatusTab>('all');
   const [platformFilter, setPlatformFilter] = useState<string | undefined>();
@@ -75,7 +58,7 @@ export default function ContentsListPage() {
       key: 'status',
       width: 110,
       render: (s: string) => {
-        const cfg = STATUS_CONFIG[s] || { color: 'default', text: s };
+        const cfg = getStatusConfig(s);
         return <Tag color={cfg.color}>{cfg.text}</Tag>;
       },
     },
@@ -95,7 +78,7 @@ export default function ContentsListPage() {
       width: 160,
       render: (platforms: string[]) => (
         <span>
-          {platforms.map((p) => PLATFORM_SHORT[p] || p).join('·')}
+          {platforms.map((p) => getPlatformConfig(p).short).join('·')}
         </span>
       ),
     },
@@ -135,25 +118,31 @@ export default function ContentsListPage() {
             disabled={!['DRAFT', 'REJECTED'].includes(record.status)}
           />
           {record.status === 'DRAFT' && (
-            <Button
-              type="text"
-              size="small"
-              icon={<SendOutlined />}
-              onClick={() => {
+            <Popconfirm
+              title="검토를 요청하시겠습니까?"
+              onConfirm={() => {
                 reviewMutation.mutate(record.id, {
-                  onSuccess: () => message.success('검토 요청이 완료되었습니다'),
-                  onError: () => message.error('검토 요청에 실패했습니다'),
+                  onSuccess: () => message.success(CONTENT_MESSAGES.REQUEST_REVIEW_SUCCESS),
+                  onError: () => message.error(CONTENT_MESSAGES.REQUEST_REVIEW_ERROR),
                 });
               }}
-              title="검토 요청"
-            />
+              okText="요청"
+              cancelText="취소"
+            >
+              <Button
+                type="text"
+                size="small"
+                icon={<SendOutlined />}
+                title="검토 요청"
+              />
+            </Popconfirm>
           )}
           <Popconfirm
-            title="콘텐츠를 삭제하시겠습니까?"
+            title={CONTENT_MESSAGES.DELETE_CONFIRM}
             onConfirm={() => {
               deleteMutation.mutate(record.id, {
-                onSuccess: () => message.success('콘텐츠가 삭제되었습니다'),
-                onError: () => message.error('콘텐츠 삭제에 실패했습니다'),
+                onSuccess: () => message.success(CONTENT_MESSAGES.DELETE_SUCCESS),
+                onError: () => message.error(CONTENT_MESSAGES.DELETE_ERROR),
               });
             }}
             okText="삭제"
@@ -170,9 +159,11 @@ export default function ContentsListPage() {
     <div>
       <div className="mb-4 flex items-center justify-between">
         <Title level={4} className="!mb-0">콘텐츠 목록</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/contents/create')}>
-          + 새 콘텐츠
-        </Button>
+        {canCreate && (
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/contents/create')}>
+            + 새 콘텐츠
+          </Button>
+        )}
       </div>
 
       <Tabs
@@ -181,10 +172,10 @@ export default function ContentsListPage() {
         items={[
           { key: 'all', label: '전체' },
           { key: 'DRAFT', label: '작성 중' },
-          { key: 'PENDING_REVIEW', label: '검수 대기' },
+          { key: 'PENDING_REVIEW', label: '검토 대기' },
           { key: 'APPROVED', label: '승인됨' },
           { key: 'PUBLISHED', label: '게시 완료' },
-          { key: 'REJECTED', label: '반려' },
+          { key: 'REJECTED', label: '반려됨' },
         ]}
       />
 

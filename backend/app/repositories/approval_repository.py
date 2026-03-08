@@ -20,7 +20,11 @@ class ApprovalRepository:
         stmt = (
             select(ApprovalRequest)
             .where(ApprovalRequest.id == request_id)
-            .options(selectinload(ApprovalRequest.histories))
+            .options(
+                selectinload(ApprovalRequest.histories),
+                selectinload(ApprovalRequest.requester),
+                selectinload(ApprovalRequest.content),
+            )
         )
         result = await self._db.execute(stmt)
         return result.scalar_one_or_none()
@@ -31,6 +35,8 @@ class ApprovalRepository:
         offset: int = 0,
         limit: int = 20,
         status: str | None = None,
+        content_id: UUID | None = None,
+        requested_by: UUID | None = None,
     ) -> tuple[list[ApprovalRequest], int]:
         base = select(ApprovalRequest).where(ApprovalRequest.organization_id == org_id)
         count_base = select(func.count()).select_from(ApprovalRequest).where(
@@ -41,8 +47,25 @@ class ApprovalRepository:
             base = base.where(ApprovalRequest.status == status)
             count_base = count_base.where(ApprovalRequest.status == status)
 
+        if content_id:
+            base = base.where(ApprovalRequest.content_id == content_id)
+            count_base = count_base.where(ApprovalRequest.content_id == content_id)
+
+        if requested_by:
+            base = base.where(ApprovalRequest.requested_by == requested_by)
+            count_base = count_base.where(ApprovalRequest.requested_by == requested_by)
+
         total = (await self._db.execute(count_base)).scalar() or 0
-        stmt = base.order_by(ApprovalRequest.created_at.desc()).offset(offset).limit(limit)
+        stmt = (
+            base.options(
+                selectinload(ApprovalRequest.histories),
+                selectinload(ApprovalRequest.requester),
+                selectinload(ApprovalRequest.content),
+            )
+            .order_by(ApprovalRequest.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+        )
         result = await self._db.execute(stmt)
         return list(result.scalars().all()), total
 

@@ -5,6 +5,7 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.audit import AuditLog
 from app.models.enums import AuditAction
@@ -49,7 +50,12 @@ class AuditRepository:
             count_base = count_base.where(AuditLog.created_at <= end_dt)
 
         total = (await self._db.execute(count_base)).scalar() or 0
-        stmt = base.order_by(AuditLog.created_at.desc()).offset(offset).limit(limit)
+        stmt = (
+            base.options(selectinload(AuditLog.actor))
+            .order_by(AuditLog.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+        )
         result = await self._db.execute(stmt)
         return list(result.scalars().all()), total
 

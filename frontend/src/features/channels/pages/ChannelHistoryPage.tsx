@@ -2,34 +2,12 @@ import { Select, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useState } from 'react';
 
+import { getPlatformConfig } from '@/shared/constants/platform';
+import { CHANNEL_EVENT_COLORS, CHANNEL_EVENT_LABELS } from '../constants';
 import { useChannelHistory, useChannels } from '../hooks/useChannels';
 import type { ChannelHistoryRecord } from '../types';
 
 const { Title, Text } = Typography;
-
-const PLATFORM_LABELS: Record<string, string> = {
-  YOUTUBE: 'YouTube',
-  INSTAGRAM: 'Instagram',
-  FACEBOOK: 'Facebook',
-  X: 'X (Twitter)',
-  NAVER_BLOG: '네이버 블로그',
-};
-
-const EVENT_LABELS: Record<string, string> = {
-  CONNECTED: '채널 연동',
-  DISCONNECTED: '연동 해제',
-  TOKEN_REFRESHED: '토큰 갱신',
-  TOKEN_EXPIRED: '토큰 만료',
-  STATUS_CHANGED: '상태 변경',
-};
-
-const EVENT_COLORS: Record<string, string> = {
-  CONNECTED: 'green',
-  DISCONNECTED: 'default',
-  TOKEN_REFRESHED: 'blue',
-  TOKEN_EXPIRED: 'red',
-  STATUS_CHANGED: 'orange',
-};
 
 export default function ChannelHistoryPage() {
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
@@ -43,7 +21,7 @@ export default function ChannelHistoryPage() {
 
   const channelOptions = (channelsData?.data || []).map((ch) => ({
     value: ch.id,
-    label: `${PLATFORM_LABELS[ch.platform] || ch.platform} — ${ch.name}`,
+    label: `${getPlatformConfig(ch.platform).label} — ${ch.name}`,
   }));
 
   const selectedChannel = (channelsData?.data || []).find((ch) => ch.id === selectedChannelId);
@@ -62,8 +40,8 @@ export default function ChannelHistoryPage() {
       key: 'event_type',
       width: 120,
       render: (type: string) => (
-        <Tag color={EVENT_COLORS[type] || 'default'}>
-          {EVENT_LABELS[type] || type}
+        <Tag color={CHANNEL_EVENT_COLORS[type] || 'default'}>
+          {CHANNEL_EVENT_LABELS[type] || type}
         </Tag>
       ),
     },
@@ -74,7 +52,7 @@ export default function ChannelHistoryPage() {
       render: () =>
         selectedChannel ? (
           <span>
-            {PLATFORM_LABELS[selectedChannel.platform] || selectedChannel.platform} — {selectedChannel.name}
+            {getPlatformConfig(selectedChannel.platform).label} — {selectedChannel.name}
           </span>
         ) : (
           '-'
@@ -82,8 +60,8 @@ export default function ChannelHistoryPage() {
     },
     {
       title: '처리자',
-      dataIndex: 'actor_id',
-      key: 'actor_id',
+      dataIndex: 'actor_name',
+      key: 'actor_name',
       width: 120,
       render: (v: string | null) => v || '-',
     },
@@ -92,10 +70,15 @@ export default function ChannelHistoryPage() {
       dataIndex: 'details',
       key: 'details',
       render: (details: Record<string, unknown> | null) =>
-        details ? (
-          <Text type="secondary" className="text-xs">
-            {JSON.stringify(details)}
-          </Text>
+        details && Object.keys(details).length > 0 ? (
+          <div className="space-y-0.5">
+            {Object.entries(details).map(([key, value]) => (
+              <div key={key} className="text-xs">
+                <Text type="secondary">{key}: </Text>
+                <Text>{String(value)}</Text>
+              </div>
+            ))}
+          </div>
         ) : (
           '-'
         ),

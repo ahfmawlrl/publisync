@@ -1,4 +1,4 @@
-"""Analytics API — 7 endpoints (S12 F06 + Phase 3 F18/F20 + Phase 4 F23)."""
+"""Analytics API — 9 endpoints (S12 F06 + Phase 3 F18/F20 + Phase 4 F23)."""
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
@@ -9,7 +9,12 @@ from app.core.deps import WorkspaceContext, get_workspace_context, require_roles
 from app.models.enums import UserRole
 from app.models.user import User
 from app.repositories.analytics_repository import AnalyticsRepository
-from app.schemas.analytics import EngagementHeatmapItem, PerformanceDataResponse
+from app.schemas.analytics import (
+    EngagementHeatmapItem,
+    PerformanceDataResponse,
+    TopContentItem,
+    TrendItem,
+)
 from app.schemas.common import ApiResponse
 from app.services.analytics_service import AnalyticsService
 
@@ -58,6 +63,32 @@ async def export_performance(
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename=performance_{period}.csv"},
     )
+
+
+# ── GET /analytics/trend ─────────────────────────────
+@router.get("/trend", response_model=ApiResponse[list[TrendItem]])
+async def get_trend(
+    period: str = Query("30d", pattern="^(7d|30d|90d)$"),
+    granularity: str = Query("daily", pattern="^(daily|weekly|monthly)$"),
+    workspace: WorkspaceContext = Depends(get_workspace_context),
+    service: AnalyticsService = Depends(_get_service),
+) -> dict:
+    """Time-series reach & engagement data for trend chart."""
+    data = await service.get_trend(workspace.org_id, period=period, granularity=granularity)
+    return {"success": True, "data": data}
+
+
+# ── GET /analytics/top-contents ──────────────────────
+@router.get("/top-contents", response_model=ApiResponse[list[TopContentItem]])
+async def get_top_contents(
+    period: str = Query("30d", pattern="^(7d|30d|90d)$"),
+    limit: int = Query(5, ge=1, le=20),
+    workspace: WorkspaceContext = Depends(get_workspace_context),
+    service: AnalyticsService = Depends(_get_service),
+) -> dict:
+    """Top performing contents by total views."""
+    data = await service.get_top_contents(workspace.org_id, period=period, limit=limit)
+    return {"success": True, "data": data}
 
 
 # ── Phase 3 — Sentiment Trend (F18) ──────────────────

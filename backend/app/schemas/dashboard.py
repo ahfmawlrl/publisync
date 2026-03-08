@@ -11,6 +11,11 @@ class DashboardSummaryResponse(BaseModel):
     active_channels: int = 0
     total_views: int = 0
     total_likes: int = 0
+    total_comments: int = 0
+    # 이전 기간 대비 변동률 (%, optional — BE가 계산 가능할 때만 제공)
+    views_growth: float | None = None
+    contents_growth: float | None = None
+    comments_growth: float | None = None
 
 
 class PlatformTrendItem(BaseModel):

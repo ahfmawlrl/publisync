@@ -21,7 +21,7 @@ class ContentRepository:
         stmt = (
             select(Content)
             .where(Content.id == content_id, Content.deleted_at.is_(None))
-            .options(selectinload(Content.publish_results))
+            .options(selectinload(Content.publish_results), selectinload(Content.author))
         )
         result = await self._db.execute(stmt)
         return result.scalar_one_or_none()
@@ -55,7 +55,12 @@ class ContentRepository:
             count_base = count_base.where(Content.title.ilike(f"%{search}%"))
 
         total = (await self._db.execute(count_base)).scalar() or 0
-        stmt = base.order_by(Content.created_at.desc()).offset(offset).limit(limit)
+        stmt = (
+            base.options(selectinload(Content.author))
+            .order_by(Content.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+        )
         result = await self._db.execute(stmt)
         return list(result.scalars().all()), total
 

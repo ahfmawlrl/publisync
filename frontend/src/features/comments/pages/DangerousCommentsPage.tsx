@@ -18,6 +18,8 @@ import {
 } from 'antd';
 import { useState } from 'react';
 
+import { useGenerateReply } from '@/features/ai/hooks/useAi';
+import { getPlatformConfig } from '@/shared/constants/platform';
 import {
   useApproveDelete,
   useDangerousComments,
@@ -26,17 +28,10 @@ import {
   useReplyComment,
 } from '../hooks/useComments';
 import type { CommentRecord } from '../types';
+import { formatCommentTime } from '../utils';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
-
-const PLATFORM_SHORT: Record<string, string> = {
-  YOUTUBE: 'YouTube',
-  INSTAGRAM: 'Instagram',
-  FACEBOOK: 'Facebook',
-  X: 'X',
-  NAVER_BLOG: '네이버 블로그',
-};
 
 type DangerTab = 'unprocessed' | 'processed' | 'archived';
 
@@ -62,6 +57,7 @@ export default function DangerousCommentsPage() {
   const approveDeleteMutation = useApproveDelete();
   const hideMutation = useHideComment();
   const replyMutation = useReplyComment();
+  const aiReplyMutation = useGenerateReply();
 
   const handleReplySubmit = () => {
     if (!replyComment || !replyText.trim()) return;
@@ -82,16 +78,6 @@ export default function DangerousCommentsPage() {
   const items = data?.data || [];
   const pendingCount = items.filter((i) => i.status === 'UNPROCESSED').length;
 
-  const formatTime = (comment: CommentRecord) => {
-    const dt = comment.platform_created_at || comment.created_at;
-    const diff = Date.now() - new Date(dt).getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 60) return `${mins}분 전`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}시간 전`;
-    return new Date(dt).toLocaleDateString('ko-KR');
-  };
-
   const renderDangerCard = (comment: CommentRecord) => {
     const confidence = comment.sentiment_confidence != null
       ? (comment.sentiment_confidence * 100).toFixed(0)
@@ -109,7 +95,7 @@ export default function DangerousCommentsPage() {
         <div className="mb-2 flex items-center gap-2">
           <Tag color={isUrgent ? 'red' : 'gold'}>{isUrgent ? '긴급' : '주의'}</Tag>
           <Text type="secondary" className="text-xs">
-            {formatTime(comment)} · {PLATFORM_SHORT[comment.platform] || comment.platform}
+            {formatCommentTime(comment)} · {getPlatformConfig(comment.platform).label}
             {comment.content_id && ` · 콘텐츠 ${comment.content_id.slice(0, 8)}`}
           </Text>
         </div>
@@ -124,10 +110,20 @@ export default function DangerousCommentsPage() {
           <Button
             size="small"
             icon={<RobotOutlined />}
+            loading={aiReplyMutation.isPending && replyComment?.id === comment.id}
             onClick={() => {
               setReplyComment(comment);
               setReplyText('');
               setReplyOpen(true);
+              aiReplyMutation.mutate(
+                { comment_text: comment.text, tone: 'professional' },
+                {
+                  onSuccess: (data) => {
+                    setReplyText(data?.suggestions?.[0]?.content ?? '');
+                  },
+                  onError: () => message.error('AI 답글 생성에 실패했습니다'),
+                },
+              );
             }}
           >
             AI 답글 생성

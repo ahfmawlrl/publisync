@@ -14,6 +14,7 @@ from app.repositories.approval_repository import ApprovalRepository
 from app.repositories.content_repository import ContentRepository
 from app.schemas.approval import (
     ApprovalActionRequest,
+    ApprovalHistoryResponse,
     ApprovalRequestResponse,
     WorkflowResponse,
     WorkflowUpdateRequest,
@@ -29,6 +30,20 @@ def _get_service(db: AsyncSession = Depends(get_db_session)) -> ApprovalService:
 
 
 def _to_approval_response(r: ApprovalRequest) -> ApprovalRequestResponse:
+    histories = []
+    if hasattr(r, "histories") and r.histories:
+        histories = [
+            ApprovalHistoryResponse(
+                id=str(h.id),
+                request_id=str(h.request_id),
+                step=h.step,
+                action=h.action.value,
+                reviewer_id=str(h.reviewer_id) if h.reviewer_id else None,
+                comment=h.comment,
+                created_at=h.created_at.isoformat(),
+            )
+            for h in r.histories
+        ]
     return ApprovalRequestResponse(
         id=str(r.id),
         content_id=str(r.content_id),
@@ -37,8 +52,11 @@ def _to_approval_response(r: ApprovalRequest) -> ApprovalRequestResponse:
         current_step=r.current_step,
         status=r.status.value,
         requested_by=str(r.requested_by),
+        requested_by_name=r.requester.name if hasattr(r, "requester") and r.requester else None,
+        content_title=r.content.title if hasattr(r, "content") and r.content else None,
         is_urgent=r.is_urgent,
         comment=r.comment,
+        histories=histories,
         created_at=r.created_at.isoformat(),
         updated_at=r.updated_at.isoformat(),
     )
@@ -61,11 +79,14 @@ async def list_approvals(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     status: str | None = Query(None),
+    content_id: UUID | None = Query(None),
+    requested_by: UUID | None = Query(None),
     workspace: WorkspaceContext = Depends(get_workspace_context),
     service: ApprovalService = Depends(_get_service),
 ) -> dict:
     requests, total = await service.list_approvals(
-        workspace.org_id, page=page, limit=limit, status=status
+        workspace.org_id, page=page, limit=limit, status=status,
+        content_id=content_id, requested_by=requested_by,
     )
     return {
         "success": True,

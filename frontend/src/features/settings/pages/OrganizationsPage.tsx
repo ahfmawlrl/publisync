@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import apiClient from '@/shared/api/client';
 import type { ApiResponse, PaginatedResponse } from '@/shared/api/types';
+import { getOrgStatusConfig, ORG_STATUS_CONFIG, PLAN_OPTIONS } from '@/shared/constants/userStatus';
 
 const { Title } = Typography;
 
@@ -17,18 +18,6 @@ interface OrgRecord {
   status: string;
   created_at: string;
 }
-
-const PLAN_OPTIONS = [
-  { value: 'basic', label: '베이직' },
-  { value: 'standard', label: '스탠다드' },
-  { value: 'premium', label: '프리미엄' },
-];
-
-const STATUS_CONFIG: Record<string, { color: string; text: string }> = {
-  ACTIVE: { color: 'green', text: '활성' },
-  INACTIVE: { color: 'default', text: '비활성' },
-  SUSPENDED: { color: 'red', text: '정지' },
-};
 
 export default function OrganizationsPage() {
   const { message } = App.useApp();
@@ -43,7 +32,7 @@ export default function OrganizationsPage() {
   const { data, isLoading } = useQuery({
     queryKey: ['organizations', { page }],
     queryFn: async () => {
-      const res = await apiClient.get<PaginatedResponse<OrgRecord>>('/admin/organizations', {
+      const res = await apiClient.get<PaginatedResponse<OrgRecord>>('/organizations', {
         params: { page, limit: 20 },
       });
       return res.data;
@@ -52,7 +41,7 @@ export default function OrganizationsPage() {
 
   const createMutation = useMutation({
     mutationFn: async (values: { name: string; slug: string; plan: string }) => {
-      const res = await apiClient.post<ApiResponse<OrgRecord>>('/admin/organizations', values);
+      const res = await apiClient.post<ApiResponse<OrgRecord>>('/organizations', values);
       return res.data.data;
     },
     onSuccess: () => {
@@ -66,7 +55,7 @@ export default function OrganizationsPage() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, ...body }: { id: string; name?: string; plan?: string; status?: string }) => {
-      const res = await apiClient.put<ApiResponse<OrgRecord>>(`/admin/organizations/${id}`, body);
+      const res = await apiClient.put<ApiResponse<OrgRecord>>(`/organizations/${id}`, body);
       return res.data.data;
     },
     onSuccess: () => {
@@ -80,7 +69,7 @@ export default function OrganizationsPage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (orgId: string) => {
-      await apiClient.delete(`/admin/organizations/${orgId}`);
+      await apiClient.delete(`/organizations/${orgId}`);
     },
     onSuccess: () => {
       message.success('위탁기관이 삭제되었습니다');
@@ -112,7 +101,7 @@ export default function OrganizationsPage() {
       dataIndex: 'status',
       key: 'status',
       render: (status: string) => {
-        const cfg = STATUS_CONFIG[status] || { color: 'default', text: status };
+        const cfg = getOrgStatusConfig(status);
         return <Tag color={cfg.color}>{cfg.text}</Tag>;
       },
     },
@@ -221,7 +210,7 @@ export default function OrganizationsPage() {
           </Form.Item>
           <Form.Item name="status" label="상태">
             <Select
-              options={Object.entries(STATUS_CONFIG).map(([value, { text }]) => ({ value, label: text }))}
+              options={Object.entries(ORG_STATUS_CONFIG).map(([value, { text }]) => ({ value, label: text }))}
             />
           </Form.Item>
         </Form>

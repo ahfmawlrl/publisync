@@ -1,7 +1,13 @@
 """Content, ContentVersion, PublishResult — S5 (F01)."""
 
+from __future__ import annotations
+
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.models.user import User
 
 from sqlalchemy import (
     Boolean,
@@ -45,8 +51,9 @@ class Content(Base, TimestampMixin):
     search_vector: Mapped[str | None] = mapped_column(TSVECTOR)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    versions: Mapped[list["ContentVersion"]] = relationship(back_populates="content", cascade="all, delete-orphan")
-    publish_results: Mapped[list["PublishResult"]] = relationship(
+    author: Mapped[User] = relationship(foreign_keys=[author_id], lazy="noload")
+    versions: Mapped[list[ContentVersion]] = relationship(back_populates="content", cascade="all, delete-orphan")
+    publish_results: Mapped[list[PublishResult]] = relationship(
         back_populates="content", cascade="all, delete-orphan",
     )
 
@@ -75,7 +82,7 @@ class ContentVersion(Base, TimestampMixin):
     metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB, default=dict)
     changed_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
 
-    content: Mapped["Content"] = relationship(back_populates="versions")
+    content: Mapped[Content] = relationship(back_populates="versions")
 
     __table_args__ = (
         Index("idx_content_versions_content_id", "content_id"),
@@ -108,7 +115,7 @@ class PublishResult(Base, TimestampMixin):
     shares: Mapped[int] = mapped_column(Integer, default=0)
     comments_count: Mapped[int] = mapped_column(Integer, default=0)
 
-    content: Mapped["Content"] = relationship(back_populates="publish_results")
+    content: Mapped[Content] = relationship(back_populates="publish_results")
 
     __table_args__ = (
         Index("idx_publish_results_content_id", "content_id"),

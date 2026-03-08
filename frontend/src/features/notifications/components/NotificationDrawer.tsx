@@ -34,8 +34,11 @@ const TYPE_CONFIG: Record<NotificationType, { icon: React.ReactNode; color: stri
 const ACTION_MAP: Partial<Record<NotificationType, { label: string; path: string }>> = {
   DANGEROUS_COMMENT: { label: '대응하기', path: '/comments/dangerous' },
   APPROVAL_REQUEST: { label: '검수하기', path: '/approvals' },
-  TOKEN_EXPIRING: { label: '갱신하기', path: '/channels' },
+  APPROVAL_RESULT: { label: '확인하기', path: '/approvals' },
+  PUBLISH_COMPLETE: { label: '확인하기', path: '/contents' },
   PUBLISH_FAILED: { label: '확인하기', path: '/contents' },
+  COMMENT_NEW: { label: '확인하기', path: '/comments' },
+  TOKEN_EXPIRING: { label: '갱신하기', path: '/channels' },
 };
 
 function formatRelativeTime(dateStr: string): string {

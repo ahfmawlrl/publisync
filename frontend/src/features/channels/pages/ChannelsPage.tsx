@@ -1,8 +1,10 @@
 import { DeleteOutlined, HistoryOutlined, ReloadOutlined } from '@ant-design/icons';
 import { App, Button, Card, Drawer, Modal, Popconfirm, Progress, Select, Space, Table, Tabs, Tag, Timeline, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
+import { getPlatformConfig, PLATFORM_CONFIG } from '@/shared/constants/platform';
+import { CHANNEL_EVENT_LABELS, CHANNEL_STATUS_CONFIG } from '../constants';
 import {
   useApiStatus,
   useChannelHistory,
@@ -15,36 +17,10 @@ import type { ChannelRecord } from '../types';
 
 const { Title, Text } = Typography;
 
-const PLATFORM_LABELS: Record<string, string> = {
-  YOUTUBE: 'YouTube',
-  INSTAGRAM: 'Instagram',
-  FACEBOOK: 'Facebook',
-  X: 'X (Twitter)',
-  NAVER_BLOG: '네이버 블로그',
-};
-
-const PLATFORM_COLORS: Record<string, string> = {
-  YOUTUBE: 'red',
-  INSTAGRAM: 'purple',
-  FACEBOOK: 'blue',
-  X: 'default',
-  NAVER_BLOG: 'green',
-};
-
-const STATUS_CONFIG: Record<string, { color: string; text: string }> = {
-  ACTIVE: { color: 'green', text: '연동됨' },
-  EXPIRING: { color: 'orange', text: '만료 임박' },
-  EXPIRED: { color: 'red', text: '만료됨' },
-  DISCONNECTED: { color: 'default', text: '미연동' },
-};
-
-const EVENT_LABELS: Record<string, string> = {
-  CONNECTED: '채널 연동',
-  DISCONNECTED: '연동 해제',
-  TOKEN_REFRESHED: '토큰 갱신',
-  TOKEN_EXPIRED: '토큰 만료',
-  STATUS_CHANGED: '상태 변경',
-};
+const PLATFORM_OPTIONS = Object.entries(PLATFORM_CONFIG).map(([value, { label }]) => ({
+  value,
+  label,
+}));
 
 export default function ChannelsPage() {
   const { message } = App.useApp();
@@ -56,9 +32,42 @@ export default function ChannelsPage() {
   const { data, isLoading } = useChannels(page);
   const { data: apiStatus } = useApiStatus();
   const { data: historyData } = useChannelHistory(historyChannelId);
-  const { initiate } = useConnectChannel();
+  const { initiate, callback } = useConnectChannel();
   const disconnectMutation = useDisconnectChannel();
   const refreshMutation = useRefreshChannelToken();
+
+  // Listen for OAuth callback messages from popup window
+  const handleOAuthMessage = useCallback(
+    async (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type !== 'OAUTH_CALLBACK') return;
+
+      const { code, state, error } = event.data;
+      if (error) {
+        message.error(`OAuth 인증 실패: ${error}`);
+        return;
+      }
+      if (!code || !state) return;
+
+      try {
+        await callback.mutateAsync({
+          platform: selectedPlatform,
+          code,
+          state,
+          redirect_uri: `${window.location.origin}/channels/callback`,
+        });
+        message.success('채널이 연동되었습니다');
+      } catch {
+        message.error('채널 연동 완료에 실패했습니다');
+      }
+    },
+    [callback, message, selectedPlatform],
+  );
+
+  useEffect(() => {
+    window.addEventListener('message', handleOAuthMessage);
+    return () => window.removeEventListener('message', handleOAuthMessage);
+  }, [handleOAuthMessage]);
 
   const handleConnect = async () => {
     try {
@@ -66,7 +75,7 @@ export default function ChannelsPage() {
         platform: selectedPlatform,
         redirect_uri: `${window.location.origin}/channels/callback`,
       });
-      window.open(result.auth_url, '_blank', 'width=600,height=700');
+      window.open(result.auth_url, 'oauth_popup', 'width=600,height=700');
       setConnectOpen(false);
       message.info('OAuth 인증 창이 열렸습니다. 인증을 완료하세요.');
     } catch {
@@ -79,7 +88,7 @@ export default function ChannelsPage() {
       title: '플랫폼',
       dataIndex: 'platform',
       key: 'platform',
-      render: (p: string) => <Tag color={PLATFORM_COLORS[p]}>{PLATFORM_LABELS[p] || p}</Tag>,
+      render: (p: string) => <Tag color={getPlatformConfig(p).color}>{getPlatformConfig(p).label}</Tag>,
     },
     { title: '채널명', dataIndex: 'name', key: 'name' },
     {
@@ -87,7 +96,7 @@ export default function ChannelsPage() {
       dataIndex: 'status',
       key: 'status',
       render: (s: string) => {
-        const cfg = STATUS_CONFIG[s] || { color: 'default', text: s };
+        const cfg = CHANNEL_STATUS_CONFIG[s] || { color: 'default', text: s };
         return <Tag color={cfg.color}>{cfg.text}</Tag>;
       },
     },
@@ -177,7 +186,7 @@ export default function ChannelsPage() {
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                   {apiStatus.map((s) => (
                     <div key={s.platform}>
-                      <Text strong>{PLATFORM_LABELS[s.platform] || s.platform}</Text>
+                      <Text strong>{getPlatformConfig(s.platform).label}</Text>
                       <Progress
                         percent={s.percentage_used}
                         status={s.percentage_used > 90 ? 'exception' : s.percentage_used > 70 ? 'active' : 'normal'}
@@ -213,7 +222,7 @@ export default function ChannelsPage() {
           value={selectedPlatform}
           onChange={setSelectedPlatform}
           style={{ width: '100%' }}
-          options={Object.entries(PLATFORM_LABELS).map(([value, label]) => ({ value, label }))}
+          options={PLATFORM_OPTIONS}
         />
       </Modal>
 
@@ -228,7 +237,7 @@ export default function ChannelsPage() {
           items={(historyData?.data || []).map((h) => ({
             children: (
               <div>
-                <Text strong>{EVENT_LABELS[h.event_type] || h.event_type}</Text>
+                <Text strong>{CHANNEL_EVENT_LABELS[h.event_type] || h.event_type}</Text>
                 <br />
                 <Text type="secondary" className="text-xs">
                   {new Date(h.created_at).toLocaleString('ko-KR')}

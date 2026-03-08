@@ -36,6 +36,7 @@ class ContentResponse(BaseModel):
     channel_ids: list[str] = []
     scheduled_at: str | None = None
     author_id: str
+    author_name: str | None = None
     platform_contents: dict | None = None
     metadata: dict | None = None
     ai_generated: bool = False

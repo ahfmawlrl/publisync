@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     MAIL_PASSWORD: str = ""
     MAIL_TLS: bool = True
     MAIL_SSL: bool = False
+    FRONTEND_URL: str = "http://localhost:5173"
 
     # ── CORS ───────────────────────────────────────────────
     CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000"]

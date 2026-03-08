@@ -27,7 +27,7 @@ import { useParams } from 'react-router';
 import VideoPlayer from '@/shared/components/VideoPlayer';
 
 import AiJobProgress from '../components/AiJobProgress';
-import { useCreateShortform } from '../hooks/useAiJobs';
+import { useConfirmShortform, useCreateShortform } from '../hooks/useAiJobs';
 
 const { Title, Text } = Typography;
 
@@ -75,6 +75,9 @@ export default function ShortformEditorPage() {
 
   // Ref for tracking whether result was already consumed
   const resultConsumedRef = useRef(false);
+
+  // Confirm mutation
+  const confirmShortformMutation = useConfirmShortform();
 
   // Summary modal
   const [summaryOpen, setSummaryOpen] = useState(false);
@@ -152,6 +155,26 @@ export default function ShortformEditorPage() {
   const handleCloseJobProgress = useCallback(() => {
     setJobId(null);
   }, []);
+
+  const handleConfirm = useCallback(async () => {
+    const selected = clips.filter((c) => c.selected);
+    if (!assetId || selected.length === 0) return;
+    try {
+      await confirmShortformMutation.mutateAsync({
+        media_asset_id: assetId,
+        clips: selected.map((c) => ({
+          id: c.id,
+          start: c.start,
+          end: c.end,
+          label: c.label,
+        })),
+      });
+      message.success('숏폼 구간이 확정되었습니다.');
+      setSummaryOpen(false);
+    } catch {
+      message.error('숏폼 확정에 실패했습니다.');
+    }
+  }, [assetId, clips, confirmShortformMutation, message]);
 
   // ── Derived state ───────────────────────────────────
 
@@ -294,7 +317,19 @@ export default function ShortformEditorPage() {
         title="선택한 구간 요약"
         open={summaryOpen}
         onCancel={() => setSummaryOpen(false)}
-        footer={<Button onClick={() => setSummaryOpen(false)}>닫기</Button>}
+        footer={
+          <Space>
+            <Button onClick={() => setSummaryOpen(false)}>닫기</Button>
+            <Button
+              type="primary"
+              icon={<CheckOutlined />}
+              onClick={handleConfirm}
+              loading={confirmShortformMutation.isPending}
+            >
+              확정
+            </Button>
+          </Space>
+        }
       >
         <div className="space-y-3">
           <Text>

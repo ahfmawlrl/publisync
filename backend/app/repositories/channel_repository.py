@@ -5,6 +5,7 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.channel import Channel, ChannelHistory
 from app.models.enums import ChannelStatus
@@ -79,6 +80,11 @@ class ChannelRepository:
         count_q = select(func.count()).select_from(ChannelHistory).where(ChannelHistory.channel_id == channel_id)
 
         total = (await self._db.execute(count_q)).scalar() or 0
-        stmt = base.order_by(ChannelHistory.created_at.desc()).offset(offset).limit(limit)
+        stmt = (
+            base.options(selectinload(ChannelHistory.actor))
+            .order_by(ChannelHistory.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+        )
         result = await self._db.execute(stmt)
         return list(result.scalars().all()), total

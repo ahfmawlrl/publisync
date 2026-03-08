@@ -34,6 +34,7 @@ import {
 import type { DataNode } from 'antd/es/tree';
 import { useCallback, useMemo, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
+import { useQueryClient } from '@tanstack/react-query';
 
 import apiClient from '@/shared/api/client';
 import type { ApiResponse } from '@/shared/api/types';
@@ -103,6 +104,7 @@ interface UploadingItem {
 
 export default function MediaLibraryPage() {
   const { message: messageApi } = App.useApp();
+  const queryClient = useQueryClient();
 
   // State
   const [page, setPage] = useState(1);
@@ -220,6 +222,7 @@ export default function MediaLibraryPage() {
           folder_id: selectedFolderId || undefined,
         });
 
+        queryClient.invalidateQueries({ queryKey: ['media'] });
         messageApi.success(`${file.name} 업로드 완료`);
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : '업로드 실패';

@@ -3,20 +3,6 @@
 from pydantic import BaseModel
 
 
-class ApprovalRequestResponse(BaseModel):
-    id: str
-    content_id: str
-    organization_id: str
-    workflow_id: str | None = None
-    current_step: int
-    status: str
-    requested_by: str
-    is_urgent: bool = False
-    comment: str | None = None
-    created_at: str
-    updated_at: str
-
-
 class ApprovalHistoryResponse(BaseModel):
     id: str
     request_id: str
@@ -25,6 +11,23 @@ class ApprovalHistoryResponse(BaseModel):
     reviewer_id: str | None = None
     comment: str | None = None
     created_at: str
+
+
+class ApprovalRequestResponse(BaseModel):
+    id: str
+    content_id: str
+    organization_id: str
+    workflow_id: str | None = None
+    current_step: int
+    status: str
+    requested_by: str
+    requested_by_name: str | None = None
+    content_title: str | None = None
+    is_urgent: bool = False
+    comment: str | None = None
+    histories: list[ApprovalHistoryResponse] = []
+    created_at: str
+    updated_at: str
 
 
 class ApprovalActionRequest(BaseModel):

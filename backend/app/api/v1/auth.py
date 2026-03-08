@@ -68,8 +68,11 @@ async def password_reset_request(
     body: PasswordResetRequestBody,
     service: AuthService = Depends(_get_auth_service),
 ) -> dict:
-    # TODO: Send email via FastAPI-Mail when email service is wired
-    _raw_token = await service.request_password_reset(body.email)
+    from app.integrations.email import send_password_reset_email
+
+    raw_token = await service.request_password_reset(body.email)
+    if raw_token:
+        await send_password_reset_email(body.email, raw_token)
     # Always return success (don't reveal email existence)
     return {"success": True, "data": None}
 

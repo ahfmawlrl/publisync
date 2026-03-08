@@ -7,6 +7,7 @@ class AuditLogResponse(BaseModel):
     id: str
     organization_id: str
     actor_id: str | None = None
+    actor_name: str | None = None
     actor_role: str | None = None
     action: str
     resource_type: str

@@ -50,6 +50,7 @@ def _to_history_response(h: ChannelHistory) -> ChannelHistoryResponse:
         event_type=h.event_type.value,
         details=h.details,
         actor_id=str(h.actor_id) if h.actor_id else None,
+        actor_name=h.actor.name if hasattr(h, "actor") and h.actor else None,
         created_at=h.created_at.isoformat(),
     )
 

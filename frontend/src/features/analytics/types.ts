@@ -20,6 +20,21 @@ export interface AnalyticsFilters {
   period?: string;
 }
 
+export interface TrendItem {
+  date: string;
+  reach: number;
+  engagement: number;
+}
+
+export interface TopContentItem {
+  rank: number;
+  content_id: string;
+  title: string;
+  platform: string;
+  metric_label: string;
+  metric_value: number;
+}
+
 // ── Phase 3 — Sentiment Trend (F18) ──────────────────
 
 export interface SentimentTrendItem {

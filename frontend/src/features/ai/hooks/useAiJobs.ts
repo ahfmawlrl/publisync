@@ -82,6 +82,38 @@ export function useCreateShortform() {
   });
 }
 
+/**
+ * Save edited subtitles to the server (F03).
+ * PUT /api/v1/media/:id/subtitles
+ */
+export function useSaveSubtitles() {
+  return useMutation({
+    mutationFn: async (data: { mediaAssetId: string; subtitles: Record<string, unknown>[] }) => {
+      const res = await apiClient.put<ApiResponse<{ saved: boolean }>>(
+        `/media/${data.mediaAssetId}/subtitles`,
+        { subtitles: data.subtitles },
+      );
+      return res.data.data;
+    },
+  });
+}
+
+/**
+ * Confirm selected shortform clips (F15).
+ * POST /api/v1/ai/shortform/confirm
+ */
+export function useConfirmShortform() {
+  return useMutation({
+    mutationFn: async (data: { media_asset_id: string; clips: Record<string, unknown>[] }) => {
+      const res = await apiClient.post<ApiResponse<{ confirmed: boolean; clip_count: number }>>(
+        '/ai/shortform/confirm',
+        data,
+      );
+      return res.data.data;
+    },
+  });
+}
+
 // ── Queries ─────────────────────────────────────────────
 
 /**

@@ -27,6 +27,7 @@ def _to_response(log: AuditLog) -> AuditLogResponse:
         id=str(log.id),
         organization_id=str(log.organization_id),
         actor_id=str(log.actor_id) if log.actor_id else None,
+        actor_name=log.actor.name if hasattr(log, "actor") and log.actor else None,
         actor_role=log.actor_role.value if log.actor_role else None,
         action=log.action.value,
         resource_type=log.resource_type,

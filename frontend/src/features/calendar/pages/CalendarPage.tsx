@@ -26,6 +26,7 @@ import dayjs from 'dayjs';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 
+import { getPlatformConfig } from '@/shared/constants/platform';
 import {
   useCalendarEvents,
   useHolidays,
@@ -41,14 +42,6 @@ const EVENT_TYPE_CONFIG: Record<string, { color: string; text: string }> = {
   HOLIDAY: { color: 'red', text: '공휴일' },
   ANNIVERSARY: { color: 'gold', text: '기념일' },
   CUSTOM: { color: 'purple', text: '사용자 정의' },
-};
-
-const PLATFORM_COLORS: Record<string, string> = {
-  YOUTUBE: 'red',
-  INSTAGRAM: 'purple',
-  FACEBOOK: 'blue',
-  X: 'default',
-  NAVER_BLOG: 'green',
 };
 
 /** FullCalendar background color by event type */
@@ -472,7 +465,7 @@ export default function CalendarPage() {
             )}
             {detailEvent.platform && (
               <Descriptions.Item label="플랫폼">
-                <Tag color={PLATFORM_COLORS[detailEvent.platform]}>{detailEvent.platform}</Tag>
+                <Tag color={getPlatformConfig(detailEvent.platform).color}>{getPlatformConfig(detailEvent.platform).label}</Tag>
               </Descriptions.Item>
             )}
             {detailEvent.description && (
@@ -567,13 +560,12 @@ export default function CalendarPage() {
           >
             <DatePicker style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item name="is_recurring" label="매년 반복" valuePropName="checked">
+          <Form.Item name="is_recurring" label="매년 반복">
             <Select
               options={[
                 { value: false, label: '단발성' },
                 { value: true, label: '매년 반복' },
               ]}
-              defaultValue={false}
             />
           </Form.Item>
         </Form>

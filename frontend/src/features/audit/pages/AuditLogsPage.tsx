@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { Button, Card, DatePicker, Select, Space, Table, Tag, Typography, message } from 'antd';
+import { Button, Card, DatePicker, Descriptions, Modal, Select, Space, Spin, Table, Tag, Typography, message } from 'antd';
 import { DownloadOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
+import { getRoleConfig } from '@/shared/constants/roles';
 import type { AuditLogFilters, AuditLogRecord } from '../types';
-import { exportAuditLogs, useAuditLogs } from '../hooks/useAuditLogs';
+import { exportAuditLogs, useAuditLogDetail, useAuditLogs } from '../hooks/useAuditLogs';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 
 const ACTION_OPTIONS = [
@@ -50,26 +51,15 @@ const ACTION_COLORS: Record<string, string> = {
   DISCONNECT: 'volcano',
 };
 
-const ROLE_LABELS: Record<string, string> = {
-  SYSTEM_ADMIN: 'SA',
-  AGENCY_MANAGER: 'AM',
-  AGENCY_OPERATOR: 'AO',
-  CLIENT_DIRECTOR: 'CD',
-};
-
-const ROLE_COLORS: Record<string, string> = {
-  SYSTEM_ADMIN: 'red',
-  AGENCY_MANAGER: 'blue',
-  AGENCY_OPERATOR: 'green',
-  CLIENT_DIRECTOR: 'orange',
-};
-
 export default function AuditLogsPage() {
   const [filters, setFilters] = useState<AuditLogFilters>({ page: 1, limit: 20 });
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null]>([null, null]);
   const [exporting, setExporting] = useState(false);
 
+  const [detailId, setDetailId] = useState<string | null>(null);
+
   const { data, isLoading } = useAuditLogs(filters);
+  const { data: detailLog, isLoading: isDetailLoading } = useAuditLogDetail(detailId);
 
   const handleFilterChange = (key: keyof AuditLogFilters, value: string | undefined) => {
     setFilters((prev) => ({ ...prev, [key]: value, page: 1 }));
@@ -118,12 +108,19 @@ export default function AuditLogsPage() {
       render: (val: string) => dayjs(val).format('YYYY-MM-DD HH:mm:ss'),
     },
     {
+      title: '처리자',
+      dataIndex: 'actor_name',
+      key: 'actor_name',
+      width: 100,
+      render: (val: string | null) => val || '-',
+    },
+    {
       title: '역할',
       dataIndex: 'actor_role',
       key: 'actor_role',
       width: 80,
       render: (val: string | null) =>
-        val ? <Tag color={ROLE_COLORS[val] ?? 'default'}>{ROLE_LABELS[val] ?? val}</Tag> : '-',
+        val ? <Tag color={getRoleConfig(val).color}>{getRoleConfig(val).short}</Tag> : '-',
     },
     {
       title: '액션',
@@ -191,6 +188,10 @@ export default function AuditLogsPage() {
         dataSource={data?.data ?? []}
         loading={isLoading}
         scroll={{ x: 1000 }}
+        onRow={(record) => ({
+          onClick: () => setDetailId(record.id),
+          style: { cursor: 'pointer' },
+        })}
         pagination={{
           current: filters.page,
           pageSize: filters.limit,
@@ -200,6 +201,65 @@ export default function AuditLogsPage() {
           onChange: (page, pageSize) => setFilters((prev) => ({ ...prev, page, limit: pageSize })),
         }}
       />
+
+      {/* Detail Modal */}
+      <Modal
+        title="감사 로그 상세"
+        open={!!detailId}
+        onCancel={() => setDetailId(null)}
+        footer={<Button onClick={() => setDetailId(null)}>닫기</Button>}
+        width={640}
+      >
+        {isDetailLoading ? (
+          <div className="flex h-32 items-center justify-center">
+            <Spin size="large" />
+          </div>
+        ) : detailLog ? (
+          <Descriptions column={1} bordered size="small">
+            <Descriptions.Item label="시간">
+              {dayjs(detailLog.created_at).format('YYYY-MM-DD HH:mm:ss')}
+            </Descriptions.Item>
+            <Descriptions.Item label="액션">
+              <Tag color={ACTION_COLORS[detailLog.action] ?? 'default'}>{detailLog.action}</Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="처리자">
+              {(detailLog as AuditLogRecord & { actor_name?: string }).actor_name || detailLog.actor_id || '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="역할">
+              {detailLog.actor_role ? (
+                <Tag color={getRoleConfig(detailLog.actor_role).color}>
+                  {getRoleConfig(detailLog.actor_role).label}
+                </Tag>
+              ) : '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="리소스 유형">{detailLog.resource_type}</Descriptions.Item>
+            <Descriptions.Item label="리소스 ID">
+              {detailLog.resource_id ? <Text copyable>{detailLog.resource_id}</Text> : '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="IP 주소">{detailLog.ip_address ?? '-'}</Descriptions.Item>
+            <Descriptions.Item label="User Agent">
+              <Text className="text-xs">{detailLog.user_agent ?? '-'}</Text>
+            </Descriptions.Item>
+            <Descriptions.Item label="Request ID">
+              {detailLog.request_id ? <Text copyable className="text-xs">{detailLog.request_id}</Text> : '-'}
+            </Descriptions.Item>
+            {detailLog.changes && Object.keys(detailLog.changes).length > 0 && (
+              <Descriptions.Item label="변경 내역">
+                <div className="space-y-1">
+                  {Object.entries(detailLog.changes).map(([key, value]) => (
+                    <div key={key} className="text-xs">
+                      <Text type="secondary">{key}: </Text>
+                      <Text>{JSON.stringify(value)}</Text>
+                    </div>
+                  ))}
+                </div>
+              </Descriptions.Item>
+            )}
+          </Descriptions>
+        ) : (
+          <Text type="secondary">로그를 찾을 수 없습니다.</Text>
+        )}
+      </Modal>
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import apiClient from '@/shared/api/client';
 import type { ApiResponse } from '@/shared/api/types';
-import type { AnalyticsFilters, EngagementHeatmapItem, PerformanceData } from '../types';
+import type { AnalyticsFilters, EngagementHeatmapItem, PerformanceData, TopContentItem, TrendItem } from '../types';
 
 export function usePerformance(params: AnalyticsFilters = {}) {
   return useQuery({
@@ -25,6 +25,32 @@ export function useEngagementHeatmap(period: string = '30d') {
         '/analytics/engagement-heatmap',
         { params: { period } },
       );
+      return res.data.data;
+    },
+    refetchInterval: 300_000,
+  });
+}
+
+export function useTrend(period: string = '30d', granularity: string = 'daily') {
+  return useQuery({
+    queryKey: ['analytics', 'trend', period, granularity],
+    queryFn: async () => {
+      const res = await apiClient.get<ApiResponse<TrendItem[]>>('/analytics/trend', {
+        params: { period, granularity },
+      });
+      return res.data.data;
+    },
+    refetchInterval: 300_000,
+  });
+}
+
+export function useTopContents(period: string = '30d', limit: number = 5) {
+  return useQuery({
+    queryKey: ['analytics', 'top-contents', period, limit],
+    queryFn: async () => {
+      const res = await apiClient.get<ApiResponse<TopContentItem[]>>('/analytics/top-contents', {
+        params: { period, limit },
+      });
       return res.data.data;
     },
     refetchInterval: 300_000,

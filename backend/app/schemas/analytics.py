@@ -20,6 +20,21 @@ class EngagementHeatmapItem(BaseModel):
     value: float
 
 
+class TrendItem(BaseModel):
+    date: str
+    reach: int = 0
+    engagement: int = 0
+
+
+class TopContentItem(BaseModel):
+    rank: int
+    content_id: str
+    title: str
+    platform: str
+    metric_label: str  # e.g. "12.3K 조회"
+    metric_value: int = 0
+
+
 class ExportResponse(BaseModel):
     download_url: str
     filename: str

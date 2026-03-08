@@ -1,10 +1,16 @@
 """AuditLog ORM model (Phase 1-B). INSERT-ONLY with monthly partitioning."""
 
+from __future__ import annotations
+
 import uuid
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.models.user import User
 
 from sqlalchemy import DateTime, ForeignKey, Index, String, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 from app.models.base import generate_uuid
@@ -39,6 +45,8 @@ class AuditLog(Base):
     created_at: Mapped[str] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+    actor: Mapped[User] = relationship(foreign_keys=[actor_id], lazy="noload")
 
     __table_args__ = (
         Index("idx_audit_logs_org_id", "organization_id"),

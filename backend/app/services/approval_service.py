@@ -19,10 +19,19 @@ class ApprovalService:
         self._content_repo = content_repo
 
     async def list_approvals(
-        self, org_id: UUID, page: int = 1, limit: int = 20, status: str | None = None
+        self,
+        org_id: UUID,
+        page: int = 1,
+        limit: int = 20,
+        status: str | None = None,
+        content_id: UUID | None = None,
+        requested_by: UUID | None = None,
     ) -> tuple[list[ApprovalRequest], int]:
         offset = (page - 1) * limit
-        return await self._repo.list_requests(org_id, offset=offset, limit=limit, status=status)
+        return await self._repo.list_requests(
+            org_id, offset=offset, limit=limit, status=status,
+            content_id=content_id, requested_by=requested_by,
+        )
 
     async def get_approval(self, request_id: UUID, org_id: UUID) -> ApprovalRequest:
         req = await self._repo.get_by_id(request_id)

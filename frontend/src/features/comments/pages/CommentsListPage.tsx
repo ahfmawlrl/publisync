@@ -1,4 +1,5 @@
 import {
+  CopyOutlined,
   DeleteOutlined,
   EyeInvisibleOutlined,
   RobotOutlined,
@@ -8,6 +9,7 @@ import {
   App,
   Button,
   Card,
+  Dropdown,
   Empty,
   Input,
   List,
@@ -24,13 +26,16 @@ import {
 import { useState } from 'react';
 
 import { useGenerateReply } from '@/features/ai/hooks/useAi';
+import { getPlatformConfig, PLATFORM_CONFIG } from '@/shared/constants/platform';
 import {
   useComments,
   useDeleteRequest,
   useHideComment,
   useReplyComment,
+  useReplyTemplates,
 } from '../hooks/useComments';
 import type { CommentRecord } from '../types';
+import { formatCommentTime } from '../utils';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -43,21 +48,10 @@ const SENTIMENT_CONFIG: Record<string, { color: string; text: string; dot: strin
   DANGEROUS: { color: 'red', text: '위험', dot: '#ff4d4f' },
 };
 
-const PLATFORM_COLORS: Record<string, string> = {
-  YOUTUBE: 'red',
-  INSTAGRAM: 'purple',
-  FACEBOOK: 'blue',
-  X: 'default',
-  NAVER_BLOG: 'green',
-};
-
-const PLATFORM_SHORT: Record<string, string> = {
-  YOUTUBE: 'YT',
-  INSTAGRAM: 'IG',
-  FACEBOOK: 'FB',
-  X: 'X',
-  NAVER_BLOG: 'Blog',
-};
+const PLATFORM_FILTER_OPTIONS = Object.entries(PLATFORM_CONFIG).map(([value, { label }]) => ({
+  value,
+  label,
+}));
 
 type SentimentTab = 'all' | 'DANGEROUS' | 'NEGATIVE' | 'NEUTRAL' | 'POSITIVE';
 
@@ -86,6 +80,7 @@ export default function CommentsListPage() {
   const replyMutation = useReplyComment();
   const hideMutation = useHideComment();
   const deleteRequestMutation = useDeleteRequest();
+  const { data: replyTemplates } = useReplyTemplates();
 
   const items = data?.data || [];
   const totalCount = data?.meta?.total ?? 0;
@@ -119,16 +114,6 @@ export default function CommentsListPage() {
     aiReplyMutation.reset();
   };
 
-  const formatTime = (comment: CommentRecord) => {
-    const dt = comment.platform_created_at || comment.created_at;
-    const diff = Date.now() - new Date(dt).getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 60) return `${mins}분 전`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}시간 전`;
-    return new Date(dt).toLocaleDateString('ko-KR');
-  };
-
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
@@ -154,13 +139,7 @@ export default function CommentsListPage() {
           allowClear
           style={{ width: 140 }}
           onChange={(v) => { setPlatformFilter(v); setPage(1); }}
-          options={[
-            { value: 'YOUTUBE', label: 'YouTube' },
-            { value: 'INSTAGRAM', label: 'Instagram' },
-            { value: 'FACEBOOK', label: 'Facebook' },
-            { value: 'X', label: 'X' },
-            { value: 'NAVER_BLOG', label: '네이버 블로그' },
-          ]}
+          options={PLATFORM_FILTER_OPTIONS}
         />
         <Search
           placeholder="검색..."
@@ -195,13 +174,13 @@ export default function CommentsListPage() {
                     <div className="flex items-center gap-1.5">
                       <Text strong className="text-sm">{comment.author_name}</Text>
                       <Tag
-                        color={PLATFORM_COLORS[comment.platform]}
+                        color={getPlatformConfig(comment.platform).color}
                         className="!text-[10px] !leading-none"
                         style={{ padding: '1px 4px', margin: 0 }}
                       >
-                        {PLATFORM_SHORT[comment.platform] || comment.platform}
+                        {getPlatformConfig(comment.platform).short}
                       </Tag>
-                      <Text type="secondary" className="!text-[11px]">{formatTime(comment)}</Text>
+                      <Text type="secondary" className="!text-[11px]">{formatCommentTime(comment)}</Text>
                     </div>
                     <div className="mt-0.5 truncate text-[13px] text-gray-700">
                       {comment.text}
@@ -246,7 +225,7 @@ export default function CommentsListPage() {
                       {selectedComment.sentiment === 'DANGEROUS' ? '🔴 ' : ''}
                       {selectedComment.author_name}
                     </Text>
-                    <Text type="secondary" className="text-xs">{formatTime(selectedComment)}</Text>
+                    <Text type="secondary" className="text-xs">{formatCommentTime(selectedComment)}</Text>
                   </div>
                   <div className="my-2 text-sm">{selectedComment.text}</div>
                   <div className="text-xs text-gray-500">
@@ -266,16 +245,29 @@ export default function CommentsListPage() {
                   </div>
                 </div>
 
-                {/* AI reply */}
-                <div className="mb-4">
+                {/* AI reply + Template */}
+                <div className="mb-4 flex gap-2">
                   <Button
                     icon={<RobotOutlined />}
                     onClick={handleAiReply}
                     loading={aiReplyMutation.isPending}
-                    className="mb-2"
                   >
                     AI 답글 생성
                   </Button>
+                  <Dropdown
+                    menu={{
+                      items: (replyTemplates || []).map((t) => ({
+                        key: t.id,
+                        label: `[${t.category}] ${t.name}`,
+                        onClick: () => setReplyText(t.content),
+                      })),
+                    }}
+                    disabled={!replyTemplates?.length}
+                  >
+                    <Button icon={<CopyOutlined />}>
+                      템플릿 삽입
+                    </Button>
+                  </Dropdown>
                 </div>
 
                 {/* Reply input */}

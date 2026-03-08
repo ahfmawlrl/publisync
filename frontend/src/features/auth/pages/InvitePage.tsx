@@ -1,9 +1,10 @@
 import { LockOutlined, UserOutlined } from '@ant-design/icons';
 import { App, Button, Card, Form, Input, Result, Spin, Typography } from 'antd';
-import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 
 import { useInviteAccept, useInviteVerify } from '../hooks/useInvite';
+
+import { getRoleLabel } from '@/shared/constants/roles';
 
 const { Title, Text } = Typography;
 
@@ -15,7 +16,6 @@ export default function InvitePage() {
 
   const { data: invite, isLoading, isError } = useInviteVerify(token);
   const acceptMutation = useInviteAccept();
-  const [submitting, setSubmitting] = useState(false);
 
   if (!token) {
     return (
@@ -46,15 +46,12 @@ export default function InvitePage() {
   }
 
   const handleSubmit = async (values: { name: string; password: string }) => {
-    setSubmitting(true);
     try {
       await acceptMutation.mutateAsync({ token, name: values.name, password: values.password });
       message.success('가입이 완료되었습니다');
       navigate('/');
     } catch {
       message.error('가입에 실패했습니다. 다시 시도하세요.');
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -70,7 +67,7 @@ export default function InvitePage() {
           </Text>
           <br />
           <Text type="secondary">
-            {invite.email} / {invite.role}
+            {invite.email} / {getRoleLabel(invite.role)}
           </Text>
         </div>
 
@@ -108,7 +105,7 @@ export default function InvitePage() {
           </Form.Item>
 
           <Form.Item>
-            <Button type="primary" htmlType="submit" block size="large" loading={submitting}>
+            <Button type="primary" htmlType="submit" block size="large" loading={acceptMutation.isPending}>
               가입 및 시작하기
             </Button>
           </Form.Item>

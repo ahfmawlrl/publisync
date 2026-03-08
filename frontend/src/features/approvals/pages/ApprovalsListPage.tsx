@@ -1,61 +1,59 @@
 import { ArrowLeftOutlined } from '@ant-design/icons';
-import { App, Button, Card, Empty, Input, Modal, Spin, Tabs, Tag, Typography } from 'antd';
+import { useQuery } from '@tanstack/react-query';
+import { Alert, App, Button, Card, Empty, Image, Input, Modal, Spin, Tabs, Tag, Typography } from 'antd';
 import { useState } from 'react';
 
+import apiClient from '@/shared/api/client';
+import type { ApiResponse } from '@/shared/api/types';
+
+import { APPROVAL_STATUS_CONFIG } from '@/shared/constants/contentStatus';
+import { APPROVAL_MESSAGES } from '@/shared/constants/messages';
+import { getPlatformConfig } from '@/shared/constants/platform';
+import { useAuthStore } from '@/shared/stores/useAuthStore';
 import { useApproval, useApprovals, useApproveRequest, useRejectRequest } from '../hooks/useApprovals';
 import type { ApprovalRequestRecord } from '../types';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 
-const STATUS_CONFIG: Record<string, { color: string; text: string }> = {
-  PENDING_REVIEW: { color: 'orange', text: '검토 대기' },
-  IN_REVIEW: { color: 'processing', text: '검토 중' },
-  APPROVED: { color: 'green', text: '승인됨' },
-  REJECTED: { color: 'red', text: '반려됨' },
-};
-
-const PLATFORM_COLORS: Record<string, string> = {
-  YOUTUBE: 'red',
-  INSTAGRAM: 'purple',
-  FACEBOOK: 'blue',
-  X: 'default',
-  NAVER_BLOG: 'green',
-};
-
-const PLATFORM_LABELS: Record<string, string> = {
-  YOUTUBE: 'YouTube',
-  INSTAGRAM: 'Instagram',
-  FACEBOOK: 'Facebook',
-  X: 'X',
-  NAVER_BLOG: '블로그',
-};
-
 type TabKey = 'mine' | 'requested' | 'all';
 
 export default function ApprovalsListPage() {
   const { message } = App.useApp();
+  const currentUserId = useAuthStore((s) => s.user?.id);
   const [page, setPage] = useState(1);
   const [activeTab, setActiveTab] = useState<TabKey>('mine');
   const [reviewId, setReviewId] = useState<string | null>(null);
   const [rejectComment, setRejectComment] = useState('');
   const [rejectModalId, setRejectModalId] = useState<string | null>(null);
 
-  const statusFilter = activeTab === 'mine' ? 'PENDING_REVIEW' : activeTab === 'requested' ? undefined : undefined;
-  const { data, isLoading } = useApprovals({ page, status: statusFilter });
+  const statusFilter = activeTab === 'mine' ? 'PENDING_REVIEW' : undefined;
+  const requestedByFilter = activeTab === 'requested' ? currentUserId : undefined;
+  const { data, isLoading } = useApprovals({ page, status: statusFilter, requested_by: requestedByFilter });
   const { data: detailData, isLoading: detailLoading } = useApproval(reviewId);
   const approveMutation = useApproveRequest();
   const rejectMutation = useRejectRequest();
+
+  // Fetch content body for approval detail view (inline to avoid cross-feature import)
+  const contentId = detailData?.content_id;
+  const { data: contentData } = useQuery({
+    queryKey: ['content', contentId],
+    queryFn: async () => {
+      const res = await apiClient.get<ApiResponse<{ id: string; title: string; body: string | null; media_urls: string[]; status: string; platforms: string[] }>>(`/contents/${contentId}`);
+      return res.data.data;
+    },
+    enabled: !!contentId,
+  });
 
   const handleApprove = (id: string) => {
     approveMutation.mutate(
       { id },
       {
         onSuccess: () => {
-          message.success('승인되었습니다');
+          message.success(APPROVAL_MESSAGES.APPROVE_SUCCESS);
           setReviewId(null);
         },
-        onError: () => message.error('승인에 실패했습니다'),
+        onError: () => message.error(APPROVAL_MESSAGES.APPROVE_ERROR),
       },
     );
   };
@@ -66,12 +64,12 @@ export default function ApprovalsListPage() {
       { id: rejectModalId, comment: rejectComment },
       {
         onSuccess: () => {
-          message.success('반려되었습니다');
+          message.success(APPROVAL_MESSAGES.REJECT_SUCCESS);
           setRejectModalId(null);
           setRejectComment('');
           setReviewId(null);
         },
-        onError: () => message.error('반려에 실패했습니다'),
+        onError: () => message.error(APPROVAL_MESSAGES.REJECT_ERROR),
       },
     );
   };
@@ -93,21 +91,24 @@ export default function ApprovalsListPage() {
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <Tag color={isUrgent ? 'red' : 'gold'}>{isUrgent ? '긴급' : '일반'}</Tag>
           <Text strong>{record.content_title || record.content_id.slice(0, 8)}</Text>
-          <Tag color={STATUS_CONFIG[record.status]?.color}>
-            {STATUS_CONFIG[record.status]?.text || record.status}
+          <Tag color={APPROVAL_STATUS_CONFIG[record.status]?.color ?? 'default'}>
+            {APPROVAL_STATUS_CONFIG[record.status]?.text ?? record.status}
           </Tag>
           {record.platforms && record.platforms.length > 0 && (
             <>
-              {record.platforms.map((p) => (
-                <Tag key={p} color={PLATFORM_COLORS[p]} className="text-xs">
-                  {PLATFORM_LABELS[p] || p}
-                </Tag>
-              ))}
+              {record.platforms.map((p) => {
+                const pcfg = getPlatformConfig(p);
+                return (
+                  <Tag key={p} color={pcfg.color} className="text-xs">
+                    {pcfg.label}
+                  </Tag>
+                );
+              })}
             </>
           )}
         </div>
         <div className="text-xs text-gray-500">
-          요청자: {record.requested_by} · 요청일: {new Date(record.created_at).toLocaleString('ko-KR')}
+          요청자: {record.requested_by_name || record.requested_by} · 요청일: {new Date(record.created_at).toLocaleString('ko-KR')}
         </div>
         {record.comment && (
           <div className="mt-1 text-xs text-gray-500">메모: &quot;{record.comment}&quot;</div>
@@ -141,30 +142,66 @@ export default function ApprovalsListPage() {
         ) : detailData ? (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {/* Left: Content preview */}
-            <Card title="콘텐츠 내용">
-              <div className="mb-3 flex h-44 items-center justify-center rounded bg-gray-100 text-gray-400">
-                미디어 미리보기
-              </div>
+            <Card title={contentData?.title ?? '콘텐츠 내용'}>
+              {/* Media preview */}
+              {contentData?.media_urls && contentData.media_urls.length > 0 ? (
+                <div className="mb-3">
+                  <Image.PreviewGroup>
+                    <div className="flex flex-wrap gap-2">
+                      {contentData.media_urls.map((url, idx) => (
+                        <Image
+                          key={idx}
+                          src={url}
+                          alt={`미디어 ${idx + 1}`}
+                          width={120}
+                          height={120}
+                          className="rounded object-cover"
+                          fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mN88P/BfwAJhAPk3KBkEgAAAABJRU5ErkJggg=="
+                        />
+                      ))}
+                    </div>
+                  </Image.PreviewGroup>
+                </div>
+              ) : (
+                <div className="mb-3 flex h-32 items-center justify-center rounded bg-gray-100 text-gray-400">
+                  첨부 미디어 없음
+                </div>
+              )}
+              {/* Content body */}
+              {contentData?.body && (
+                <div className="mb-3 whitespace-pre-wrap rounded bg-gray-50 p-3 text-sm">
+                  {contentData.body}
+                </div>
+              )}
               <div className="text-sm">
-                <div className="mb-1"><Text strong>콘텐츠 ID:</Text> {detailData.content_id}</div>
-                <div className="mb-1"><Text strong>상태:</Text> {STATUS_CONFIG[detailData.status]?.text || detailData.status}</div>
+                <div className="mb-1"><Text strong>상태:</Text> {APPROVAL_STATUS_CONFIG[detailData.status]?.text ?? detailData.status}</div>
                 <div className="mb-1"><Text strong>긴급:</Text> {detailData.is_urgent ? '예' : '아니오'}</div>
+                {contentData?.platforms && contentData.platforms.length > 0 && (
+                  <div className="mb-1 flex items-center gap-1">
+                    <Text strong>플랫폼:</Text>
+                    {contentData.platforms.map((p) => {
+                      const pcfg = getPlatformConfig(p);
+                      return <Tag key={p} color={pcfg.color} className="text-xs">{pcfg.label}</Tag>;
+                    })}
+                  </div>
+                )}
               </div>
             </Card>
 
             {/* Right: Review panel */}
             <div className="space-y-4">
               <Card title="AI 검수 결과" size="small">
-                <div className="text-sm">
-                  <div className="py-1">✅ 표현 적합성: 통과</div>
-                  <div className="py-1">✅ 개인정보: 미검출</div>
-                  <div className="py-1">⚠️ 이미지 대체텍스트 미입력 1건</div>
-                </div>
+                <Alert
+                  type="info"
+                  showIcon
+                  message="AI 자동 검수 기능은 Phase 2에서 지원될 예정입니다"
+                  description="표현 적합성 검사, 개인정보 검출, 접근성 검사 등의 AI 기능이 추가됩니다."
+                />
               </Card>
 
               <Card title="승인 이력" size="small">
                 <div className="text-sm">
-                  <div className="py-1">{new Date(detailData.created_at).toLocaleDateString('ko-KR')} 검토 요청 ({detailData.requested_by})</div>
+                  <div className="py-1">{new Date(detailData.created_at).toLocaleDateString('ko-KR')} 검토 요청 ({detailData.requested_by_name || detailData.requested_by})</div>
                   {detailData.comment && (
                     <div className="py-1">코멘트: {detailData.comment}</div>
                   )}

@@ -1,7 +1,7 @@
-import { SendOutlined } from '@ant-design/icons';
+import { MailOutlined, SendOutlined } from '@ant-design/icons';
 import { App, Button, Card, Input, Switch, Table, Tabs, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import {
   useNotificationSettings,
@@ -42,12 +42,21 @@ export default function NotificationSettingsPage() {
   });
   const [telegramChatId, setTelegramChatId] = useState('');
 
+  // Per-type toggle state: Record<notifTypeKey, boolean>
+  const [typeToggles, setTypeToggles] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(NOTIFICATION_TYPES.map((t) => [t.key, true])),
+  );
+
   useEffect(() => {
     if (settings) {
       setChannels(settings.channels);
       setTelegramChatId(settings.telegram_chat_id || '');
     }
   }, [settings]);
+
+  const toggleType = useCallback((key: string, checked: boolean) => {
+    setTypeToggles((prev) => ({ ...prev, [key]: checked }));
+  }, []);
 
   const handleSave = async () => {
     try {
@@ -78,6 +87,20 @@ export default function NotificationSettingsPage() {
     }
   };
 
+  const typeToggleColumn = {
+    title: '수신',
+    key: 'enabled',
+    width: 80,
+    align: 'center' as const,
+    render: (_: unknown, record: NotifTypeRow) => (
+      <Switch
+        checked={typeToggles[record.key] ?? true}
+        onChange={(checked) => toggleType(record.key, checked)}
+        size="small"
+      />
+    ),
+  };
+
   const webColumns: ColumnsType<NotifTypeRow> = [
     { title: '알림 유형', dataIndex: 'label', key: 'label' },
     {
@@ -86,24 +109,12 @@ export default function NotificationSettingsPage() {
       key: 'description',
       render: (desc: string) => <Text type="secondary">{desc}</Text>,
     },
-    {
-      title: '수신',
-      key: 'enabled',
-      width: 80,
-      align: 'center',
-      render: () => <Switch defaultChecked size="small" />,
-    },
+    typeToggleColumn,
   ];
 
   const webPushColumns: ColumnsType<NotifTypeRow> = [
     { title: '알림 유형', dataIndex: 'label', key: 'label' },
-    {
-      title: '수신',
-      key: 'enabled',
-      width: 80,
-      align: 'center',
-      render: () => <Switch defaultChecked size="small" />,
-    },
+    typeToggleColumn,
   ];
 
   const tabItems = [
@@ -128,6 +139,39 @@ export default function NotificationSettingsPage() {
             pagination={false}
             size="small"
           />
+        </Card>
+      ),
+    },
+    {
+      key: 'email',
+      label: '이메일',
+      children: (
+        <Card loading={isLoading}>
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <Text strong>이메일 알림 수신</Text>
+              <br />
+              <Text type="secondary" className="text-xs">
+                <MailOutlined className="mr-1" />
+                등록된 이메일 주소로 알림을 수신합니다
+              </Text>
+            </div>
+            <Switch
+              checked={channels.email.enabled}
+              onChange={(checked) =>
+                setChannels((prev) => ({ ...prev, email: { enabled: checked } }))
+              }
+            />
+          </div>
+          {channels.email.enabled && (
+            <Table
+              columns={webPushColumns}
+              dataSource={NOTIFICATION_TYPES}
+              rowKey="key"
+              pagination={false}
+              size="small"
+            />
+          )}
         </Card>
       ),
     },
