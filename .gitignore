@@ -61,4 +61,4 @@ deploy-*.log
 *.tmp
 .claude/
 nul
-_*.py
+_[!_]*.py
