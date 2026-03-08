@@ -1,5 +1,5 @@
 import { DeleteOutlined, HistoryOutlined, ReloadOutlined } from '@ant-design/icons';
-import { App, Button, Card, Drawer, Modal, Popconfirm, Progress, Select, Space, Table, Tag, Timeline, Typography } from 'antd';
+import { App, Button, Card, Drawer, Modal, Popconfirm, Progress, Select, Space, Table, Tabs, Tag, Timeline, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useState } from 'react';
 
@@ -147,40 +147,57 @@ export default function ChannelsPage() {
         <Button type="primary" onClick={() => setConnectOpen(true)}>채널 연동</Button>
       </div>
 
-      <Table
-        columns={columns}
-        dataSource={data?.data || []}
-        rowKey="id"
-        loading={isLoading}
-        pagination={{
-          current: page,
-          total: data?.meta?.total || 0,
-          pageSize: 20,
-          onChange: setPage,
-          showTotal: (total) => `총 ${total}개`,
-        }}
+      <Tabs
+        defaultActiveKey="channels"
+        items={[
+          {
+            key: 'channels',
+            label: '연동 계정',
+            children: (
+              <Table
+                columns={columns}
+                dataSource={data?.data || []}
+                rowKey="id"
+                loading={isLoading}
+                pagination={{
+                  current: page,
+                  total: data?.meta?.total || 0,
+                  pageSize: 20,
+                  onChange: setPage,
+                  showTotal: (total) => `총 ${total}개`,
+                }}
+              />
+            ),
+          },
+          {
+            key: 'api-status',
+            label: 'API 상태',
+            children: apiStatus && apiStatus.length > 0 ? (
+              <Card title="API 사용 현황">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {apiStatus.map((s) => (
+                    <div key={s.platform}>
+                      <Text strong>{PLATFORM_LABELS[s.platform] || s.platform}</Text>
+                      <Progress
+                        percent={s.percentage_used}
+                        status={s.percentage_used > 90 ? 'exception' : s.percentage_used > 70 ? 'active' : 'normal'}
+                        size="small"
+                      />
+                      <Text type="secondary" className="text-xs">
+                        {s.requests_used} / {s.requests_limit} ({s.window})
+                      </Text>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            ) : (
+              <Card>
+                <Text type="secondary">API 상태 데이터가 없습니다</Text>
+              </Card>
+            ),
+          },
+        ]}
       />
-
-      {/* API Rate Limit 현황 */}
-      {apiStatus && apiStatus.length > 0 && (
-        <Card title="API 사용 현황" className="mt-4">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {apiStatus.map((s) => (
-              <div key={s.platform}>
-                <Text strong>{PLATFORM_LABELS[s.platform] || s.platform}</Text>
-                <Progress
-                  percent={s.percentage_used}
-                  status={s.percentage_used > 90 ? 'exception' : s.percentage_used > 70 ? 'active' : 'normal'}
-                  size="small"
-                />
-                <Text type="secondary" className="text-xs">
-                  {s.requests_used} / {s.requests_limit} ({s.window})
-                </Text>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
 
       {/* 연동 모달 */}
       <Modal

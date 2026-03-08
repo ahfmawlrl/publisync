@@ -22,9 +22,10 @@ const queryClient = new QueryClient({
 export default function App() {
   const isDark = useUiStore((s) => s.theme === 'dark');
 
-  // Sync dark mode class on <html> for Tailwind
+  // Sync dark mode class + data-theme attribute on <html>
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDark);
+    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
   }, [isDark]);
 
   return (

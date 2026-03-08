@@ -1,5 +1,5 @@
-import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
-import { App, Button, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography } from 'antd';
+import { DeleteOutlined, EditOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
+import { App, Button, Card, Form, Input, Modal, Popconfirm, Result, Select, Space, Table, Tabs, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -41,12 +41,28 @@ const ROLE_OPTIONS = [
   { value: 'CLIENT_DIRECTOR', label: '위탁기관 담당자' },
 ];
 
+const ROLE_FILTER_OPTIONS = [
+  { value: '', label: '전체 역할' },
+  { value: 'SYSTEM_ADMIN', label: '시스템 관리자' },
+  { value: 'AGENCY_MANAGER', label: '수탁업체 관리자' },
+  { value: 'AGENCY_OPERATOR', label: '수탁업체 실무자' },
+  { value: 'CLIENT_DIRECTOR', label: '위탁기관 담당자' },
+];
+
 const STATUS_LABELS: Record<string, { color: string; text: string }> = {
   ACTIVE: { color: 'green', text: '활성' },
   INACTIVE: { color: 'default', text: '비활성' },
   LOCKED: { color: 'red', text: '잠금' },
   WITHDRAWN: { color: 'gray', text: '탈퇴' },
 };
+
+const STATUS_FILTER_OPTIONS = [
+  { value: '', label: '전체 상태' },
+  { value: 'ACTIVE', label: '활성' },
+  { value: 'INACTIVE', label: '비활성' },
+  { value: 'LOCKED', label: '잠금' },
+  { value: 'WITHDRAWN', label: '탈퇴' },
+];
 
 export default function UsersPage() {
   const { message } = App.useApp();
@@ -59,12 +75,19 @@ export default function UsersPage() {
   const [form] = Form.useForm();
   const [editForm] = Form.useForm();
 
+  // Search & filter state
+  const [searchText, setSearchText] = useState('');
+  const [roleFilter, setRoleFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+
   const { data, isLoading } = useQuery({
-    queryKey: ['users', { page }],
+    queryKey: ['users', { page, search: searchText, role: roleFilter, status: statusFilter }],
     queryFn: async () => {
-      const res = await apiClient.get<PaginatedResponse<UserRecord>>('/users', {
-        params: { page, limit: 20 },
-      });
+      const params: Record<string, unknown> = { page, limit: 20 };
+      if (searchText) params.search = searchText;
+      if (roleFilter) params.role = roleFilter;
+      if (statusFilter) params.status = statusFilter;
+      const res = await apiClient.get<PaginatedResponse<UserRecord>>('/users', { params });
       return res.data;
     },
   });
@@ -118,6 +141,21 @@ export default function UsersPage() {
     setEditingUser(user);
     editForm.setFieldsValue({ name: user.name, role: user.role });
     setEditOpen(true);
+  };
+
+  const handleSearch = (value: string) => {
+    setSearchText(value);
+    setPage(1);
+  };
+
+  const handleRoleFilter = (value: string) => {
+    setRoleFilter(value);
+    setPage(1);
+  };
+
+  const handleStatusFilter = (value: string) => {
+    setStatusFilter(value);
+    setPage(1);
   };
 
   const columns: ColumnsType<UserRecord> = [
@@ -178,18 +216,67 @@ export default function UsersPage() {
         </Button>
       </div>
 
-      <Table
-        columns={columns}
-        dataSource={data?.data || []}
-        rowKey="id"
-        loading={isLoading}
-        pagination={{
-          current: page,
-          total: data?.meta?.total || 0,
-          pageSize: 20,
-          onChange: setPage,
-          showTotal: (total) => `총 ${total}명`,
-        }}
+      <Tabs
+        defaultActiveKey="users"
+        items={[
+          {
+            key: 'users',
+            label: '사용자 목록',
+            children: (
+              <>
+                {/* Search & Filter Bar */}
+                <Card size="small" className="mb-4">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Input.Search
+                      placeholder="이름 또는 이메일 검색"
+                      allowClear
+                      prefix={<SearchOutlined />}
+                      onSearch={handleSearch}
+                      style={{ width: 280 }}
+                    />
+                    <Select
+                      value={roleFilter}
+                      onChange={handleRoleFilter}
+                      options={ROLE_FILTER_OPTIONS}
+                      style={{ width: 160 }}
+                    />
+                    <Select
+                      value={statusFilter}
+                      onChange={handleStatusFilter}
+                      options={STATUS_FILTER_OPTIONS}
+                      style={{ width: 140 }}
+                    />
+                  </div>
+                </Card>
+
+                <Table
+                  columns={columns}
+                  dataSource={data?.data || []}
+                  rowKey="id"
+                  loading={isLoading}
+                  pagination={{
+                    current: page,
+                    total: data?.meta?.total || 0,
+                    pageSize: 20,
+                    onChange: setPage,
+                    showTotal: (total) => `총 ${total}명`,
+                  }}
+                />
+              </>
+            ),
+          },
+          {
+            key: 'roles',
+            label: '역할 관리',
+            children: (
+              <Result
+                status="info"
+                title="역할 관리"
+                subTitle="Phase 1-B에서 지원됩니다"
+              />
+            ),
+          },
+        ]}
       />
 
       {/* 사용자 추가 모달 */}

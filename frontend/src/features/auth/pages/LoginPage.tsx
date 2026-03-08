@@ -3,9 +3,10 @@ import { App, Button, Card, Checkbox, Form, Input, Typography } from 'antd';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 
+import PubliSyncLogo from '@/shared/components/PubliSyncLogo';
 import { useLogin } from '../hooks/useLogin';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 interface LoginFormData {
   email: string;
@@ -48,10 +49,8 @@ export default function LoginPage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
       <Card className="w-full max-w-sm">
-        <div className="mb-6 text-center">
-          <Title level={3} className="!mb-1">
-            PubliSync
-          </Title>
+        <div className="mb-6 flex flex-col items-center gap-2">
+          <PubliSyncLogo size="lg" textColor="dark" />
           <Text type="secondary">공공기관 소셜 미디어 통합 관리</Text>
         </div>
 

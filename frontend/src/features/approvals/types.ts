@@ -1,6 +1,8 @@
 export interface ApprovalRequestRecord {
   id: string;
   content_id: string;
+  content_title?: string;
+  platforms?: string[];
   organization_id: string;
   workflow_id: string | null;
   current_step: number;

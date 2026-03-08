@@ -53,6 +53,11 @@ export default function ContentCreatePage() {
   const [form] = Form.useForm();
   const createMutation = useCreateContent();
 
+  // G4: Reactive preview using Form.useWatch
+  const watchedTitle = Form.useWatch('title', form);
+  const watchedBody = Form.useWatch('body', form);
+  const watchedHashtags = Form.useWatch('hashtags', form);
+
   // AI mutations
   const titleMutation = useGenerateTitle();
   const descriptionMutation = useGenerateDescription();
@@ -65,7 +70,7 @@ export default function ContentCreatePage() {
   const [tonePlatform, setTonePlatform] = useState<string>('YOUTUBE');
   const [toneTone, setToneTone] = useState<string>('casual');
 
-  // Content review modal
+  // Content review modal (kept for launching reviews)
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
 
   const handleSubmit = async (values: Record<string, unknown>) => {
@@ -181,9 +186,20 @@ export default function ContentCreatePage() {
         check_sensitivity: true,
         check_bias: true,
       },
-      { onError: () => message.error('AI 검수에 실패했습니다') },
+      {
+        onSuccess: () => {
+          // Close modal after successful review, results will show inline
+          setReviewModalOpen(false);
+        },
+        onError: () => message.error('AI 검수에 실패했습니다'),
+      },
     );
   };
+
+  // G4: Preview display values from watched fields
+  const previewTitle = watchedTitle || '제목을 입력하세요';
+  const previewBody = watchedBody || '';
+  const previewHashtags = watchedHashtags || '#해시태그';
 
   return (
     <div>
@@ -273,7 +289,7 @@ export default function ContentCreatePage() {
 
         {/* Right: Preview + AI panels */}
         <Col xs={24} lg={8}>
-          {/* Platform preview */}
+          {/* G4: Platform preview with reactive watched values */}
           <Card title="플랫폼별 미리보기" size="small" className="mb-4">
             <Tabs
               size="small"
@@ -284,18 +300,18 @@ export default function ContentCreatePage() {
                   children: (
                     <div>
                       <div className="mb-2 flex h-36 items-center justify-center rounded bg-gray-100 text-gray-400">
-                        🎬 영상 미리보기
+                        영상 미리보기
                       </div>
                       <Typography.Text strong className="text-sm">
-                        {form.getFieldValue('title') || '제목을 입력하세요'}
+                        {previewTitle}
                       </Typography.Text>
                       <br />
                       <Typography.Text type="secondary" className="text-xs">
-                        {((form.getFieldValue('body') as string) || '').slice(0, 60) || '본문 미리보기...'}
+                        {previewBody.slice(0, 60) || '본문 미리보기...'}
                       </Typography.Text>
                       <br />
                       <Typography.Text className="text-xs" style={{ color: '#1677ff' }}>
-                        {form.getFieldValue('hashtags') || '#해시태그'}
+                        {previewHashtags}
                       </Typography.Text>
                     </div>
                   ),
@@ -306,10 +322,10 @@ export default function ContentCreatePage() {
                   children: (
                     <div>
                       <div className="mb-2 flex h-36 items-center justify-center rounded bg-gray-100 text-gray-400">
-                        📸 이미지 미리보기
+                        이미지 미리보기
                       </div>
                       <Typography.Text className="text-xs">
-                        {((form.getFieldValue('body') as string) || '').slice(0, 80) || '설명문 미리보기...'}
+                        {previewBody.slice(0, 80) || '설명문 미리보기...'}
                       </Typography.Text>
                     </div>
                   ),
@@ -320,14 +336,14 @@ export default function ContentCreatePage() {
                   children: (
                     <div>
                       <div className="mb-2 flex h-36 items-center justify-center rounded bg-gray-100 text-gray-400">
-                        📰 피드 미리보기
+                        피드 미리보기
                       </div>
                       <Typography.Text strong className="text-sm">
-                        {form.getFieldValue('title') || '제목을 입력하세요'}
+                        {previewTitle}
                       </Typography.Text>
                       <br />
                       <Typography.Text type="secondary" className="text-xs">
-                        {((form.getFieldValue('body') as string) || '').slice(0, 100) || '본문 미리보기...'}
+                        {previewBody.slice(0, 100) || '본문 미리보기...'}
                       </Typography.Text>
                     </div>
                   ),
@@ -460,6 +476,99 @@ export default function ContentCreatePage() {
                 </Button>
               </div>
             </Space>
+          </Card>
+
+          {/* G6: AI Review Inline Card - persistent results display */}
+          <Card
+            title={
+              <Space>
+                <CheckCircleOutlined />
+                <span>AI 검수 결과</span>
+              </Space>
+            }
+            size="small"
+            className="mt-4"
+          >
+            {contentReviewMutation.isPending && (
+              <div className="flex items-center justify-center py-4">
+                <Space>
+                  <Spin size="small" />
+                  <Typography.Text type="secondary">
+                    AI가 콘텐츠를 검수하고 있습니다...
+                  </Typography.Text>
+                </Space>
+              </div>
+            )}
+
+            {!contentReviewMutation.data && !contentReviewMutation.isPending && (
+              <Typography.Text type="secondary" className="text-xs">
+                위의 &quot;AI 콘텐츠 검수&quot; 버튼을 클릭하면 검수 결과가 여기에 표시됩니다.
+              </Typography.Text>
+            )}
+
+            {contentReviewMutation.data?.error && !contentReviewMutation.isPending && (
+              <Alert type="warning" message={contentReviewMutation.data.error} showIcon />
+            )}
+
+            {contentReviewMutation.data && !contentReviewMutation.isPending && !contentReviewMutation.data.error && (
+              <div>
+                <Alert
+                  type={contentReviewMutation.data.issues.length > 0 ? 'warning' : 'success'}
+                  message={contentReviewMutation.data.summary}
+                  showIcon
+                  className="mb-3"
+                />
+
+                {contentReviewMutation.data.model && (
+                  <div className="mb-2 flex items-center gap-2">
+                    <Tag color="blue">{contentReviewMutation.data.model}</Tag>
+                    {contentReviewMutation.data.processing_time_ms !== undefined && (
+                      <Typography.Text type="secondary" className="text-xs">
+                        {(contentReviewMutation.data.processing_time_ms / 1000).toFixed(1)}s
+                      </Typography.Text>
+                    )}
+                  </div>
+                )}
+
+                {contentReviewMutation.data.issues.length > 0 && (
+                  <List
+                    size="small"
+                    dataSource={contentReviewMutation.data.issues}
+                    renderItem={(issue, index) => (
+                      <List.Item key={index} className="!px-0">
+                        <div>
+                          <Space size={4}>
+                            <Tag
+                              color={
+                                issue.severity === 'HIGH'
+                                  ? 'red'
+                                  : issue.severity === 'MEDIUM'
+                                    ? 'orange'
+                                    : 'default'
+                              }
+                            >
+                              {issue.severity}
+                            </Tag>
+                            <Typography.Text className="text-xs">{issue.issue}</Typography.Text>
+                          </Space>
+                          {issue.suggestion && (
+                            <div className="mt-1 pl-1">
+                              <Typography.Text type="secondary" className="text-xs">
+                                제안: {issue.suggestion}
+                              </Typography.Text>
+                            </div>
+                          )}
+                        </div>
+                      </List.Item>
+                    )}
+                  />
+                )}
+
+                <Typography.Text type="secondary" className="mt-2 block text-xs">
+                  AI가 생성한 검수 결과입니다. 최종 판단은 사용자가 합니다.
+                </Typography.Text>
+              </div>
+            )}
           </Card>
 
           {/* Video content features */}
@@ -611,7 +720,7 @@ export default function ContentCreatePage() {
         )}
       </Modal>
 
-      {/* Content Review Modal (S17, F21) */}
+      {/* Content Review Modal - now only shows loading spinner while processing */}
       <Modal
         title={
           <Space>
@@ -622,95 +731,21 @@ export default function ContentCreatePage() {
         open={reviewModalOpen}
         onCancel={() => {
           setReviewModalOpen(false);
-          contentReviewMutation.reset();
         }}
         footer={null}
-        width={640}
+        width={400}
       >
-        {contentReviewMutation.isPending && (
-          <div className="flex items-center justify-center py-8">
-            <Space>
-              <Spin size="small" />
-              <Typography.Text type="secondary">
-                AI가 콘텐츠를 검수하고 있습니다...
-              </Typography.Text>
-            </Space>
-          </div>
-        )}
-
-        {contentReviewMutation.data?.error && (
-          <Alert type="warning" message={contentReviewMutation.data.error} showIcon className="mb-4" />
-        )}
-
-        {contentReviewMutation.data && !contentReviewMutation.isPending && (
-          <div>
-            <div className="mb-4">
-              <Alert
-                type={contentReviewMutation.data.issues.length > 0 ? 'warning' : 'success'}
-                message={contentReviewMutation.data.summary}
-                showIcon
-              />
-            </div>
-
-            {contentReviewMutation.data.model && (
-              <div className="mb-3 flex items-center gap-2">
-                <Tag color="blue">{contentReviewMutation.data.model}</Tag>
-                {contentReviewMutation.data.processing_time_ms !== undefined && (
-                  <Typography.Text type="secondary" className="text-xs">
-                    {(contentReviewMutation.data.processing_time_ms / 1000).toFixed(1)}s
-                  </Typography.Text>
-                )}
-              </div>
-            )}
-
-            {contentReviewMutation.data.issues.length > 0 && (
-              <List
-                size="small"
-                dataSource={contentReviewMutation.data.issues}
-                renderItem={(issue, index) => (
-                  <List.Item key={index}>
-                    <List.Item.Meta
-                      title={
-                        <Space>
-                          <Tag
-                            color={
-                              issue.severity === 'HIGH'
-                                ? 'red'
-                                : issue.severity === 'MEDIUM'
-                                  ? 'orange'
-                                  : 'default'
-                            }
-                          >
-                            {issue.severity}
-                          </Tag>
-                          <Typography.Text>{issue.issue}</Typography.Text>
-                        </Space>
-                      }
-                      description={
-                        <div>
-                          {issue.location && (
-                            <Typography.Text type="secondary" className="text-xs">
-                              위치: {issue.location}
-                            </Typography.Text>
-                          )}
-                          <div className="mt-1">
-                            <Typography.Text className="text-sm">
-                              제안: {issue.suggestion}
-                            </Typography.Text>
-                          </div>
-                        </div>
-                      }
-                    />
-                  </List.Item>
-                )}
-              />
-            )}
-
-            <Typography.Text type="secondary" className="mt-3 block text-xs">
-              AI가 생성한 검수 결과입니다. 최종 판단은 사용자가 합니다.
+        <div className="flex items-center justify-center py-8">
+          <Space>
+            <Spin size="small" />
+            <Typography.Text type="secondary">
+              AI가 콘텐츠를 검수하고 있습니다...
             </Typography.Text>
-          </div>
-        )}
+          </Space>
+        </div>
+        <Typography.Text type="secondary" className="block text-center text-xs">
+          완료되면 결과가 우측 패널에 표시됩니다.
+        </Typography.Text>
       </Modal>
     </div>
   );

@@ -2,7 +2,25 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Ant Design dark mode sync — Tailwind 'selector' strategy */
+/* ── Design-token custom properties ── */
 :root {
-  --color-primary: #1677ff;
+  --color-primary: #1a56db;
+  --bg-primary: #f3f4f6;
+  --bg-secondary: #f9fafb;
+  --bg-card: #ffffff;
+  --border-color: #e5e7eb;
+  --text-primary: #111827;
+  --text-secondary: #6b7280;
+  --input-bg: #ffffff;
+}
+
+[data-theme="dark"] {
+  --color-primary: #60a5fa;
+  --bg-primary: #111827;
+  --bg-secondary: #1f2937;
+  --bg-card: #1f2937;
+  --border-color: #374151;
+  --text-primary: #f3f4f6;
+  --text-secondary: #9ca3af;
+  --input-bg: #374151;
 }

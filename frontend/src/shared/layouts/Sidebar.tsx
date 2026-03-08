@@ -1,6 +1,8 @@
 import {
+  Activity,
   BarChart3,
   Bell,
+  Building2,
   Calendar,
   CheckSquare,
   CircleHelp,
@@ -8,7 +10,6 @@ import {
   FileBarChart2,
   FolderOpen,
   Globe,
-  History,
   LayoutDashboard,
   Link2,
   MessageSquare,
@@ -21,13 +22,14 @@ import {
   Trophy,
   Users,
 } from 'lucide-react';
-import { Badge, Layout, Menu } from 'antd';
+import { Badge, Drawer, Layout, Menu } from 'antd';
 import { useLocation, useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import type { MenuProps } from 'antd';
 
 import apiClient from '@/shared/api/client';
 import type { ApiResponse } from '@/shared/api/types';
+import PubliSyncLogo from '@/shared/components/PubliSyncLogo';
 import { useAuthStore } from '@/shared/stores/useAuthStore';
 import { useUiStore } from '@/shared/stores/useUiStore';
 import { useWorkspaceStore } from '@/shared/stores/useWorkspaceStore';
@@ -71,8 +73,9 @@ const ROLE_MENUS: Record<string, Role[]> = {
   '/analytics/benchmark': [AM, AO, CD],
   // 채널 관리 그룹
   '/channels': [SA, AM],
-  '/channels/history': [SA, AM],
+  '/channels/api-status': [SA, AM],
   // 설정 그룹
+  '/settings/organizations': [SA, AM],
   '/users': [SA, AM],
   '/approvals/settings': [SA, AM, CD],
   '/settings/notifications': ALL_ROLES,
@@ -80,6 +83,62 @@ const ROLE_MENUS: Record<string, Role[]> = {
   // 도움말
   '/help': ALL_ROLES,
 };
+
+// ── Phase-based menu visibility ──
+// Change this constant to unlock menus for later phases.
+type Phase = '1-A' | '1-B' | '2' | '3' | '4';
+const CURRENT_PHASE: Phase = '1-A';
+
+/** Ordered list of phases — each phase includes all prior phases */
+const PHASE_ORDER: Phase[] = ['1-A', '1-B', '2', '3', '4'];
+
+/** Menus introduced in each phase (cumulative — a phase includes all prior phases' menus) */
+const PHASE_MENUS: Record<Phase, string[]> = {
+  '1-A': [
+    '/',
+    '/contents/create',
+    '/contents',
+    '/approvals',
+    '/channels',
+    '/channels/api-status',
+    '/settings/organizations',
+    '/users',
+    '/approvals/settings',
+    '/settings/notifications',
+    '/help',
+  ],
+  '1-B': [
+    '/comments',
+    '/comments/dangerous',
+    '/comments/reply-templates',
+    '/audit-logs',
+    '/analytics',
+  ],
+  '2': [
+    '/calendar',
+    '/media',
+    '/analytics/sentiment',
+    '/analytics/prediction',
+  ],
+  '3': [
+    '/reports',
+  ],
+  '4': [
+    '/analytics/benchmark',
+  ],
+};
+
+/** Returns the set of all menu paths available for the given phase (cumulative). */
+function getAvailableMenuPaths(phase: Phase): Set<string> {
+  const idx = PHASE_ORDER.indexOf(phase);
+  const paths = new Set<string>();
+  for (let i = 0; i <= idx; i++) {
+    for (const p of PHASE_MENUS[PHASE_ORDER[i]]) {
+      paths.add(p);
+    }
+  }
+  return paths;
+}
 
 function BadgeLabel({ label, count }: { label: string; count: number }) {
   return (
@@ -90,9 +149,15 @@ function BadgeLabel({ label, count }: { label: string; count: number }) {
   );
 }
 
-export default function Sidebar() {
+interface SidebarProps {
+  isMobile?: boolean;
+}
+
+export default function Sidebar({ isMobile = false }: SidebarProps) {
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
+  const mobileMenuOpen = useUiStore((s) => s.mobileMenuOpen);
+  const setMobileMenuOpen = useUiStore((s) => s.setMobileMenuOpen);
   const userRole = useAuthStore((s) => s.user?.role) as Role | undefined;
   const currentOrgId = useWorkspaceStore((s) => s.currentOrgId);
   const navigate = useNavigate();
@@ -108,6 +173,8 @@ export default function Sidebar() {
     refetchInterval: 60_000,
   });
 
+  const isCollapsed = isMobile ? false : collapsed;
+
   const mainItems: MenuProps['items'] = [
     // ── 대시보드 (독립) ──
     { key: '/', icon: <LayoutDashboard size={18} />, label: '대시보드' },
@@ -115,14 +182,14 @@ export default function Sidebar() {
     // ── 콘텐츠 그룹 ──
     {
       type: 'group',
-      label: collapsed ? null : '콘텐츠',
+      label: isCollapsed ? null : '콘텐츠',
       children: [
         { key: '/contents/create', icon: <SquarePen size={18} />, label: '새 콘텐츠 작성' },
         { key: '/contents', icon: <ClipboardList size={18} />, label: '콘텐츠 목록' },
         {
           key: '/approvals',
           icon: <CheckSquare size={18} />,
-          label: collapsed
+          label: isCollapsed
             ? '승인 대기'
             : <BadgeLabel label="승인 대기" count={badges?.pending_approvals ?? 0} />,
         },
@@ -133,19 +200,19 @@ export default function Sidebar() {
     // ── 댓글 관리 그룹 ──
     {
       type: 'group',
-      label: collapsed ? null : '댓글 관리',
+      label: isCollapsed ? null : '댓글 관리',
       children: [
         {
           key: '/comments',
           icon: <MessageSquare size={18} />,
-          label: collapsed
+          label: isCollapsed
             ? '통합 댓글함'
             : <BadgeLabel label="통합 댓글함" count={badges?.unread_comments ?? 0} />,
         },
         {
           key: '/comments/dangerous',
           icon: <ShieldAlert size={18} />,
-          label: collapsed
+          label: isCollapsed
             ? '위험 댓글'
             : <BadgeLabel label="위험 댓글" count={badges?.dangerous_comments ?? 0} />,
         },
@@ -159,7 +226,7 @@ export default function Sidebar() {
     // ── 분석·리포트 그룹 ──
     {
       type: 'group',
-      label: collapsed ? null : '분석·리포트',
+      label: isCollapsed ? null : '분석·리포트',
       children: [
         { key: '/analytics', icon: <BarChart3 size={18} />, label: '성과 분석' },
         { key: '/analytics/prediction', icon: <Target size={18} />, label: '성과 예측' },
@@ -172,18 +239,19 @@ export default function Sidebar() {
     // ── 채널 관리 그룹 ──
     {
       type: 'group',
-      label: collapsed ? null : '채널 관리',
+      label: isCollapsed ? null : '채널 관리',
       children: [
         { key: '/channels', icon: <Link2 size={18} />, label: '연동 계정' },
-        { key: '/channels/history', icon: <History size={18} />, label: '연동 이력' },
+        { key: '/channels/api-status', icon: <Activity size={18} />, label: 'API 상태' },
       ],
     },
 
     // ── 설정 그룹 ──
     {
       type: 'group',
-      label: collapsed ? null : '설정',
+      label: isCollapsed ? null : '설정',
       children: [
+        { key: '/settings/organizations', icon: <Building2 size={18} />, label: '위탁기관 관리' },
         { key: '/users', icon: <Users size={18} />, label: '사용자·권한' },
         { key: '/approvals/settings', icon: <Settings size={18} />, label: '승인 워크플로우 설정' },
         { key: '/settings/notifications', icon: <Bell size={18} />, label: '알림 설정' },
@@ -196,33 +264,92 @@ export default function Sidebar() {
     { key: '/help', icon: <CircleHelp size={18} />, label: '도움말', style: { opacity: 0.7 } },
   ];
 
-  // ── RBAC 필터링 (그룹 내 children 재귀 필터 + 빈 그룹 제거) ──
-  function filterByRole(items: MenuProps['items']): MenuProps['items'] {
+  // ── RBAC + Phase 필터링 (그룹 내 children 재귀 필터 + 빈 그룹 제거) ──
+  const phasePaths = getAvailableMenuPaths(CURRENT_PHASE);
+
+  function isMenuVisible(key: string): boolean {
+    const roleAllowed = ROLE_MENUS[key];
+    if (!roleAllowed || !userRole || !roleAllowed.includes(userRole)) return false;
+    return phasePaths.has(key);
+  }
+
+  function filterByRoleAndPhase(items: MenuProps['items']): MenuProps['items'] {
     return items
       ?.map((item) => {
         if (!item) return null;
         if ('type' in item && item.type === 'group') {
           const children = item.children?.filter((child) => {
             if (!child || !('key' in child)) return false;
-            const allowed = ROLE_MENUS[child.key as string];
-            return allowed && userRole && allowed.includes(userRole);
+            return isMenuVisible(child.key as string);
           });
           return children?.length ? { ...item, children } : null;
         }
         if ('key' in item) {
-          const allowed = ROLE_MENUS[item.key as string];
-          return allowed && userRole && allowed.includes(userRole) ? item : null;
+          return isMenuVisible(item.key as string) ? item : null;
         }
         return null;
       })
       .filter(Boolean) as MenuProps['items'];
   }
 
-  const filteredMainItems = filterByRole(mainItems);
-  const filteredHelpItems = filterByRole(helpItems);
+  const filteredMainItems = filterByRoleAndPhase(mainItems);
+  const filteredHelpItems = filterByRoleAndPhase(helpItems);
 
-  const handleClick: MenuProps['onClick'] = ({ key }) => navigate(key);
+  const handleClick: MenuProps['onClick'] = ({ key }) => {
+    navigate(key);
+    if (isMobile) {
+      setMobileMenuOpen(false);
+    }
+  };
 
+  const menuContent = (
+    <nav
+      aria-label="메인 네비게이션"
+      style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
+    >
+      <div className="flex h-16 items-center justify-center">
+        <PubliSyncLogo collapsed={isCollapsed} size="md" />
+      </div>
+      <div style={{ flex: 1, overflow: 'auto' }}>
+        <Menu
+          theme="dark"
+          mode="inline"
+          selectedKeys={[location.pathname]}
+          items={filteredMainItems}
+          onClick={handleClick}
+        />
+      </div>
+      {filteredHelpItems && filteredHelpItems.length > 0 && (
+        <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', padding: '4px 0' }}>
+          <Menu
+            theme="dark"
+            mode="inline"
+            selectedKeys={[location.pathname]}
+            items={filteredHelpItems}
+            onClick={handleClick}
+          />
+        </div>
+      )}
+    </nav>
+  );
+
+  // -- Mobile: render as Drawer overlay --
+  if (isMobile) {
+    return (
+      <Drawer
+        placement="left"
+        open={mobileMenuOpen}
+        onClose={() => setMobileMenuOpen(false)}
+        width={260}
+        styles={{ body: { padding: 0, backgroundColor: '#001529' } }}
+        closable={false}
+      >
+        {menuContent}
+      </Drawer>
+    );
+  }
+
+  // -- Desktop: fixed Sider --
   return (
     <Sider
       collapsible
@@ -232,36 +359,7 @@ export default function Sidebar() {
       className="!fixed left-0 top-0 bottom-0 z-10"
       style={{ overflow: 'hidden', height: '100vh' }}
     >
-      <nav
-        aria-label="메인 네비게이션"
-        style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
-      >
-        <div className="flex h-16 items-center justify-center">
-          <span className="text-lg font-bold text-white">
-            {collapsed ? 'PS' : 'PubliSync'}
-          </span>
-        </div>
-        <div style={{ flex: 1, overflow: 'auto' }}>
-          <Menu
-            theme="dark"
-            mode="inline"
-            selectedKeys={[location.pathname]}
-            items={filteredMainItems}
-            onClick={handleClick}
-          />
-        </div>
-        {filteredHelpItems && filteredHelpItems.length > 0 && (
-          <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', padding: '4px 0' }}>
-            <Menu
-              theme="dark"
-              mode="inline"
-              selectedKeys={[location.pathname]}
-              items={filteredHelpItems}
-              onClick={handleClick}
-            />
-          </div>
-        )}
-      </nav>
+      {menuContent}
     </Sider>
   );
 }

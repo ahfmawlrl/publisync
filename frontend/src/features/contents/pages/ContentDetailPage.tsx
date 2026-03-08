@@ -1,10 +1,10 @@
 import { ArrowLeftOutlined, EditOutlined, SendOutlined } from '@ant-design/icons';
-import { App, Button, Card, Descriptions, Space, Spin, Tag, Timeline, Typography } from 'antd';
+import { App, Button, Card, Descriptions, Empty, Space, Spin, Tabs, Tag, Timeline, Typography } from 'antd';
 import { useNavigate, useParams } from 'react-router';
 
 import { useContent, usePublishHistory, useRequestReview } from '../hooks/useContents';
 
-const { Title, Paragraph } = Typography;
+const { Title, Paragraph, Text } = Typography;
 
 const STATUS_CONFIG: Record<string, { color: string; text: string }> = {
   DRAFT: { color: 'default', text: '초안' },
@@ -19,6 +19,22 @@ const STATUS_CONFIG: Record<string, { color: string; text: string }> = {
   PUBLISH_FAILED: { color: 'error', text: '게시 실패' },
   CANCELLED: { color: 'default', text: '취소됨' },
   ARCHIVED: { color: 'default', text: '보관됨' },
+};
+
+const PLATFORM_LABELS: Record<string, string> = {
+  YOUTUBE: 'YouTube',
+  INSTAGRAM: 'Instagram',
+  FACEBOOK: 'Facebook',
+  X: 'X (Twitter)',
+  NAVER_BLOG: '네이버 블로그',
+};
+
+const PLATFORM_COLORS: Record<string, string> = {
+  YOUTUBE: 'red',
+  INSTAGRAM: 'purple',
+  FACEBOOK: 'blue',
+  X: 'default',
+  NAVER_BLOG: 'green',
 };
 
 export default function ContentDetailPage() {
@@ -71,16 +87,217 @@ export default function ContentDetailPage() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <Card title="본문">
-            <Paragraph>{content.body || '(본문 없음)'}</Paragraph>
-          </Card>
+          <Tabs
+            defaultActiveKey="content"
+            items={[
+              {
+                key: 'content',
+                label: '콘텐츠 내용',
+                children: (
+                  <div className="space-y-4">
+                    <Card title="본문">
+                      <Paragraph>{content.body || '(본문 없음)'}</Paragraph>
+                    </Card>
+                    <Card title="정보" size="small">
+                      <Descriptions column={1} size="small">
+                        <Descriptions.Item label="플랫폼">
+                          <Space wrap>{content.platforms.map((p) => <Tag key={p} color={PLATFORM_COLORS[p]}>{PLATFORM_LABELS[p] || p}</Tag>)}</Space>
+                        </Descriptions.Item>
+                        <Descriptions.Item label="예약일시">
+                          {content.scheduled_at ? new Date(content.scheduled_at).toLocaleString('ko-KR') : '-'}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="AI 생성">
+                          {content.ai_generated ? '예' : '아니오'}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="작성일">
+                          {new Date(content.created_at).toLocaleString('ko-KR')}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="수정일">
+                          {new Date(content.updated_at).toLocaleString('ko-KR')}
+                        </Descriptions.Item>
+                      </Descriptions>
+                    </Card>
+                  </div>
+                ),
+              },
+              {
+                key: 'preview',
+                label: '플랫폼별 미리보기',
+                children: (
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {content.platforms.includes('YOUTUBE') && (
+                      <Card size="small" title={<Tag color="red">YouTube</Tag>}>
+                        <div className="mb-2 flex h-32 items-center justify-center rounded bg-gray-100 text-gray-400">
+                          영상 미리보기
+                        </div>
+                        <Text strong className="text-sm">{content.title}</Text>
+                        <br />
+                        <Text type="secondary" className="text-xs">
+                          {(content.body || '').slice(0, 60) || '본문 없음'}
+                        </Text>
+                      </Card>
+                    )}
+                    {content.platforms.includes('INSTAGRAM') && (
+                      <Card size="small" title={<Tag color="purple">Instagram</Tag>}>
+                        <div className="mb-2 flex h-32 items-center justify-center rounded bg-gray-100 text-gray-400">
+                          이미지 미리보기
+                        </div>
+                        <Text className="text-xs">
+                          {(content.body || '').slice(0, 80) || '설명문 없음'}
+                        </Text>
+                      </Card>
+                    )}
+                    {content.platforms.includes('FACEBOOK') && (
+                      <Card size="small" title={<Tag color="blue">Facebook</Tag>}>
+                        <div className="mb-2 flex h-32 items-center justify-center rounded bg-gray-100 text-gray-400">
+                          피드 미리보기
+                        </div>
+                        <Text strong className="text-sm">{content.title}</Text>
+                        <br />
+                        <Text type="secondary" className="text-xs">
+                          {(content.body || '').slice(0, 100) || '본문 없음'}
+                        </Text>
+                      </Card>
+                    )}
+                    {content.platforms.includes('X') && (
+                      <Card size="small" title={<Tag>X (Twitter)</Tag>}>
+                        <Text className="text-sm">
+                          {(content.body || '').slice(0, 280) || '본문 없음'}
+                        </Text>
+                      </Card>
+                    )}
+                    {content.platforms.includes('NAVER_BLOG') && (
+                      <Card size="small" title={<Tag color="green">네이버 블로그</Tag>}>
+                        <Text strong className="text-sm">{content.title}</Text>
+                        <br />
+                        <Text type="secondary" className="text-xs">
+                          {(content.body || '').slice(0, 120) || '본문 없음'}
+                        </Text>
+                      </Card>
+                    )}
+                    {content.platforms.length === 0 && (
+                      <Empty description="선택된 플랫폼이 없습니다" />
+                    )}
+                  </div>
+                ),
+              },
+              {
+                key: 'publish-history',
+                label: '게시 이력',
+                children: publishHistory && publishHistory.data.length > 0 ? (
+                  <Card size="small">
+                    <Timeline
+                      items={publishHistory.data.map((pr) => ({
+                        color: pr.status === 'SUCCESS' ? 'green' : pr.status === 'FAILED' ? 'red' : 'blue',
+                        children: (
+                          <div>
+                            <Tag color={pr.status === 'SUCCESS' ? 'green' : pr.status === 'FAILED' ? 'red' : 'blue'}>
+                              {pr.status}
+                            </Tag>
+                            {pr.platform_url && (
+                              <a href={pr.platform_url} target="_blank" rel="noopener noreferrer" className="text-xs">
+                                링크
+                              </a>
+                            )}
+                            <div className="text-xs text-gray-400">
+                              {new Date(pr.created_at).toLocaleString('ko-KR')}
+                            </div>
+                            {pr.error_message && <div className="text-xs text-red-500">{pr.error_message}</div>}
+                          </div>
+                        ),
+                      }))}
+                    />
+                  </Card>
+                ) : (
+                  <Empty description="게시 이력이 없습니다" />
+                ),
+              },
+              {
+                key: 'approval-history',
+                label: '승인 이력',
+                children: (
+                  <Card size="small">
+                    <Timeline
+                      items={[
+                        {
+                          color: 'blue',
+                          children: (
+                            <div>
+                              <Text strong>콘텐츠 작성</Text>
+                              <div className="text-xs text-gray-400">
+                                {new Date(content.created_at).toLocaleString('ko-KR')}
+                              </div>
+                            </div>
+                          ),
+                        },
+                        ...(content.status !== 'DRAFT'
+                          ? [
+                              {
+                                color: 'orange' as const,
+                                children: (
+                                  <div>
+                                    <Text strong>검토 요청</Text>
+                                    <div className="text-xs text-gray-400">
+                                      상태: {STATUS_CONFIG[content.status]?.text || content.status}
+                                    </div>
+                                  </div>
+                                ),
+                              },
+                            ]
+                          : []),
+                        ...(content.status === 'APPROVED' || content.status === 'PUBLISHED' || content.status === 'SCHEDULED'
+                          ? [
+                              {
+                                color: 'green' as const,
+                                children: (
+                                  <div>
+                                    <Text strong>승인 완료</Text>
+                                  </div>
+                                ),
+                              },
+                            ]
+                          : []),
+                        ...(content.status === 'REJECTED'
+                          ? [
+                              {
+                                color: 'red' as const,
+                                children: (
+                                  <div>
+                                    <Text strong>반려됨</Text>
+                                  </div>
+                                ),
+                              },
+                            ]
+                          : []),
+                        ...(content.status === 'PUBLISHED'
+                          ? [
+                              {
+                                color: 'green' as const,
+                                children: (
+                                  <div>
+                                    <Text strong>게시 완료</Text>
+                                  </div>
+                                ),
+                              },
+                            ]
+                          : []),
+                      ]}
+                    />
+                  </Card>
+                ),
+              },
+            ]}
+          />
         </div>
 
         <div className="space-y-4">
-          <Card title="정보" size="small">
+          <Card title="요약" size="small">
             <Descriptions column={1} size="small">
+              <Descriptions.Item label="상태">
+                <Tag color={statusCfg.color}>{statusCfg.text}</Tag>
+              </Descriptions.Item>
               <Descriptions.Item label="플랫폼">
-                <Space wrap>{content.platforms.map((p) => <Tag key={p}>{p}</Tag>)}</Space>
+                <Space wrap>{content.platforms.map((p) => <Tag key={p} color={PLATFORM_COLORS[p]} className="text-xs">{PLATFORM_LABELS[p] || p}</Tag>)}</Space>
               </Descriptions.Item>
               <Descriptions.Item label="예약일시">
                 {content.scheduled_at ? new Date(content.scheduled_at).toLocaleString('ko-KR') : '-'}
@@ -88,40 +305,8 @@ export default function ContentDetailPage() {
               <Descriptions.Item label="AI 생성">
                 {content.ai_generated ? '예' : '아니오'}
               </Descriptions.Item>
-              <Descriptions.Item label="작성일">
-                {new Date(content.created_at).toLocaleString('ko-KR')}
-              </Descriptions.Item>
-              <Descriptions.Item label="수정일">
-                {new Date(content.updated_at).toLocaleString('ko-KR')}
-              </Descriptions.Item>
             </Descriptions>
           </Card>
-
-          {publishHistory && publishHistory.data.length > 0 && (
-            <Card title="게시 이력" size="small">
-              <Timeline
-                items={publishHistory.data.map((pr) => ({
-                  color: pr.status === 'SUCCESS' ? 'green' : pr.status === 'FAILED' ? 'red' : 'blue',
-                  children: (
-                    <div>
-                      <Tag color={pr.status === 'SUCCESS' ? 'green' : pr.status === 'FAILED' ? 'red' : 'blue'}>
-                        {pr.status}
-                      </Tag>
-                      {pr.platform_url && (
-                        <a href={pr.platform_url} target="_blank" rel="noopener noreferrer" className="text-xs">
-                          링크
-                        </a>
-                      )}
-                      <div className="text-xs text-gray-400">
-                        {new Date(pr.created_at).toLocaleString('ko-KR')}
-                      </div>
-                      {pr.error_message && <div className="text-xs text-red-500">{pr.error_message}</div>}
-                    </div>
-                  ),
-                }))}
-              />
-            </Card>
-          )}
         </div>
       </div>
     </div>

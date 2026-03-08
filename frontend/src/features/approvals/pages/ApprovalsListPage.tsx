@@ -15,6 +15,22 @@ const STATUS_CONFIG: Record<string, { color: string; text: string }> = {
   REJECTED: { color: 'red', text: '반려됨' },
 };
 
+const PLATFORM_COLORS: Record<string, string> = {
+  YOUTUBE: 'red',
+  INSTAGRAM: 'purple',
+  FACEBOOK: 'blue',
+  X: 'default',
+  NAVER_BLOG: 'green',
+};
+
+const PLATFORM_LABELS: Record<string, string> = {
+  YOUTUBE: 'YouTube',
+  INSTAGRAM: 'Instagram',
+  FACEBOOK: 'Facebook',
+  X: 'X',
+  NAVER_BLOG: '블로그',
+};
+
 type TabKey = 'mine' | 'requested' | 'all';
 
 export default function ApprovalsListPage() {
@@ -74,12 +90,21 @@ export default function ApprovalsListPage() {
         }}
         onClick={() => setReviewId(record.id)}
       >
-        <div className="mb-2 flex items-center gap-2">
+        <div className="mb-2 flex flex-wrap items-center gap-2">
           <Tag color={isUrgent ? 'red' : 'gold'}>{isUrgent ? '긴급' : '일반'}</Tag>
-          <Text strong>{record.content_id.slice(0, 8)}... 콘텐츠</Text>
+          <Text strong>{record.content_title || record.content_id.slice(0, 8)}</Text>
           <Tag color={STATUS_CONFIG[record.status]?.color}>
             {STATUS_CONFIG[record.status]?.text || record.status}
           </Tag>
+          {record.platforms && record.platforms.length > 0 && (
+            <>
+              {record.platforms.map((p) => (
+                <Tag key={p} color={PLATFORM_COLORS[p]} className="text-xs">
+                  {PLATFORM_LABELS[p] || p}
+                </Tag>
+              ))}
+            </>
+          )}
         </div>
         <div className="text-xs text-gray-500">
           요청자: {record.requested_by} · 요청일: {new Date(record.created_at).toLocaleString('ko-KR')}

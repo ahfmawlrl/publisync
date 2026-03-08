@@ -1,7 +1,10 @@
-import { Card, Col, List, Row, Select, Spin, Statistic, Tag, Typography } from 'antd';
+import { Alert, Card, Col, List, Radio, Row, Select, Spin, Statistic, Tag, Typography } from 'antd';
 import type { PieLabelRenderProps } from 'recharts';
-import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { useState } from 'react';
 import { useNavigate } from 'react-router';
+
+import { useAuthStore } from '@/shared/stores/useAuthStore';
 
 import {
   useApprovalStatus,
@@ -55,8 +58,18 @@ const PLATFORM_TAG: Record<string, { color: string; label: string }> = {
   NAVER_BLOG: { color: 'green', label: 'Blog' },
 };
 
+type MetricKey = 'all' | 'views' | 'likes' | 'shares';
+
+const METRIC_LINE_CONFIG: Record<Exclude<MetricKey, 'all'>, { name: string; color: string }> = {
+  views: { name: '조회수', color: '#1677ff' },
+  likes: { name: '좋아요', color: '#52c41a' },
+  shares: { name: '공유', color: '#faad14' },
+};
+
 export default function DashboardPage() {
   const navigate = useNavigate();
+  const userRole = useAuthStore((s) => s.user?.role);
+  const [selectedMetric, setSelectedMetric] = useState<MetricKey>('all');
   const { data: summary, isLoading } = useDashboardSummary();
   const { data: recentContents } = useRecentContents();
   const { data: todaySchedule } = useTodaySchedule();
@@ -74,6 +87,28 @@ export default function DashboardPage() {
 
   const dangerousCount = sentimentData?.find((s) => s.sentiment === 'DANGEROUS')?.count ?? 0;
 
+  const visibleMetrics: Array<Exclude<MetricKey, 'all'>> =
+    selectedMetric === 'all' ? ['views', 'likes', 'shares'] : [selectedMetric];
+
+  /* ── Approval Card (shared between CD prominent & normal positions) ── */
+  const approvalCard = (
+    <Card title="승인 대기 현황" size="small">
+      <List
+        dataSource={approvalStatus || []}
+        locale={{ emptyText: '승인 데이터가 없습니다' }}
+        renderItem={(item) => (
+          <List.Item>
+            <Text>- {STATUS_LABELS[item.status] || item.status}</Text>
+            <Text strong>{item.count}건</Text>
+          </List.Item>
+        )}
+      />
+      <div className="mt-3">
+        <a onClick={() => navigate('/approvals')}>승인 대기 목록 보기 &rarr;</a>
+      </div>
+    </Card>
+  );
+
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
@@ -87,6 +122,23 @@ export default function DashboardPage() {
           ]}
         />
       </div>
+
+      {/* AM role: full-org comparison note */}
+      {userRole === 'AGENCY_MANAGER' && (
+        <Alert
+          type="info"
+          showIcon
+          message="전체 기관 비교 뷰는 Phase 1-B에서 지원됩니다"
+          className="mb-4"
+        />
+      )}
+
+      {/* CD role: Prominent approval card at the TOP */}
+      {userRole === 'CLIENT_DIRECTOR' && (
+        <div className="mb-6" style={{ border: '2px solid #1677ff', borderRadius: 8 }}>
+          {approvalCard}
+        </div>
+      )}
 
       {/* KPI Cards — 4 cards matching prototype */}
       <Row gutter={[16, 16]} className="mb-6">
@@ -135,22 +187,48 @@ export default function DashboardPage() {
         </Col>
       </Row>
 
-      {/* Row 2: Platform trends + Approval status */}
+      {/* Row 2: Platform trends (LineChart) + Approval status */}
       <Row gutter={[16, 16]} className="mb-6">
         <Col xs={24} lg={12}>
-          <Card title="플랫폼별 성과 추이" size="small">
+          <Card
+            title="플랫폼별 성과 추이"
+            size="small"
+            extra={
+              <Radio.Group
+                size="small"
+                value={selectedMetric}
+                onChange={(e) => setSelectedMetric(e.target.value as MetricKey)}
+                optionType="button"
+                buttonStyle="solid"
+              >
+                <Radio.Button value="all">전체</Radio.Button>
+                <Radio.Button value="views">조회수</Radio.Button>
+                <Radio.Button value="likes">좋아요</Radio.Button>
+                <Radio.Button value="shares">공유</Radio.Button>
+              </Radio.Group>
+            }
+          >
             {platformTrends && platformTrends.length > 0 ? (
               <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={platformTrends}>
+                <LineChart data={platformTrends}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="platform" />
                   <YAxis />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="views" name="조회수" fill="#1677ff" />
-                  <Bar dataKey="likes" name="좋아요" fill="#52c41a" />
-                  <Bar dataKey="shares" name="공유" fill="#faad14" />
-                </BarChart>
+                  {visibleMetrics.map((key) => (
+                    <Line
+                      key={key}
+                      type="monotone"
+                      dataKey={key}
+                      name={METRIC_LINE_CONFIG[key].name}
+                      stroke={METRIC_LINE_CONFIG[key].color}
+                      strokeWidth={2}
+                      dot={{ r: 4 }}
+                      activeDot={{ r: 6 }}
+                    />
+                  ))}
+                </LineChart>
               </ResponsiveContainer>
             ) : (
               <div className="flex h-60 items-center justify-center">
@@ -159,26 +237,42 @@ export default function DashboardPage() {
             )}
           </Card>
         </Col>
-        <Col xs={24} lg={12}>
-          <Card title="승인 대기 현황" size="small">
-            <List
-              dataSource={approvalStatus || []}
-              locale={{ emptyText: '승인 데이터가 없습니다' }}
-              renderItem={(item) => (
-                <List.Item>
-                  <Text>• {STATUS_LABELS[item.status] || item.status}</Text>
-                  <Text strong>{item.count}건</Text>
-                </List.Item>
-              )}
-            />
-            <div className="mt-3">
-              <a onClick={() => navigate('/approvals')}>승인 대기 목록 보기 →</a>
-            </div>
-          </Card>
-        </Col>
+        {/* Show approval card in normal position for non-CD roles */}
+        {userRole !== 'CLIENT_DIRECTOR' && (
+          <Col xs={24} lg={12}>
+            {approvalCard}
+          </Col>
+        )}
+        {/* CD role: show recent contents here instead since approval is at top */}
+        {userRole === 'CLIENT_DIRECTOR' && (
+          <Col xs={24} lg={12}>
+            <Card title="최근 게시 콘텐츠" size="small">
+              <List
+                dataSource={recentContents || []}
+                locale={{ emptyText: '콘텐츠가 없습니다' }}
+                renderItem={(item) => {
+                  const cfg = CONTENT_STATUS[item.status] || { color: 'default', text: item.status };
+                  const platform = item.platforms?.[0];
+                  const ptag = platform ? PLATFORM_TAG[platform] : null;
+                  return (
+                    <List.Item>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1">
+                          {ptag && <Tag color={ptag.color} className="!text-xs">[{ptag.label}]</Tag>}
+                          <Text strong className="truncate text-sm">{item.title}</Text>
+                        </div>
+                      </div>
+                      <Tag color={cfg.color}>{cfg.text}</Tag>
+                    </List.Item>
+                  );
+                }}
+              />
+            </Card>
+          </Col>
+        )}
       </Row>
 
-      {/* Row 3: Sentiment donut + Recent contents */}
+      {/* Row 3: Sentiment donut + Recent contents (non-CD) */}
       <Row gutter={[16, 16]} className="mb-6">
         <Col xs={24} lg={12}>
           <Card title="댓글 감성 분석 현황" size="small">
@@ -216,30 +310,33 @@ export default function DashboardPage() {
             )}
           </Card>
         </Col>
-        <Col xs={24} lg={12}>
-          <Card title="최근 게시 콘텐츠" size="small">
-            <List
-              dataSource={recentContents || []}
-              locale={{ emptyText: '콘텐츠가 없습니다' }}
-              renderItem={(item) => {
-                const cfg = CONTENT_STATUS[item.status] || { color: 'default', text: item.status };
-                const platform = item.platforms?.[0];
-                const ptag = platform ? PLATFORM_TAG[platform] : null;
-                return (
-                  <List.Item>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1">
-                        {ptag && <Tag color={ptag.color} className="!text-xs">[{ptag.label}]</Tag>}
-                        <Text strong className="truncate text-sm">{item.title}</Text>
+        {/* For non-CD roles, show recent contents here (CD already has it in Row 2) */}
+        {userRole !== 'CLIENT_DIRECTOR' && (
+          <Col xs={24} lg={12}>
+            <Card title="최근 게시 콘텐츠" size="small">
+              <List
+                dataSource={recentContents || []}
+                locale={{ emptyText: '콘텐츠가 없습니다' }}
+                renderItem={(item) => {
+                  const cfg = CONTENT_STATUS[item.status] || { color: 'default', text: item.status };
+                  const platform = item.platforms?.[0];
+                  const ptag = platform ? PLATFORM_TAG[platform] : null;
+                  return (
+                    <List.Item>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1">
+                          {ptag && <Tag color={ptag.color} className="!text-xs">[{ptag.label}]</Tag>}
+                          <Text strong className="truncate text-sm">{item.title}</Text>
+                        </div>
                       </div>
-                    </div>
-                    <Tag color={cfg.color}>{cfg.text}</Tag>
-                  </List.Item>
-                );
-              }}
-            />
-          </Card>
-        </Col>
+                      <Tag color={cfg.color}>{cfg.text}</Tag>
+                    </List.Item>
+                  );
+                }}
+              />
+            </Card>
+          </Col>
+        )}
       </Row>
 
       {/* Row 4: Today schedule */}
