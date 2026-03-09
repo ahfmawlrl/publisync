@@ -85,3 +85,14 @@ class PresignedUploadRequest(BaseModel):
     filename: str = Field(..., min_length=1, max_length=500)
     content_type: str = Field(..., min_length=1, max_length=100)
     file_size: int = Field(..., gt=0, le=MAX_FILE_SIZE)
+
+
+class SubtitleSegment(BaseModel):
+    start: float = Field(..., ge=0, description="Start time in seconds")
+    end: float = Field(..., ge=0, description="End time in seconds")
+    text: str = Field(..., min_length=1, max_length=2000)
+
+
+class SubtitleUpdateRequest(BaseModel):
+    subtitles: list[SubtitleSegment] = Field(..., min_length=1, max_length=500)
+    language: str = Field(default="ko", min_length=2, max_length=10)

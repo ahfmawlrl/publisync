@@ -339,6 +339,43 @@ class AiService:
         result = await self._repo.db.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def confirm_shortform(
+        self, job_id: str, org_id: UUID, selected_clips: list[dict]
+    ) -> AiJob:
+        """Confirm selected shortform clips for a completed extraction job."""
+        from datetime import datetime, timezone
+        from uuid import UUID as PyUUID
+
+        from sqlalchemy import select
+
+        from app.models.ai_usage import AiJob
+
+        stmt = select(AiJob).where(
+            AiJob.id == PyUUID(str(job_id)),
+            AiJob.organization_id == org_id,
+        )
+        result = await self._repo.db.execute(stmt)
+        job = result.scalar_one_or_none()
+        if not job:
+            raise ValueError("작업을 찾을 수 없습니다.")
+
+        # Update job result with confirmed clips
+        existing_result = job.result or {}
+        existing_result["confirmed_clips"] = selected_clips
+        existing_result["confirmed_at"] = datetime.now(timezone.utc).isoformat()
+        job.result = existing_result
+        job.status = "CONFIRMED"
+
+        await self._repo.db.commit()
+        await self._repo.db.refresh(job)
+
+        logger.info(
+            "shortform_confirmed",
+            job_id=job_id,
+            clip_count=len(selected_clips),
+        )
+        return job
+
     async def get_usage_stats(
         self, org_id: UUID
     ) -> AiUsageResponse:
@@ -567,11 +604,12 @@ class AiService:
             "최대 3개까지 추천하세요. 반드시 유효한 JSON 배열만 출력하세요."
         )
 
-        result = await self._call_ai(
-            task_type=AiTaskType.PREDICTION,
+        result = await generate_text(
             prompt=prompt,
-            org_id=org_id,
-            user_id=user_id,
+            system_prompt=PROMPTS.get("CONTENT_REVIEW", "You are a social media scheduling expert."),
+            model="gpt-4o-mini",
+            max_tokens=800,
+            temperature=0.5,
         )
 
         optimal_times = []
@@ -586,6 +624,19 @@ class AiService:
                 optimal_times = parsed[:3]
         except (json.JSONDecodeError, IndexError):
             optimal_times = []
+
+        # Log AI usage
+        await self._log_usage(
+            org_id=org_id,
+            user_id=user_id,
+            task_type=AiTaskType.PREDICTION,
+            model=result["model"],
+            usage=result["usage"],
+            is_fallback=result.get("is_fallback", False),
+            error=result.get("error"),
+            input_summary=prompt[:500],
+            output_summary=result["content"][:500] if result["content"] else None,
+        )
 
         return {
             "isAiGenerated": True,
