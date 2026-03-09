@@ -1,7 +1,11 @@
 """Stub adapters for Instagram, Facebook, X, Naver Blog — S4 scaffolding."""
 
+from datetime import datetime
+
 from app.integrations.platforms.base import (
     ChannelInfo,
+    CommentActionResult,
+    CommentData,
     ContentValidationError,
     PlatformAdapter,
     PublishResult,
@@ -35,3 +39,39 @@ class StubAdapter(PlatformAdapter):
 
     def get_rate_limit_config(self) -> dict:
         return {"requests_per_hour": 200, "window": "1h"}
+
+    # ── Comment stubs ────────────────────────────────────
+
+    async def get_comments(
+        self,
+        access_token: str,
+        channel_id: str,
+        since: datetime | None = None,
+        page_token: str | None = None,
+        max_results: int = 100,
+    ) -> tuple[list[CommentData], str | None]:
+        return [], None
+
+    async def reply_to_comment(
+        self, access_token: str, comment_external_id: str, text: str
+    ) -> CommentActionResult:
+        return CommentActionResult(
+            success=False,
+            error_message=f"{self._platform} comment reply not yet implemented",
+        )
+
+    async def hide_comment(
+        self, access_token: str, comment_external_id: str
+    ) -> CommentActionResult:
+        return CommentActionResult(
+            success=False,
+            error_message=f"{self._platform} comment hide not yet implemented",
+        )
+
+    async def delete_comment(
+        self, access_token: str, comment_external_id: str
+    ) -> CommentActionResult:
+        return CommentActionResult(
+            success=False,
+            error_message=f"{self._platform} comment delete not yet implemented",
+        )

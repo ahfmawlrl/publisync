@@ -32,6 +32,7 @@ class Channel(Base, TimestampMixin):
     refresh_token_enc: Mapped[str | None] = mapped_column(Text)
     token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB, default=dict)
+    last_comment_collected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     histories: Mapped[list[ChannelHistory]] = relationship(back_populates="channel", cascade="all, delete-orphan")
 

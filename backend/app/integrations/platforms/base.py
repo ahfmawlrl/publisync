@@ -2,6 +2,7 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from datetime import datetime
 
 
 @dataclass
@@ -32,6 +33,26 @@ class TokenInfo:
 class ContentValidationError:
     field: str
     message: str
+
+
+@dataclass
+class CommentData:
+    """Single comment fetched from a platform."""
+
+    external_id: str
+    text: str
+    author_name: str
+    author_profile_url: str | None = None
+    parent_external_id: str | None = None
+    platform_created_at: datetime | None = None
+
+
+@dataclass
+class CommentActionResult:
+    """Result of a comment action (reply / hide / delete)."""
+
+    success: bool
+    error_message: str | None = None
 
 
 class PlatformAdapter(ABC):
@@ -70,4 +91,42 @@ class PlatformAdapter(ABC):
     @abstractmethod
     def get_rate_limit_config(self) -> dict:
         """Return rate limit configuration for this platform."""
+        ...
+
+    # ── Comment methods (Phase 1-B) ─────────────────────
+
+    @abstractmethod
+    async def get_comments(
+        self,
+        access_token: str,
+        channel_id: str,
+        since: datetime | None = None,
+        page_token: str | None = None,
+        max_results: int = 100,
+    ) -> tuple[list[CommentData], str | None]:
+        """Fetch comments from the platform.
+
+        Returns (comments, next_page_token). next_page_token is None when exhausted.
+        """
+        ...
+
+    @abstractmethod
+    async def reply_to_comment(
+        self, access_token: str, comment_external_id: str, text: str
+    ) -> CommentActionResult:
+        """Post a reply to a comment on the platform."""
+        ...
+
+    @abstractmethod
+    async def hide_comment(
+        self, access_token: str, comment_external_id: str
+    ) -> CommentActionResult:
+        """Hide (moderate) a comment on the platform."""
+        ...
+
+    @abstractmethod
+    async def delete_comment(
+        self, access_token: str, comment_external_id: str
+    ) -> CommentActionResult:
+        """Delete a comment on the platform."""
         ...

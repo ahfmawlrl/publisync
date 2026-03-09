@@ -5,9 +5,12 @@ from uuid import UUID
 
 import structlog
 
+from app.core.encryption import decrypt_token
 from app.core.exceptions import NotFoundError, ValidationError, WorkflowStateConflictError
+from app.integrations.platforms import get_adapter
 from app.models.comment import Comment, ReplyTemplate
 from app.models.enums import CommentSentiment, CommentStatus
+from app.repositories.channel_repository import ChannelRepository
 from app.repositories.comment_repository import CommentRepository
 
 logger = structlog.get_logger()
@@ -45,8 +48,9 @@ _VALID_TRANSITIONS: dict[CommentStatus, set[CommentStatus]] = {
 
 
 class CommentService:
-    def __init__(self, repo: CommentRepository) -> None:
+    def __init__(self, repo: CommentRepository, channel_repo: ChannelRepository | None = None) -> None:
         self._repo = repo
+        self._channel_repo = channel_repo
 
     def _validate_transition(self, current: CommentStatus, target: CommentStatus) -> None:
         if target not in _VALID_TRANSITIONS.get(current, set()):
@@ -92,6 +96,23 @@ class CommentService:
         offset = (page - 1) * limit
         return await self._repo.get_dangerous_comments(org_id, offset=offset, limit=limit)
 
+    # ── Platform adapter helper ────────────────────────
+
+    async def _get_platform_context(self, comment: Comment) -> tuple:
+        """Get (adapter, access_token) for a comment's channel. Returns (None, None) if unavailable."""
+        if self._channel_repo is None:
+            return None, None
+        channel = await self._channel_repo.get_by_id(comment.channel_id)
+        if channel is None or channel.access_token_enc is None:
+            return None, None
+        try:
+            access_token = decrypt_token(channel.access_token_enc)
+            adapter = get_adapter(channel.platform)
+            return adapter, access_token
+        except Exception:
+            logger.warning("platform_context_failed", channel_id=str(comment.channel_id))
+            return None, None
+
     # ── Comment actions ──────────────────────────────────
 
     async def reply_comment(
@@ -101,6 +122,19 @@ class CommentService:
 
         if comment.status == CommentStatus.DELETED:
             raise WorkflowStateConflictError("Cannot reply to a deleted comment")
+
+        # Try platform action (best-effort: DB state changes regardless)
+        adapter, access_token = await self._get_platform_context(comment)
+        platform_error = None
+        if adapter and access_token:
+            result = await adapter.reply_to_comment(access_token, comment.external_id, text)
+            if not result.success:
+                platform_error = result.error_message
+                logger.warning(
+                    "platform_reply_failed",
+                    comment_id=str(comment_id),
+                    error=platform_error,
+                )
 
         now = datetime.now(UTC)
         comment = await self._repo.update_comment(comment, {
@@ -117,6 +151,17 @@ class CommentService:
     ) -> Comment:
         comment = await self.get_comment(comment_id, org_id)
         self._validate_transition(comment.status, CommentStatus.HIDDEN)
+
+        # Try platform action (best-effort)
+        adapter, access_token = await self._get_platform_context(comment)
+        if adapter and access_token:
+            result = await adapter.hide_comment(access_token, comment.external_id)
+            if not result.success:
+                logger.warning(
+                    "platform_hide_failed",
+                    comment_id=str(comment_id),
+                    error=result.error_message,
+                )
 
         comment = await self._repo.update_comment(comment, {
             "status": CommentStatus.HIDDEN,
@@ -161,6 +206,17 @@ class CommentService:
     ) -> Comment:
         comment = await self.get_comment(comment_id, org_id)
         self._validate_transition(comment.status, CommentStatus.DELETED)
+
+        # Try platform action (best-effort)
+        adapter, access_token = await self._get_platform_context(comment)
+        if adapter and access_token:
+            result = await adapter.delete_comment(access_token, comment.external_id)
+            if not result.success:
+                logger.warning(
+                    "platform_delete_failed",
+                    comment_id=str(comment_id),
+                    error=result.error_message,
+                )
 
         comment = await self._repo.update_comment(comment, {
             "status": CommentStatus.DELETED,

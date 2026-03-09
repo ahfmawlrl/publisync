@@ -9,6 +9,7 @@ from app.core.database import get_db_session
 from app.core.deps import WorkspaceContext, get_workspace_context, require_roles
 from app.models.comment import Comment
 from app.models.enums import UserRole
+from app.repositories.channel_repository import ChannelRepository
 from app.repositories.comment_repository import CommentRepository
 from app.schemas.comment import (
     CommentDeleteRequest,
@@ -24,7 +25,7 @@ router = APIRouter()
 
 
 def _get_service(db: AsyncSession = Depends(get_db_session)) -> CommentService:
-    return CommentService(CommentRepository(db))
+    return CommentService(CommentRepository(db), ChannelRepository(db))
 
 
 def _to_comment_response(c: Comment) -> CommentResponse:
