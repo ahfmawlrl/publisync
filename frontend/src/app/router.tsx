@@ -28,6 +28,7 @@ const AnalyticsPage = lazy(() => import('@/features/analytics/pages/AnalyticsPag
 const NotificationsPage = lazy(() => import('@/features/notifications/pages/NotificationsPage'));
 const CalendarPage = lazy(() => import('@/features/calendar/pages/CalendarPage'));
 const MediaLibraryPage = lazy(() => import('@/features/media/pages/MediaLibraryPage'));
+const AiDashboardPage = lazy(() => import('@/features/ai/pages/AiDashboardPage'));
 const SubtitleEditorPage = lazy(() => import('@/features/ai/pages/SubtitleEditorPage'));
 const ShortformEditorPage = lazy(() => import('@/features/ai/pages/ShortformEditorPage'));
 const ReportsPage = lazy(() => import('@/features/reports/pages/ReportsPage'));
@@ -192,6 +193,12 @@ export const router = createBrowserRouter([
           { path: '/settings/notifications', element: withSuspense(NotificationSettingsPage) },
 
           // ── AI tools (AM, AO) ──
+          {
+            element: <RouteGuard requiredRoles={[AM]} />,
+            children: [
+              { path: '/ai/dashboard', element: withSuspense(AiDashboardPage) },
+            ],
+          },
           {
             element: <RouteGuard requiredRoles={[AM, AO]} />,
             children: [

@@ -1,4 +1,4 @@
-import { ArrowLeftOutlined, CheckCircleOutlined, RobotOutlined, SendOutlined, SwapOutlined, VideoCameraOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, CheckCircleOutlined, PictureOutlined, RobotOutlined, SendOutlined, SwapOutlined, TranslationOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import {
   Alert,
   App,
@@ -33,7 +33,9 @@ import {
   useGenerateTitle,
   useSuggestEffects,
   useToneTransform,
+  useTranslate,
 } from '@/features/ai/hooks/useAi';
+import { useCreateThumbnail, useJobStatus } from '@/features/ai/hooks/useAiJobs';
 import MediaUpload from '@/shared/components/MediaUpload';
 import { CONTENT_MESSAGES } from '@/shared/constants/messages';
 import { useContent, useRequestReview, useSaveDraft, useUpdateContent } from '../hooks/useContents';
@@ -72,6 +74,8 @@ export default function ContentEditPage() {
   const toneTransformMutation = useToneTransform();
   const contentReviewMutation = useContentReview();
   const suggestEffectsMutation = useSuggestEffects();
+  const translateMutation = useTranslate();
+  const thumbnailMutation = useCreateThumbnail();
 
   // Tone transform modal
   const [toneModalOpen, setToneModalOpen] = useState(false);
@@ -80,6 +84,17 @@ export default function ContentEditPage() {
 
   // Content review modal
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
+
+  // Translation modal
+  const [translateModalOpen, setTranslateModalOpen] = useState(false);
+  const [translateLang, setTranslateLang] = useState<string>('en');
+
+  // Thumbnail modal
+  const [thumbnailModalOpen, setThumbnailModalOpen] = useState(false);
+  const [thumbnailStyle, setThumbnailStyle] = useState<string>('modern');
+  const [thumbnailRatio, setThumbnailRatio] = useState<string>('16:9');
+  const [thumbnailJobId, setThumbnailJobId] = useState<string | null>(null);
+  const thumbnailJobStatus = useJobStatus(thumbnailJobId);
 
   useEffect(() => {
     if (content) {
@@ -229,6 +244,45 @@ export default function ContentEditPage() {
     suggestEffectsMutation.mutate(
       { content_text: contentText, content_type: 'video', count: 5 },
       { onError: () => message.error('AI 효과음 추천에 실패했습니다') },
+    );
+  };
+
+  const handleTranslate = () => {
+    const contentText = getContentText();
+    if (!contentText) return;
+    setTranslateModalOpen(true);
+  };
+
+  const handleTranslateRun = () => {
+    const body = form.getFieldValue('body') as string | undefined;
+    if (!body || body.trim().length < 10) {
+      message.warning('AI 번역을 받으려면 본문을 10자 이상 입력하세요.');
+      return;
+    }
+    translateMutation.mutate(
+      { content_text: body.trim(), target_language: translateLang },
+      { onError: () => message.error('AI 번역에 실패했습니다') },
+    );
+  };
+
+  const handleGenerateThumbnail = () => {
+    const contentText = getContentText();
+    if (!contentText) return;
+    setThumbnailModalOpen(true);
+  };
+
+  const handleThumbnailRun = () => {
+    const body = form.getFieldValue('body') as string | undefined;
+    if (!body || body.trim().length < 10) {
+      message.warning('AI 썸네일 생성을 위해 본문을 10자 이상 입력하세요.');
+      return;
+    }
+    thumbnailMutation.mutate(
+      { content_text: body.trim(), style: thumbnailStyle, count: 3, aspect_ratio: thumbnailRatio },
+      {
+        onSuccess: (data) => setThumbnailJobId(data.job_id),
+        onError: () => message.error('AI 썸네일 생성 요청에 실패했습니다'),
+      },
     );
   };
 
@@ -480,6 +534,22 @@ export default function ContentEditPage() {
                     AI 콘텐츠 검수
                   </Button>
                 </div>
+
+                <Divider className="!my-2" />
+
+                <div>
+                  <Button type="default" icon={<TranslationOutlined />} onClick={handleTranslate} loading={translateMutation.isPending} block>
+                    AI 번역
+                  </Button>
+                </div>
+
+                <Divider className="!my-2" />
+
+                <div>
+                  <Button type="default" icon={<PictureOutlined />} onClick={handleGenerateThumbnail} loading={thumbnailMutation.isPending} block>
+                    AI 썸네일 생성
+                  </Button>
+                </div>
               </Space>
             </Card>
 
@@ -674,6 +744,188 @@ export default function ContentEditPage() {
         <Typography.Text type="secondary" className="block text-center text-xs">
           완료되면 결과가 우측 패널에 표시됩니다.
         </Typography.Text>
+      </Modal>
+
+      {/* Translation Modal (F22) */}
+      <Modal
+        title={<Space><TranslationOutlined /><span>AI 다국어 번역</span></Space>}
+        open={translateModalOpen}
+        onCancel={() => { setTranslateModalOpen(false); translateMutation.reset(); }}
+        footer={null}
+        width={640}
+      >
+        <div className="mb-4 flex items-center gap-3">
+          <Select
+            value={translateLang}
+            onChange={setTranslateLang}
+            style={{ width: 160 }}
+            options={[
+              { value: 'en', label: '영어 (English)' },
+              { value: 'zh', label: '중국어 (中文)' },
+              { value: 'ja', label: '일본어 (日本語)' },
+              { value: 'vi', label: '베트남어 (Tiếng Việt)' },
+            ]}
+          />
+          <Button type="primary" onClick={handleTranslateRun} loading={translateMutation.isPending}>
+            번역하기
+          </Button>
+        </div>
+
+        {translateMutation.isPending && (
+          <div className="flex items-center justify-center py-8">
+            <Space><Spin size="small" /><Typography.Text type="secondary">AI가 콘텐츠를 번역하고 있습니다...</Typography.Text></Space>
+          </div>
+        )}
+
+        {translateMutation.data?.error && (
+          <Alert type="warning" message={translateMutation.data.error} showIcon className="mb-4" />
+        )}
+
+        {translateMutation.data && !translateMutation.data.error && !translateMutation.isPending && (
+          <div>
+            <div className="mb-2 flex items-center gap-2">
+              <Tag color="blue">{translateMutation.data.model}</Tag>
+              <Tag>{translateMutation.data.target_language.toUpperCase()}</Tag>
+              <Typography.Text type="secondary" className="text-xs">
+                신뢰도: {Math.round(translateMutation.data.confidence * 100)}%
+              </Typography.Text>
+            </div>
+            <Input.TextArea
+              value={translateMutation.data.translated_text}
+              rows={6}
+              readOnly
+              className="mb-2"
+            />
+            {translateMutation.data.notes && (
+              <Alert type="info" message={translateMutation.data.notes} showIcon className="mb-2" />
+            )}
+            <Button
+              type="primary"
+              size="small"
+              onClick={() => {
+                form.setFieldValue('body', translateMutation.data?.translated_text ?? '');
+                message.success('번역 결과가 본문에 적용되었습니다');
+                setTranslateModalOpen(false);
+              }}
+            >
+              본문에 적용
+            </Button>
+            <Typography.Text type="secondary" className="mt-2 block text-xs">
+              AI가 생성한 번역입니다. 최종 결정은 사용자가 합니다.
+            </Typography.Text>
+          </div>
+        )}
+      </Modal>
+
+      {/* Thumbnail Generation Modal (F16) */}
+      <Modal
+        title={<Space><PictureOutlined /><span>AI 썸네일 생성</span></Space>}
+        open={thumbnailModalOpen}
+        onCancel={() => { setThumbnailModalOpen(false); setThumbnailJobId(null); thumbnailMutation.reset(); }}
+        footer={null}
+        width={720}
+      >
+        <div className="mb-4 flex items-center gap-3">
+          <Select
+            value={thumbnailStyle}
+            onChange={setThumbnailStyle}
+            style={{ width: 140 }}
+            options={[
+              { value: 'modern', label: '모던' },
+              { value: 'classic', label: '클래식' },
+              { value: 'minimalist', label: '미니멀' },
+              { value: 'bold', label: '볼드' },
+            ]}
+          />
+          <Select
+            value={thumbnailRatio}
+            onChange={setThumbnailRatio}
+            style={{ width: 120 }}
+            options={[
+              { value: '16:9', label: '16:9' },
+              { value: '1:1', label: '1:1' },
+              { value: '4:3', label: '4:3' },
+              { value: '9:16', label: '9:16' },
+            ]}
+          />
+          <Button type="primary" onClick={handleThumbnailRun} loading={thumbnailMutation.isPending}>
+            생성하기
+          </Button>
+        </div>
+
+        {thumbnailJobId && thumbnailJobStatus.data && (
+          <div className="mb-4">
+            {(thumbnailJobStatus.data.status === 'PENDING' || thumbnailJobStatus.data.status === 'PROCESSING') && (
+              <div className="py-6 text-center">
+                <Spin size="large" />
+                <div className="mt-3">
+                  <Progress percent={thumbnailJobStatus.data.progress} status="active" />
+                  <Typography.Text type="secondary">AI가 썸네일을 생성하고 있습니다...</Typography.Text>
+                </div>
+              </div>
+            )}
+
+            {thumbnailJobStatus.data.status === 'FAILED' && (
+              <Alert
+                type="error"
+                message="썸네일 생성 실패"
+                description={thumbnailJobStatus.data.error_message || '다시 시도해주세요.'}
+                showIcon
+              />
+            )}
+
+            {thumbnailJobStatus.data.status === 'COMPLETED' && thumbnailJobStatus.data.result && (
+              <div>
+                <Typography.Text strong className="mb-3 block">썸네일 후보</Typography.Text>
+                <Row gutter={[12, 12]}>
+                  {(
+                    (thumbnailJobStatus.data.result as { candidates?: Array<Record<string, unknown>> })
+                      .candidates ?? []
+                  ).map((candidate: Record<string, unknown>, idx: number) => (
+                    <Col span={8} key={idx}>
+                      <Card
+                        size="small"
+                        hoverable
+                        className="text-center"
+                        style={{
+                          background: Array.isArray(candidate.colors) && candidate.colors.length > 0
+                            ? `linear-gradient(135deg, ${(candidate.colors as string[])[0]}, ${(candidate.colors as string[])[(candidate.colors as string[]).length - 1]})`
+                            : '#f5f5f5',
+                          minHeight: 140,
+                        }}
+                      >
+                        <div className="flex flex-col items-center justify-center" style={{ minHeight: 80 }}>
+                          <Typography.Text
+                            strong
+                            className="text-sm"
+                            style={{ color: '#fff', textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}
+                          >
+                            {(candidate.text_overlay as string) || '텍스트'}
+                          </Typography.Text>
+                        </div>
+                        <div className="mt-2 rounded bg-white/80 p-1">
+                          <Typography.Text className="text-xs">
+                            {(candidate.layout as string) || 'center-text'}
+                          </Typography.Text>
+                          {typeof candidate.score === 'number' && (
+                            <Progress
+                              percent={Math.round(candidate.score * 100)}
+                              size="small"
+                              className="!mb-0"
+                            />
+                          )}
+                        </div>
+                      </Card>
+                    </Col>
+                  ))}
+                </Row>
+                <Typography.Text type="secondary" className="mt-3 block text-xs">
+                  AI가 제안한 썸네일 디자인입니다. 실제 이미지 생성은 프로덕션 환경에서 지원됩니다.
+                </Typography.Text>
+              </div>
+            )}
+          </div>
+        )}
       </Modal>
     </div>
   );

@@ -112,3 +112,36 @@ export interface AiImproveTemplateRequest {
   purpose?: string;
   count?: number;
 }
+
+// ── Phase 4 — Translation (F22) + Thumbnail (F16) ──────────
+
+/** Request body for AI translation (F22). */
+export interface AiTranslateRequest {
+  content_text: string;
+  target_language: string; // en, zh, ja, vi
+  source_language?: string; // default: ko
+  preserve_formatting?: boolean;
+}
+
+/** AI translation response (F22). */
+export interface AiTranslateResponse {
+  isAiGenerated: boolean;
+  confidence: number;
+  fallbackAvailable: boolean;
+  model: string;
+  translated_text: string;
+  target_language: string;
+  source_language: string;
+  notes: string;
+  usage: AiUsageInfo;
+  processing_time_ms: number;
+  error?: string | null;
+}
+
+/** Request body for AI thumbnail generation (F16, async). */
+export interface AiThumbnailRequest {
+  content_text: string;
+  style?: string; // modern, classic, minimalist, bold
+  count?: number; // 1-5
+  aspect_ratio?: string; // 16:9, 1:1, 4:3, 9:16
+}

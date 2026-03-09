@@ -44,6 +44,13 @@ interface ShortformRequest {
   style?: string;
 }
 
+interface ThumbnailRequest {
+  content_text: string;
+  style?: string;
+  count?: number;
+  aspect_ratio?: string;
+}
+
 // ── Mutations ───────────────────────────────────────────
 
 /**
@@ -95,6 +102,24 @@ export function useSaveSubtitles() {
       );
       return res.data.data;
     },
+  });
+}
+
+/**
+ * Create an async thumbnail generation job (F16).
+ * POST /api/v1/ai/generate-thumbnail → 202 Accepted
+ */
+export function useCreateThumbnail() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: ThumbnailRequest) => {
+      const res = await apiClient.post<ApiResponse<AiJobCreateResponse>>(
+        '/ai/generate-thumbnail',
+        data,
+      );
+      return res.data.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['ai-jobs'] }),
   });
 }
 

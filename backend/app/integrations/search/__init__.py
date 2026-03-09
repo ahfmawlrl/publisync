@@ -42,7 +42,7 @@ def ensure_indexes():
     for index_name, config in INDEX_CONFIGS.items():
         try:
             client.create_index(index_name, {"primaryKey": "id"})
-        except Exception:
+        except Exception:  # noqa: S110
             pass  # index already exists
         index = client.index(index_name)
         index.update_searchable_attributes(config["searchableAttributes"])

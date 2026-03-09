@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
 
 from app.core.database import get_db_session
-from app.core.deps import WorkspaceContext, get_workspace_context
+from app.core.deps import WorkspaceContext
 from app.core.exceptions import AuthenticationError, CrossTenantAccessError
 from app.core.redis import redis_client
 from app.core.security import decode_access_token

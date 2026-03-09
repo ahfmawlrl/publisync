@@ -255,7 +255,7 @@ def generate_subtitles_task(self, job_id: str) -> None:
                 response = litellm.completion(
                     model="gpt-4o-mini",
                     messages=[
-                        {"role": "system", "content": "You are a subtitle generation specialist for Korean media content."},
+                        {"role": "system", "content": "You are a subtitle generation specialist for Korean media content."},  # noqa: E501
                         {"role": "user", "content": prompt},
                     ],
                     max_tokens=2000,
@@ -381,7 +381,7 @@ def extract_shortform_task(self, job_id: str) -> None:
                 response = litellm.completion(
                     model="gpt-4o-mini",
                     messages=[
-                        {"role": "system", "content": "You are a video editing specialist for Korean social media content."},
+                        {"role": "system", "content": "You are a video editing specialist for Korean social media content."},  # noqa: E501
                         {"role": "user", "content": prompt},
                     ],
                     max_tokens=1000,

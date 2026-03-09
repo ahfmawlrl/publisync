@@ -4,8 +4,8 @@ Simple wrapper for sending messages via Telegram Bot API.
 Uses httpx for async HTTP requests.
 """
 
-import structlog
 import httpx
+import structlog
 
 from app.core.config import settings
 

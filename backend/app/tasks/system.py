@@ -430,26 +430,13 @@ def sync_analytics_snapshots() -> dict:
                 }
 
                 # Upsert into analytics_snapshots
-                from sqlalchemy.dialects.postgresql import insert as pg_insert
-
                 from app.models.base import generate_uuid
 
-                upsert_stmt = pg_insert(
-                    text("analytics_snapshots")
-                ).values(
-                    id=generate_uuid(),
-                    organization_id=org_id,
-                    channel_id=None,
-                    period="daily",
-                    snapshot_date=today,
-                    metrics=json.dumps(metrics),
-                    created_at=now,
-                )
-
-                # Use raw SQL for the upsert since we're using text table reference
+                # Use raw SQL for the upsert
                 session.execute(
                     text("""
-                        INSERT INTO analytics_snapshots (id, organization_id, channel_id, period, snapshot_date, metrics, created_at)
+                        INSERT INTO analytics_snapshots
+                            (id, organization_id, channel_id, period, snapshot_date, metrics, created_at)
                         VALUES (:id, :org_id, NULL, 'daily', :snapshot_date, :metrics, :created_at)
                         ON CONFLICT (organization_id, snapshot_date)
                             WHERE channel_id IS NULL AND period = 'daily'

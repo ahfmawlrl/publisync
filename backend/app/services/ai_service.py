@@ -18,6 +18,8 @@ from app.models.ai_usage import AiUsageLog
 if TYPE_CHECKING:
     from app.models.ai_usage import AiJob
     from app.schemas.ai import AiTranslateResponse
+from datetime import UTC
+
 from app.models.enums import AiTaskType
 from app.repositories.ai_usage_repository import AiUsageRepository
 from app.schemas.ai import (
@@ -343,7 +345,7 @@ class AiService:
         self, job_id: str, org_id: UUID, selected_clips: list[dict]
     ) -> AiJob:
         """Confirm selected shortform clips for a completed extraction job."""
-        from datetime import datetime, timezone
+        from datetime import datetime
         from uuid import UUID as PyUUID
 
         from sqlalchemy import select
@@ -362,7 +364,7 @@ class AiService:
         # Update job result with confirmed clips
         existing_result = job.result or {}
         existing_result["confirmed_clips"] = selected_clips
-        existing_result["confirmed_at"] = datetime.now(timezone.utc).isoformat()
+        existing_result["confirmed_at"] = datetime.now(UTC).isoformat()
         job.result = existing_result
         job.status = "CONFIRMED"
 
@@ -387,6 +389,23 @@ class AiService:
             total_tokens=stats["total_tokens"],
             estimated_cost=stats["estimated_cost"],
             by_task_type=stats["by_task_type"],
+        )
+
+    async def list_jobs(
+        self,
+        org_id: UUID,
+        page: int = 1,
+        limit: int = 20,
+        job_type: str | None = None,
+        job_status: str | None = None,
+    ) -> tuple[list[AiJob], int]:
+        """List AI jobs for an organization with pagination and filters."""
+        return await self._repo.list_jobs(
+            org_id=org_id,
+            page=page,
+            limit=limit,
+            job_type=job_type,
+            job_status=job_status,
         )
 
     # ── Private helpers ───────────────────────────────────────

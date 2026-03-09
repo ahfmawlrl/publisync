@@ -243,7 +243,7 @@ def get_video_metadata(object_key: str) -> dict | None:
             "ffprobe", "-v", "quiet", "-print_format", "json",
             "-show_format", "-show_streams", tmp_path,
         ]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)  # noqa: S603
 
         os.unlink(tmp_path)
 
@@ -316,7 +316,7 @@ def generate_video_thumbnail(
             "-frames:v", "1", "-q:v", "2",
             tmp_frame_path,
         ]
-        result = subprocess.run(cmd, capture_output=True, timeout=30)
+        result = subprocess.run(cmd, capture_output=True, timeout=30)  # noqa: S603
 
         os.unlink(tmp_video_path)
 

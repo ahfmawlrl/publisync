@@ -24,9 +24,8 @@ def generate_report_task(self, job_id: str, report_id: str, org_id: str) -> dict
     """Generate AI report content + PDF asynchronously."""
     from uuid import UUID
 
-    from sqlalchemy import func, select
-
     import litellm
+    from sqlalchemy import func, select
 
     from app.core.database import sync_session_factory
     from app.models.ai_usage import AiJob, AiUsageLog
