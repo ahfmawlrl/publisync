@@ -10,7 +10,12 @@ from uuid import UUID
 import structlog
 
 from app.repositories.analytics_repository import AnalyticsRepository
-from app.schemas.analytics import EngagementHeatmapItem, PerformanceDataResponse
+from app.schemas.analytics import (
+    EngagementHeatmapItem,
+    PerformanceDataResponse,
+    TopContentItem,
+    TrendItem,
+)
 
 logger = structlog.get_logger()
 
@@ -79,6 +84,65 @@ class AnalyticsService:
 
         logger.info("analytics_heatmap_fetched", org_id=str(org_id), count=len(heatmap))
         return heatmap
+
+    async def get_trend(
+        self,
+        org_id: UUID,
+        period: str = "30d",
+        granularity: str = "daily",
+    ) -> list[TrendItem]:
+        """Time-series reach & engagement data for trend chart."""
+        days = {"7d": 7, "30d": 30, "90d": 90}.get(period, 30)
+        rows = await self._repo.get_trend_data(org_id, days=days, granularity=granularity)
+
+        trend: list[TrendItem] = []
+        for row in rows:
+            trend.append(
+                TrendItem(
+                    date=str(row.date_bucket.date()) if hasattr(row.date_bucket, "date") else str(row.date_bucket),
+                    reach=int(row.reach or 0),
+                    engagement=int(row.engagement or 0),
+                )
+            )
+
+        logger.info("analytics_trend_fetched", org_id=str(org_id), count=len(trend))
+        return trend
+
+    async def get_top_contents(
+        self,
+        org_id: UUID,
+        period: str = "30d",
+        limit: int = 5,
+    ) -> list[TopContentItem]:
+        """Top performing contents by total views."""
+        days = {"7d": 7, "30d": 30, "90d": 90}.get(period, 30)
+        rows = await self._repo.get_top_contents_data(org_id, days=days, limit=limit)
+
+        items: list[TopContentItem] = []
+        for rank, row in enumerate(rows, start=1):
+            views = int(row.total_views or 0)
+            # Format metric label for display
+            if views >= 10000:
+                label = f"{views / 10000:.1f}만 조회"
+            elif views >= 1000:
+                label = f"{views / 1000:.1f}K 조회"
+            else:
+                label = f"{views} 조회"
+
+            platform_val = row.platform.value if hasattr(row.platform, "value") else str(row.platform)
+            items.append(
+                TopContentItem(
+                    rank=rank,
+                    content_id=str(row.content_id),
+                    title=row.title or "",
+                    platform=platform_val,
+                    metric_label=label,
+                    metric_value=views,
+                )
+            )
+
+        logger.info("analytics_top_contents_fetched", org_id=str(org_id), count=len(items))
+        return items
 
     async def export_performance(
         self,
@@ -153,9 +217,9 @@ class AnalyticsService:
         word_counts: dict[str, dict] = defaultdict(lambda: {"count": 0, "sentiments": defaultdict(int)})
 
         for row in keyword_rows:
-            if not row.body:
+            if not row.text:
                 continue
-            words = re.findall(r"[가-힣a-zA-Z]{2,}", row.body)
+            words = re.findall(r"[가-힣a-zA-Z]{2,}", row.text)
             sentiment_val = row.sentiment.value if hasattr(row.sentiment, "value") else str(row.sentiment)
             for word in words[:20]:
                 word_counts[word]["count"] += 1

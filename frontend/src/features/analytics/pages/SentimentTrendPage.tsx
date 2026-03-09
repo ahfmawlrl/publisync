@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Alert,
   Card,
@@ -9,6 +9,7 @@ import {
   Spin,
   Table,
   Tag,
+  Tooltip as AntTooltip,
   Typography,
 } from 'antd';
 import { Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
@@ -43,6 +44,52 @@ const CHART_COLORS = {
   negative: '#faad14',
   dangerous: '#ff4d4f',
 };
+
+const SENTIMENT_HEX: Record<string, string> = {
+  POSITIVE: '#52c41a',
+  NEUTRAL: '#1677ff',
+  NEGATIVE: '#faad14',
+  DANGEROUS: '#ff4d4f',
+};
+
+/** Custom WordCloud: sized by frequency, colored by sentiment. */
+function KeywordCloud({ items }: { items: KeywordCloudItem[] }) {
+  const sized = useMemo(() => {
+    if (!items.length) return [];
+    const maxCount = Math.max(...items.map((i) => i.count));
+    const minCount = Math.min(...items.map((i) => i.count));
+    const range = maxCount - minCount || 1;
+    return items.map((item) => {
+      const ratio = (item.count - minCount) / range;
+      const fontSize = 14 + ratio * 24; // 14px ~ 38px
+      return { ...item, fontSize };
+    });
+  }, [items]);
+
+  if (!sized.length) return <Empty description="키워드 데이터가 없습니다" />;
+
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-2 px-2 py-4" style={{ minHeight: 200 }}>
+      {sized.map((item) => (
+        <AntTooltip key={item.keyword} title={`${item.keyword}: ${item.count}회 (${item.sentiment})`}>
+          <span
+            style={{
+              fontSize: item.fontSize,
+              color: SENTIMENT_HEX[item.sentiment] ?? SENTIMENT_HEX.NEUTRAL,
+              fontWeight: item.fontSize > 28 ? 700 : 500,
+              cursor: 'default',
+              lineHeight: 1.4,
+              transition: 'transform 0.2s',
+            }}
+            className="inline-block hover:scale-110"
+          >
+            {item.keyword}
+          </span>
+        </AntTooltip>
+      ))}
+    </div>
+  );
+}
 
 export default function SentimentTrendPage() {
   const [period, setPeriod] = useState('30d');
@@ -226,9 +273,12 @@ export default function SentimentTrendPage() {
           </Card>
         </Col>
 
-        {/* Keyword cloud as table */}
+        {/* Keyword WordCloud + table */}
         <Col xs={24} lg={10}>
-          <Card title="키워드 빈도">
+          <Card title="키워드 클라우드">
+            <KeywordCloud items={data?.keyword_cloud ?? []} />
+          </Card>
+          <Card title="키워드 빈도 상세" className="mt-4">
             {(data?.keyword_cloud?.length ?? 0) > 0 ? (
               <Table<KeywordCloudItem>
                 rowKey="keyword"

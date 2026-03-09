@@ -26,8 +26,9 @@ def generate_report_task(self, job_id: str, report_id: str, org_id: str) -> dict
 
     from sqlalchemy import func, select
 
+    import litellm
+
     from app.core.database import sync_session_factory
-    from app.integrations.ai import generate_text
     from app.models.ai_usage import AiJob, AiUsageLog
     from app.models.channel import Channel
     from app.models.comment import Comment
@@ -149,12 +150,34 @@ def generate_report_task(self, job_id: str, report_id: str, org_id: str) -> dict
         )
 
         start_time = time.time()
-        ai_result = generate_text(prompt, model="gpt-4o", max_tokens=2000)
+        model_used = "gpt-4o"
+        prompt_tokens = 0
+        completion_tokens = 0
+        total_tokens = 0
+        try:
+            response = litellm.completion(
+                model=model_used,
+                messages=[
+                    {"role": "system", "content": "You are a public agency social media analytics expert."},
+                    {"role": "user", "content": prompt},
+                ],
+                max_tokens=2000,
+                temperature=0.5,
+            )
+            response_text = response.choices[0].message.content or ""
+            usage = getattr(response, "usage", None)
+            if usage:
+                prompt_tokens = getattr(usage, "prompt_tokens", 0) or 0
+                completion_tokens = getattr(usage, "completion_tokens", 0) or 0
+                total_tokens = getattr(usage, "total_tokens", 0) or 0
+            model_used = getattr(response, "model", model_used) or model_used
+        except Exception as ai_exc:
+            logger.warning("report_ai_generation_failed", error=str(ai_exc))
+            response_text = ""
         processing_time = int((time.time() - start_time) * 1000)
 
         # Parse AI response
         try:
-            response_text = ai_result.get("content", "")
             if "```json" in response_text:
                 response_text = response_text.split("```json")[1].split("```")[0].strip()
             elif "```" in response_text:
@@ -162,7 +185,7 @@ def generate_report_task(self, job_id: str, report_id: str, org_id: str) -> dict
             sections = json.loads(response_text)
         except (json.JSONDecodeError, IndexError):
             sections = {
-                "summary": ai_result.get("content", "리포트 생성 중 형식 오류가 발생했습니다."),
+                "summary": response_text or "리포트 생성 중 형식 오류가 발생했습니다.",
                 "platformPerformance": "데이터를 기반으로 수동 분석이 필요합니다.",
                 "topContents": "상위 콘텐츠 데이터를 확인하세요.",
                 "commentAnalysis": "댓글 감성 데이터를 확인하세요.",
@@ -193,7 +216,7 @@ def generate_report_task(self, job_id: str, report_id: str, org_id: str) -> dict
         # Update report
         report.content = content
         report.status = ReportStatus.DRAFT
-        report.generated_by = ai_result.get("model", "gpt-4o")
+        report.generated_by = model_used
 
         # Try to generate PDF
         pdf_url = _generate_pdf(report, org_id)
@@ -213,11 +236,11 @@ def generate_report_task(self, job_id: str, report_id: str, org_id: str) -> dict
             organization_id=UUID(org_id),
             user_id=job.user_id,
             task_type=AiTaskType.REPORT,
-            model=ai_result.get("model", "gpt-4o"),
-            prompt_tokens=ai_result.get("usage", {}).get("prompt_tokens", 0),
-            completion_tokens=ai_result.get("usage", {}).get("completion_tokens", 0),
-            total_tokens=ai_result.get("usage", {}).get("total_tokens", 0),
-            estimated_cost=ai_result.get("usage", {}).get("estimated_cost", 0),
+            model=model_used,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=total_tokens,
+            estimated_cost=0,
             processing_time_ms=processing_time,
             input_summary=f"Report: {report.period_start} ~ {report.period_end}",
             output_summary="Report generated successfully",
@@ -256,7 +279,7 @@ def _generate_pdf(report, org_id: str) -> str | None:
         from weasyprint import HTML
 
         from app.core.config import settings
-        from app.integrations.storage import get_minio_client
+        from app.integrations.storage import _get_client
 
         sections = report.content or {}
         html_parts = [
@@ -291,7 +314,7 @@ def _generate_pdf(report, org_id: str) -> str | None:
         pdf_buffer.seek(0)
 
         object_name = f"orgs/{org_id}/reports/{report.id}.pdf"
-        minio_client = get_minio_client()
+        minio_client = _get_client()
         minio_client.put_object(
             settings.MINIO_BUCKET,
             object_name,
