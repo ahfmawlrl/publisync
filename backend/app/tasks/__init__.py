@@ -89,6 +89,21 @@ celery_app.conf.beat_schedule = {
         "schedule": 3600.0,
         "args": ["media_assets"],
     },
+    # Create next month's audit_logs partition (daily, idempotent)
+    "create-monthly-partition": {
+        "task": "app.tasks.system.create_monthly_partition",
+        "schedule": 86400.0,
+    },
+    # Drop audit_logs partitions older than 3 years (daily, idempotent)
+    "cleanup-old-partitions": {
+        "task": "app.tasks.system.cleanup_old_partitions",
+        "schedule": 86400.0,
+    },
+    # Sync analytics snapshots per organization (every 1 hour)
+    "sync-analytics-snapshots": {
+        "task": "app.tasks.system.sync_analytics_snapshots",
+        "schedule": 3600.0,
+    },
 }
 
 # Auto-discover tasks
