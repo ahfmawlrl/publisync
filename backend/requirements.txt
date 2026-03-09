@@ -67,6 +67,7 @@ python-telegram-bot>=21.0
 
 # Monitoring
 sentry-sdk[fastapi]>=2.0.0
+flower>=2.0.0
 
 # Misc
 python-multipart>=0.0.18
