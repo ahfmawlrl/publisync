@@ -1,5 +1,7 @@
-"""AI API — 14 endpoints (S11 F02 + S17 F05/F17/F21 + S18 F03/F15 + Phase 3 F20 + Phase 4 F16/F22).
+"""AI API — 16 endpoints (S11 F02 + S17 F05/F17/F21 + S18 F03/F15 + Phase 3 F20 + Phase 4 F16/F22).
 
+GET  /ai/usage                  (AM) — AI usage statistics
+GET  /ai/jobs                   (AM, AO) — list AI jobs
 POST /ai/generate-title        (AM, AO)
 POST /ai/generate-description   (AM, AO)
 POST /ai/generate-hashtags      (AM, AO)
@@ -16,7 +18,7 @@ POST /ai/generate-thumbnail     (AM, AO) — Phase 4
 POST /ai/translate              (AM, AO) — Phase 4
 """
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -50,6 +52,61 @@ router = APIRouter()
 
 def _get_service(db: AsyncSession = Depends(get_db_session)) -> AiService:
     return AiService(AiUsageRepository(db))
+
+
+# ── GET /ai/usage ─────────────────────────────────────────
+@router.get("/usage")
+async def get_ai_usage(
+    workspace: WorkspaceContext = Depends(get_workspace_context),
+    _user: User = Depends(require_roles(UserRole.AGENCY_MANAGER)),
+    service: AiService = Depends(_get_service),
+) -> dict:
+    """Get AI usage statistics for the current organization."""
+    stats = await service.get_usage_stats(org_id=workspace.org_id)
+    return {"success": True, "data": {**stats, "organization_id": str(workspace.org_id)}}
+
+
+# ── GET /ai/jobs ──────────────────────────────────────────
+@router.get("/jobs")
+async def list_ai_jobs(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    job_type: str | None = Query(None),
+    job_status: str | None = Query(None, alias="status"),
+    workspace: WorkspaceContext = Depends(get_workspace_context),
+    _user: User = Depends(require_roles(UserRole.AGENCY_MANAGER, UserRole.AGENCY_OPERATOR)),
+    service: AiService = Depends(_get_service),
+) -> dict:
+    """List AI jobs for the current organization."""
+    jobs, total = await service.list_jobs(
+        org_id=workspace.org_id,
+        page=page,
+        limit=limit,
+        job_type=job_type,
+        job_status=job_status,
+    )
+    return {
+        "success": True,
+        "data": [
+            {
+                "job_id": str(j.id),
+                "job_type": j.job_type.value if hasattr(j.job_type, "value") else str(j.job_type),
+                "status": j.status.value if hasattr(j.status, "value") else str(j.status),
+                "progress": j.progress,
+                "error_message": j.error_message,
+                "started_at": j.started_at.isoformat() if j.started_at else None,
+                "completed_at": j.completed_at.isoformat() if j.completed_at else None,
+                "created_at": j.created_at.isoformat() if hasattr(j.created_at, "isoformat") else str(j.created_at),
+            }
+            for j in jobs
+        ],
+        "meta": {
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": (total + limit - 1) // limit,
+        },
+    }
 
 
 # ── POST /ai/generate-title ────────────────────────────────

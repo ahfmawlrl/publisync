@@ -2,6 +2,7 @@ import {
   Activity,
   BarChart3,
   Bell,
+  Bot,
   Building2,
   Calendar,
   CheckSquare,
@@ -66,6 +67,8 @@ const ROLE_MENUS: Record<string, Role[]> = {
   '/comments/reply-templates': [AM, AO],
   // 미디어
   '/media': [AM, AO, CD],
+  // AI 대시보드
+  '/ai/dashboard': [AM],
   // 분석·리포트 그룹
   '/analytics': [AM, AO, CD],
   '/analytics/prediction': [AM, AO, CD],
@@ -117,6 +120,7 @@ const PHASE_MENUS: Record<Phase, string[]> = {
     '/comments/reply-templates',
     '/audit-logs',
     '/analytics',
+    '/ai/dashboard',
   ],
   '2': [
     '/calendar',
@@ -226,6 +230,9 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
 
     // ── 미디어 (독립) ──
     { key: '/media', icon: <FolderOpen size={18} />, label: '미디어 라이브러리' },
+
+    // ── AI 사용 현황 (독립) ──
+    { key: '/ai/dashboard', icon: <Bot size={18} />, label: 'AI 사용 현황' },
 
     // ── 분석·리포트 그룹 ──
     {

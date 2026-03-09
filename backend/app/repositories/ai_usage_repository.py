@@ -1,4 +1,4 @@
-"""Repository for AiUsageLog — S11 (F02)."""
+"""Repository for AiUsageLog and AiJob — S11 (F02)."""
 
 from datetime import datetime
 from decimal import Decimal
@@ -7,7 +7,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.ai_usage import AiUsageLog
+from app.models.ai_usage import AiJob, AiUsageLog
 
 
 class AiUsageRepository:
@@ -86,3 +86,30 @@ class AiUsageRepository:
             "estimated_cost": float(totals_row.estimated_cost),
             "by_task_type": by_task_type,
         }
+
+    async def list_jobs(
+        self,
+        org_id: UUID,
+        page: int = 1,
+        limit: int = 20,
+        job_type: str | None = None,
+        job_status: str | None = None,
+    ) -> tuple[list[AiJob], int]:
+        """List AI jobs for an organization with pagination and filters."""
+        base = select(AiJob).where(AiJob.organization_id == org_id)
+        count_base = select(func.count()).select_from(AiJob).where(
+            AiJob.organization_id == org_id
+        )
+
+        if job_type:
+            base = base.where(AiJob.job_type == job_type)
+            count_base = count_base.where(AiJob.job_type == job_type)
+        if job_status:
+            base = base.where(AiJob.status == job_status)
+            count_base = count_base.where(AiJob.status == job_status)
+
+        total = (await self._db.execute(count_base)).scalar() or 0
+        offset = (page - 1) * limit
+        stmt = base.order_by(AiJob.created_at.desc()).offset(offset).limit(limit)
+        result = await self._db.execute(stmt)
+        return list(result.scalars().all()), total

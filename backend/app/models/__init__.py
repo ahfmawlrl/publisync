@@ -1,4 +1,14 @@
+# Phase 1-B models
+from app.models.ai_usage import AiJob, AiUsageLog
+from app.models.approval import ApprovalHistory, ApprovalRequest, ApprovalWorkflow
+from app.models.audit import AuditLog
 from app.models.base import Base
+from app.models.calendar import CalendarEvent
+from app.models.channel import Channel, ChannelHistory
+from app.models.comment import Comment, ReplyTemplate
+
+# Phase 1-A models (content, channel, approval)
+from app.models.content import Content, ContentVersion, PublishResult
 from app.models.enums import (
     AiJobStatus,
     AiJobType,
@@ -25,6 +35,13 @@ from app.models.enums import (
     UserRole,
     UserStatus,
 )
+
+# Phase 2 models
+from app.models.media import ContentMediaAsset, MediaAsset, MediaFolder
+from app.models.notification import Notification, NotificationSetting
+
+# Phase 3 models
+from app.models.report import Report
 from app.models.user import (
     Agency,
     Invitation,
@@ -36,25 +53,7 @@ from app.models.user import (
     UserOrganization,
 )
 
-# Phase 1-A models (content, channel, approval)
-from app.models.content import Content, ContentVersion, PublishResult
-from app.models.channel import Channel, ChannelHistory
-from app.models.approval import ApprovalWorkflow, ApprovalRequest, ApprovalHistory
-
-# Phase 1-B models
-from app.models.ai_usage import AiJob, AiUsageLog
-from app.models.audit import AuditLog
-from app.models.comment import Comment, ReplyTemplate
-from app.models.notification import Notification, NotificationSetting
-
-# Phase 2 models
-from app.models.media import ContentMediaAsset, MediaAsset, MediaFolder
-from app.models.calendar import CalendarEvent
-
-# Phase 3 models
-from app.models.report import Report
-
-__all__ = [
+__all__ = [  # noqa: RUF022 — intentionally ordered by phase, not alphabetically
     "Base",
     # Enums
     "UserRole",

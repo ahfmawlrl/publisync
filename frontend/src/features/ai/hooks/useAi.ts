@@ -18,6 +18,8 @@ import type {
   AiReplyRequest,
   AiSuggestEffectsRequest,
   AiToneTransformRequest,
+  AiTranslateRequest,
+  AiTranslateResponse,
 } from '../types';
 
 /**
@@ -143,6 +145,24 @@ export function useSuggestEffects() {
     mutationFn: async (data: AiSuggestEffectsRequest) => {
       const res = await apiClient.post<ApiResponse<AiGenerateResponse>>(
         '/ai/suggest-effects',
+        data,
+      );
+      return res.data.data;
+    },
+  });
+}
+
+// ── Phase 4 — Translation (F22) ──────────────────────────
+
+/**
+ * Translate content to a target language (F22).
+ * POST /api/v1/ai/translate (synchronous, < 10s)
+ */
+export function useTranslate() {
+  return useMutation({
+    mutationFn: async (data: AiTranslateRequest) => {
+      const res = await apiClient.post<ApiResponse<AiTranslateResponse>>(
+        '/ai/translate',
         data,
       );
       return res.data.data;
