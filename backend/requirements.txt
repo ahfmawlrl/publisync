@@ -1,5 +1,5 @@
 # ===== PubliSync Backend Dependencies =====
-# Generated from pyproject.toml — keep in sync
+# Generated from pyproject.toml -- keep in sync
 
 # Core
 fastapi>=0.115.0
