@@ -4,7 +4,7 @@ import apiClient from '@/shared/api/client';
 import type { ApiResponse, PaginatedResponse } from '@/shared/api/types';
 import type { ApprovalRequestRecord, WorkflowRecord } from '../types';
 
-export function useApprovals(params: { page?: number; status?: string }) {
+export function useApprovals(params: { page?: number; status?: string; requested_by?: string }) {
   return useQuery({
     queryKey: ['approvals', params],
     queryFn: async () => {

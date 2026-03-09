@@ -2,6 +2,7 @@ import { Layout } from 'antd';
 import { useEffect, useState } from 'react';
 import { Outlet } from 'react-router';
 
+import { useSSE } from '@/shared/hooks/useSSE';
 import { useUiStore } from '@/shared/stores/useUiStore';
 import MobileTabBar from './MobileTabBar';
 import Sidebar from './Sidebar';
@@ -28,6 +29,9 @@ function useIsMobile() {
 export default function GlobalLayout() {
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
   const isMobile = useIsMobile();
+
+  // Establish SSE connection for real-time updates
+  useSSE();
 
   return (
     <Layout className="min-h-screen">

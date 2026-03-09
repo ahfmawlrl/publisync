@@ -35,7 +35,7 @@ import {
   useToneTransform,
 } from '@/features/ai/hooks/useAi';
 import apiClient from '@/shared/api/client';
-import type { ApiResponse, PaginatedResponse } from '@/shared/api/types';
+import type { PaginatedResponse } from '@/shared/api/types';
 import MediaUpload from '@/shared/components/MediaUpload';
 import { CONTENT_MESSAGES } from '@/shared/constants/messages';
 import { useCreateContent, useRequestReview } from '../hooks/useContents';

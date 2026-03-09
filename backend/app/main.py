@@ -1,11 +1,14 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
+import sentry_sdk
 import structlog
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -39,9 +42,31 @@ from app.core.middleware import RequestIdMiddleware
 from app.core.rate_limit import limiter
 
 
+def _sentry_before_send(event: dict, hint: dict) -> dict:
+    """Filter PII from Sentry events."""
+    if "user" in event:
+        event["user"].pop("email", None)
+        event["user"].pop("ip_address", None)
+    return event
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     """Startup / shutdown events."""
+    # Sentry initialization (no-op when DSN is empty)
+    if settings.SENTRY_DSN:
+        sentry_sdk.init(
+            dsn=settings.SENTRY_DSN,
+            integrations=[
+                FastApiIntegration(transaction_style="endpoint"),
+                SqlalchemyIntegration(),
+            ],
+            traces_sample_rate=0.1 if not settings.DEBUG else 1.0,
+            environment="development" if settings.DEBUG else "production",
+            send_default_pii=False,
+            before_send=_sentry_before_send,
+        )
+
     # startup
     setup_logging(json_format=not settings.DEBUG)
 

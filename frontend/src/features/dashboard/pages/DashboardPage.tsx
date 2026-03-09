@@ -1,9 +1,9 @@
 import { Card, Col, List, Radio, Row, Select, Spin, Statistic, Table, Tag, Typography } from 'antd';
-import type { PieLabelRenderProps } from 'recharts';
-import { CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 
+import { PlatformTrendChart, SentimentPieChart } from '@/shared/components/charts';
+import type { MetricKey } from '@/shared/components/charts';
 import { APPROVAL_STATUS_CONFIG, getStatusConfig } from '@/shared/constants/contentStatus';
 import { getPlatformConfig } from '@/shared/constants/platform';
 import { useAuthStore } from '@/shared/stores/useAuthStore';
@@ -21,36 +21,12 @@ import type { OrgSummaryItem } from '../hooks/useDashboard';
 
 const { Title, Text } = Typography;
 
-// STATUS_LABELS & CONTENT_STATUS replaced by shared constants (APPROVAL_STATUS_CONFIG, CONTENT_STATUS_CONFIG)
-
-const SENTIMENT_COLORS: Record<string, string> = {
-  POSITIVE: '#52c41a',
-  NEUTRAL: '#1677ff',
-  NEGATIVE: '#faad14',
-  DANGEROUS: '#ff4d4f',
-};
-
-const SENTIMENT_LABELS: Record<string, string> = {
-  POSITIVE: '긍정',
-  NEUTRAL: '중립',
-  NEGATIVE: '부정',
-  DANGEROUS: '위험',
-};
-
-// PLATFORM_TAG replaced by shared PLATFORM_CONFIG
-
-type MetricKey = 'all' | 'views' | 'likes' | 'shares';
-
-const METRIC_LINE_CONFIG: Record<Exclude<MetricKey, 'all'>, { name: string; color: string }> = {
-  views: { name: '조회수', color: '#1677ff' },
-  likes: { name: '좋아요', color: '#52c41a' },
-  shares: { name: '공유', color: '#faad14' },
-};
+type MetricFilter = 'all' | MetricKey;
 
 export default function DashboardPage() {
   const navigate = useNavigate();
   const userRole = useAuthStore((s) => s.user?.role);
-  const [selectedMetric, setSelectedMetric] = useState<MetricKey>('all');
+  const [selectedMetric, setSelectedMetric] = useState<MetricFilter>('all');
   const [period, setPeriod] = useState('7d');
   const { data: summary, isLoading } = useDashboardSummary(period);
   const { data: recentContents } = useRecentContents();
@@ -71,7 +47,7 @@ export default function DashboardPage() {
 
   const dangerousCount = sentimentData?.find((s) => s.sentiment === 'DANGEROUS')?.count ?? 0;
 
-  const visibleMetrics: Array<Exclude<MetricKey, 'all'>> =
+  const visibleMetrics: MetricKey[] =
     selectedMetric === 'all' ? ['views', 'likes', 'shares'] : [selectedMetric];
 
   /* ── Approval Card (shared between CD prominent & normal positions) ── */
@@ -213,7 +189,7 @@ export default function DashboardPage() {
               <Radio.Group
                 size="small"
                 value={selectedMetric}
-                onChange={(e) => setSelectedMetric(e.target.value as MetricKey)}
+                onChange={(e) => setSelectedMetric(e.target.value as MetricFilter)}
                 optionType="button"
                 buttonStyle="solid"
               >
@@ -224,33 +200,7 @@ export default function DashboardPage() {
               </Radio.Group>
             }
           >
-            {platformTrends && platformTrends.length > 0 ? (
-              <ResponsiveContainer width="100%" height={240}>
-                <LineChart data={platformTrends}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="platform" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  {visibleMetrics.map((key) => (
-                    <Line
-                      key={key}
-                      type="monotone"
-                      dataKey={key}
-                      name={METRIC_LINE_CONFIG[key].name}
-                      stroke={METRIC_LINE_CONFIG[key].color}
-                      strokeWidth={2}
-                      dot={{ r: 4 }}
-                      activeDot={{ r: 6 }}
-                    />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex h-60 items-center justify-center">
-                <Text type="secondary">플랫폼 데이터가 없습니다</Text>
-              </div>
-            )}
+            <PlatformTrendChart data={platformTrends || []} visibleMetrics={visibleMetrics} />
           </Card>
         </Col>
         {/* Show approval card in normal position for non-CD roles */}
@@ -295,38 +245,7 @@ export default function DashboardPage() {
       <Row gutter={[16, 16]} className="mb-6">
         <Col xs={24} lg={12}>
           <Card title="댓글 감성 분석 현황" size="small">
-            {sentimentData && sentimentData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={240}>
-                <PieChart>
-                  <Pie
-                    data={sentimentData.map((item) => ({
-                      name: SENTIMENT_LABELS[item.sentiment] || item.sentiment,
-                      value: item.count,
-                    }))}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={80}
-                    paddingAngle={2}
-                    dataKey="value"
-                    label={(props: PieLabelRenderProps) => `${String(props.name ?? '')} ${(((props.percent as number | undefined) ?? 0) * 100).toFixed(0)}%`}
-                  >
-                    {sentimentData.map((entry, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={SENTIMENT_COLORS[entry.sentiment] || '#8884d8'}
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex h-60 items-center justify-center">
-                <Text type="secondary">감성 분석 데이터가 없습니다</Text>
-              </div>
-            )}
+            <SentimentPieChart data={sentimentData || []} />
           </Card>
         </Col>
         {/* For non-CD roles, show recent contents here (CD already has it in Row 2) */}
