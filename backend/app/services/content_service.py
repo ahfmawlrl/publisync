@@ -13,10 +13,40 @@ from app.models.content import Content, ContentVersion, PublishResult
 from app.models.enums import ContentStatus, PublishResultStatus
 from app.repositories.content_repository import ContentRepository
 
+logger = structlog.get_logger()
+
+
+def _index_content_to_search(content: Content) -> None:
+    """Index a content document to Meilisearch (best-effort, non-blocking)."""
+    try:
+        from app.integrations.search import index_document
+
+        doc = {
+            "id": str(content.id),
+            "organization_id": str(content.organization_id),
+            "title": content.title or "",
+            "body": content.body or "",
+            "status": content.status.value if hasattr(content.status, "value") else str(content.status),
+            "platforms": content.platforms or [],
+            "created_at": content.created_at.isoformat() if content.created_at else "",
+            "updated_at": content.updated_at.isoformat() if content.updated_at else "",
+        }
+        index_document("contents", doc)
+    except Exception as exc:
+        structlog.get_logger().warning("search_index_content_failed", error=str(exc))
+
+
+def _delete_content_from_search(content_id: UUID) -> None:
+    """Remove a content document from Meilisearch (best-effort)."""
+    try:
+        from app.integrations.search import delete_document
+
+        delete_document("contents", str(content_id))
+    except Exception as exc:
+        structlog.get_logger().warning("search_delete_content_failed", error=str(exc))
+
 if TYPE_CHECKING:
     from app.services.calendar_service import CalendarService
-
-logger = structlog.get_logger()
 
 # Valid state transitions
 _VALID_TRANSITIONS: dict[ContentStatus, set[ContentStatus]] = {
@@ -158,6 +188,10 @@ class ContentService:
             )
 
         logger.info("content_created", content_id=str(content.id))
+
+        # Real-time search indexing (best-effort)
+        _index_content_to_search(content)
+
         return content
 
     async def get_content(self, content_id: UUID, org_id: UUID) -> Content:
@@ -256,6 +290,10 @@ class ContentService:
             )
 
         logger.info("content_updated", content_id=str(content_id))
+
+        # Real-time search indexing (best-effort)
+        _index_content_to_search(content)
+
         return content
 
     async def delete_content(self, content_id: UUID, org_id: UUID) -> None:
@@ -268,6 +306,9 @@ class ContentService:
         await self._sync_calendar_delete(content_id, org_id)
 
         logger.info("content_deleted", content_id=str(content_id))
+
+        # Remove from search index (best-effort)
+        _delete_content_from_search(content_id)
 
     async def save_draft(self, content_id: UUID, org_id: UUID, actor_id: UUID, data: dict) -> Content:
         content = await self.get_content(content_id, org_id)

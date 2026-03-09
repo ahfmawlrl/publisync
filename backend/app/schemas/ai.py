@@ -182,6 +182,24 @@ class AiShortformRequest(BaseModel):
     style: str = Field("highlight", description="Style: highlight, summary, teaser")
 
 
+class ShortformClipSegment(BaseModel):
+    """Single shortform clip segment."""
+
+    start: float = Field(..., ge=0, description="Start time in seconds")
+    end: float = Field(..., ge=0, description="End time in seconds")
+    title: str = Field("", max_length=200)
+    reason: str = Field("", max_length=500)
+
+
+class ShortformConfirmRequest(BaseModel):
+    """Request to confirm selected shortform clips (F15)."""
+
+    job_id: str = Field(..., description="Shortform extraction job ID")
+    selected_clips: list[ShortformClipSegment] = Field(
+        ..., min_length=1, max_length=10, description="Selected clip segments to confirm"
+    )
+
+
 # ── Phase 3 — Optimal Time (F20) ─────────────────────
 
 

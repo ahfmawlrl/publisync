@@ -1,7 +1,13 @@
-import { useEffect, useRef } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
 import type Player from 'video.js/dist/types/player';
+
+export interface VideoPlayerHandle {
+  seekTo: (time: number) => void;
+  getCurrentTime: () => number;
+  getPlayer: () => Player | null;
+}
 
 interface VideoPlayerProps {
   src: string;
@@ -13,17 +19,29 @@ interface VideoPlayerProps {
   className?: string;
 }
 
-export default function VideoPlayer({
-  src,
-  type,
-  poster,
-  subtitles,
-  onTimeUpdate,
-  onReady,
-  className,
-}: VideoPlayerProps) {
+const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(function VideoPlayer(
+  { src, type, poster, subtitles, onTimeUpdate, onReady, className },
+  ref,
+) {
   const videoRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<Player | null>(null);
+
+  useImperativeHandle(ref, () => ({
+    seekTo(time: number) {
+      if (playerRef.current && !playerRef.current.isDisposed()) {
+        playerRef.current.currentTime(time);
+      }
+    },
+    getCurrentTime() {
+      if (playerRef.current && !playerRef.current.isDisposed()) {
+        return playerRef.current.currentTime() ?? 0;
+      }
+      return 0;
+    },
+    getPlayer() {
+      return playerRef.current;
+    },
+  }));
 
   useEffect(() => {
     if (!videoRef.current) return;
@@ -66,4 +84,6 @@ export default function VideoPlayer({
   }, [src]);
 
   return <div ref={videoRef} className={className} data-vjs-player />;
-}
+});
+
+export default VideoPlayer;

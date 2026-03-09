@@ -40,6 +40,7 @@ from app.schemas.ai import (
     AiToneTransformRequest,
     AiTranslateRequest,
     AiTranslateResponse,
+    ShortformConfirmRequest,
 )
 from app.schemas.common import ApiResponse
 from app.services.ai_service import AiService
@@ -301,6 +302,32 @@ async def get_job_status(
             "created_at": job.created_at.isoformat()
             if hasattr(job.created_at, "isoformat")
             else str(job.created_at),
+        },
+    }
+
+
+# ── POST /ai/shortform/confirm ─────────────────────────
+@router.post("/shortform/confirm")
+async def confirm_shortform(
+    body: ShortformConfirmRequest,
+    workspace: WorkspaceContext = Depends(get_workspace_context),
+    _user: User = Depends(require_roles(UserRole.AGENCY_MANAGER, UserRole.AGENCY_OPERATOR)),
+    service: AiService = Depends(_get_service),
+) -> dict:
+    """Confirm selected shortform clips from an extraction job."""
+    clips_data = [c.model_dump() for c in body.selected_clips]
+    job = await service.confirm_shortform(
+        job_id=body.job_id,
+        org_id=workspace.org_id,
+        selected_clips=clips_data,
+    )
+    return {
+        "success": True,
+        "data": {
+            "job_id": str(job.id),
+            "status": "CONFIRMED",
+            "confirmed_clips": len(body.selected_clips),
+            "message": "숏폼 클립이 확정되었습니다.",
         },
     }
 

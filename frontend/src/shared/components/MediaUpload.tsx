@@ -14,6 +14,11 @@ const ACCEPTED_TYPES: Record<string, string[]> = {
   'image/webp': ['.webp'],
   'video/mp4': ['.mp4'],
   'video/webm': ['.webm'],
+  'audio/mpeg': ['.mp3'],
+  'audio/wav': ['.wav'],
+  'audio/aac': ['.aac'],
+  'audio/ogg': ['.ogg'],
+  'audio/webm': ['.weba'],
   'application/pdf': ['.pdf'],
 };
 

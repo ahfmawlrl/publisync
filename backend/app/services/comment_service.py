@@ -16,6 +16,26 @@ from app.repositories.comment_repository import CommentRepository
 logger = structlog.get_logger()
 
 
+def _index_comment_to_search(comment: Comment) -> None:
+    """Index/update a comment in Meilisearch (best-effort)."""
+    try:
+        from app.integrations.search import index_document
+
+        doc = {
+            "id": str(comment.id),
+            "organization_id": str(comment.organization_id),
+            "text": comment.text or "",
+            "author_name": comment.author_name or "",
+            "platform": comment.platform.value if hasattr(comment.platform, "value") else str(comment.platform),
+            "sentiment": comment.sentiment.value if comment.sentiment and hasattr(comment.sentiment, "value") else None,
+            "status": comment.status.value if hasattr(comment.status, "value") else str(comment.status),
+            "created_at": comment.created_at.isoformat() if comment.created_at else "",
+        }
+        index_document("comments", doc)
+    except Exception as exc:
+        logger.warning("search_index_comment_failed", error=str(exc))
+
+
 class CommentNotFoundError(NotFoundError):
     detail = "Comment not found"
 
@@ -144,6 +164,7 @@ class CommentService:
             "processed_by": actor_id,
         })
         logger.info("comment_replied", comment_id=str(comment_id), actor_id=str(actor_id))
+        _index_comment_to_search(comment)
         return comment
 
     async def hide_comment(

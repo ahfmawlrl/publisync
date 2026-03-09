@@ -25,6 +25,7 @@ from app.schemas.media import (
     MediaUpdateRequest,
     MediaUploadRequest,
     PresignedUploadRequest,
+    SubtitleUpdateRequest,
 )
 from app.services.media_service import MediaService
 
@@ -218,6 +219,23 @@ async def update_media_asset(
     """Update media asset metadata (filename, tags, folder)."""
     asset = await service.update_asset(
         asset_id, workspace.org_id, body.model_dump(exclude_unset=True)
+    )
+    return {"success": True, "data": _to_asset_response(asset)}
+
+
+# ── PUT /media/{asset_id}/subtitles ──────────────────────
+@router.put("/{asset_id}/subtitles", response_model=ApiResponse[MediaAssetResponse])
+async def update_media_subtitles(
+    asset_id: UUID,
+    body: SubtitleUpdateRequest,
+    workspace: WorkspaceContext = Depends(get_workspace_context),
+    _user: User = Depends(require_roles(UserRole.AGENCY_MANAGER, UserRole.AGENCY_OPERATOR)),
+    service: MediaService = Depends(_get_service),
+) -> dict:
+    """Save subtitle data to a media asset's metadata."""
+    subtitles_data = [s.model_dump() for s in body.subtitles]
+    asset = await service.update_subtitles(
+        asset_id, workspace.org_id, subtitles_data, body.language
     )
     return {"success": True, "data": _to_asset_response(asset)}
 

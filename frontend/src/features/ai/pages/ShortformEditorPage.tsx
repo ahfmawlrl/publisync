@@ -24,7 +24,7 @@ import {
 import { useCallback, useRef, useState } from 'react';
 import { useParams } from 'react-router';
 
-import VideoPlayer from '@/shared/components/VideoPlayer';
+import VideoPlayer, { type VideoPlayerHandle } from '@/shared/components/VideoPlayer';
 
 import AiJobProgress from '../components/AiJobProgress';
 import { useConfirmShortform, useCreateShortform } from '../hooks/useAiJobs';
@@ -71,7 +71,7 @@ export default function ShortformEditorPage() {
   const [clips, setClips] = useState<ClipSegment[]>([]);
 
   // Video player ref for seeking
-  const videoPlayerRef = useRef<{ seekTo?: (time: number) => void }>(null);
+  const videoPlayerRef = useRef<VideoPlayerHandle>(null);
 
   // Ref for tracking whether result was already consumed
   const resultConsumedRef = useRef(false);
@@ -228,7 +228,7 @@ export default function ShortformEditorPage() {
         {/* Left column: Video Player (60%) */}
         <div className="lg:col-span-3">
           <Card size="small" title="미리보기">
-            <VideoPlayer src={`/api/v1/media/${assetId}/download`} />
+            <VideoPlayer ref={videoPlayerRef} src={`/api/v1/media/${assetId}/download`} />
           </Card>
         </div>
 

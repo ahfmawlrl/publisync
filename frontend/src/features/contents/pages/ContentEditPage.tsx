@@ -1,4 +1,4 @@
-import { ArrowLeftOutlined, CheckCircleOutlined, RobotOutlined, SendOutlined, SwapOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, CheckCircleOutlined, RobotOutlined, SendOutlined, SwapOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import {
   Alert,
   App,
@@ -31,6 +31,7 @@ import {
   useGenerateDescription,
   useGenerateHashtags,
   useGenerateTitle,
+  useSuggestEffects,
   useToneTransform,
 } from '@/features/ai/hooks/useAi';
 import MediaUpload from '@/shared/components/MediaUpload';
@@ -70,6 +71,7 @@ export default function ContentEditPage() {
   const hashtagMutation = useGenerateHashtags();
   const toneTransformMutation = useToneTransform();
   const contentReviewMutation = useContentReview();
+  const suggestEffectsMutation = useSuggestEffects();
 
   // Tone transform modal
   const [toneModalOpen, setToneModalOpen] = useState(false);
@@ -218,6 +220,15 @@ export default function ContentEditPage() {
         onSuccess: () => setReviewModalOpen(false),
         onError: () => message.error('AI 검수에 실패했습니다'),
       },
+    );
+  };
+
+  const handleSuggestEffects = () => {
+    const contentText = getContentText();
+    if (!contentText) return;
+    suggestEffectsMutation.mutate(
+      { content_text: contentText, content_type: 'video', count: 5 },
+      { onError: () => message.error('AI 효과음 추천에 실패했습니다') },
     );
   };
 
@@ -537,6 +548,41 @@ export default function ContentEditPage() {
                   </Typography.Text>
                 </div>
               )}
+            </Card>
+
+            {/* Video content features */}
+            <Card
+              title={<Space><VideoCameraOutlined /><span>영상 콘텐츠 추가 기능</span></Space>}
+              size="small"
+              className="mt-4"
+            >
+              <Space direction="vertical" className="w-full" size={8}>
+                <Button
+                  type="default"
+                  icon={<RobotOutlined />}
+                  onClick={handleSuggestEffects}
+                  loading={suggestEffectsMutation.isPending}
+                  block
+                  size="small"
+                >
+                  효과음/이모지 추천
+                </Button>
+                <div className="mt-1">
+                  <AiSuggestionPanel
+                    title="AI 효과음/이모지 추천"
+                    suggestions={suggestEffectsMutation.data?.suggestions ?? []}
+                    loading={suggestEffectsMutation.isPending}
+                    onSelect={(c) => {
+                      const currentBody = (form.getFieldValue('body') as string) || '';
+                      form.setFieldValue('body', currentBody ? `${currentBody}\n\n${c}` : c);
+                      message.success('효과음 추천이 본문에 추가되었습니다');
+                    }}
+                    error={suggestEffectsMutation.data?.error}
+                    model={suggestEffectsMutation.data?.model}
+                    processingTimeMs={suggestEffectsMutation.data?.processing_time_ms}
+                  />
+                </div>
+              </Space>
             </Card>
           </Col>
         </Row>

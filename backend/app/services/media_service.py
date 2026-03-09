@@ -5,11 +5,50 @@ from uuid import UUID
 import structlog
 
 from app.core.exceptions import NotFoundError, ValidationError
-from app.integrations.storage import ALLOWED_CONTENT_TYPES, generate_thumbnail
+from app.integrations.storage import (
+    ALLOWED_CONTENT_TYPES,
+    generate_thumbnail,
+    generate_video_thumbnail,
+    get_video_metadata,
+)
 from app.models.media import MediaAsset, MediaFolder
 from app.repositories.media_repository import MediaRepository
 
 logger = structlog.get_logger()
+
+
+def _index_media_to_search(asset: MediaAsset) -> None:
+    """Index/update a media asset in Meilisearch (best-effort)."""
+    try:
+        from app.integrations.search import index_document
+
+        doc = {
+            "id": str(asset.id),
+            "organization_id": str(asset.organization_id),
+            "file_name": asset.filename or "",
+            "original_name": asset.original_filename or "",
+            "tags": asset.tags or [],
+            "media_type": asset.media_type if isinstance(asset.media_type, str) else (
+                asset.media_type.value if hasattr(asset.media_type, "value") else str(asset.media_type)
+            ),
+            "folder_id": str(asset.folder_id) if asset.folder_id else None,
+            "created_at": asset.created_at.isoformat() if asset.created_at else "",
+            "file_size": asset.file_size or 0,
+        }
+        index_document("media_assets", doc)
+    except Exception as exc:
+        logger.warning("search_index_media_failed", error=str(exc))
+
+
+def _delete_media_from_search(asset_id: UUID) -> None:
+    """Remove a media asset from Meilisearch (best-effort)."""
+    try:
+        from app.integrations.search import delete_document
+
+        delete_document("media_assets", str(asset_id))
+    except Exception as exc:
+        logger.warning("search_delete_media_failed", error=str(exc))
+
 
 # Map MIME type prefix to MediaType enum value
 _MIME_TO_MEDIA_TYPE: dict[str, str] = {
@@ -153,6 +192,40 @@ class MediaService:
                     thumb_key=thumb_key,
                 )
 
+        # 비디오인 경우 썸네일 + 메타데이터 추출
+        elif media_type == "VIDEO":
+            vid_update: dict = {}
+
+            # 비디오 메타데이터 추출 (duration, width, height)
+            metadata = get_video_metadata(upload_data["object_key"])
+            if metadata:
+                if metadata.get("duration"):
+                    vid_update["duration"] = metadata["duration"]
+                if metadata.get("width"):
+                    vid_update["width"] = metadata["width"]
+                if metadata.get("height"):
+                    vid_update["height"] = metadata["height"]
+
+            # 비디오 썸네일 생성
+            thumb_key = generate_video_thumbnail(
+                org_id=str(org_id),
+                object_key=upload_data["object_key"],
+            )
+            if thumb_key:
+                vid_update["thumbnail_url"] = thumb_key
+
+            if vid_update:
+                asset = await self._repo.update_asset(asset.id, org_id, vid_update)
+                logger.info(
+                    "video_metadata_and_thumbnail_set",
+                    asset_id=str(asset.id),
+                    has_thumbnail=bool(thumb_key),
+                    metadata_keys=list(vid_update.keys()),
+                )
+
+        # Real-time search indexing (best-effort)
+        _index_media_to_search(asset)
+
         return asset
 
     async def update_asset(
@@ -178,6 +251,7 @@ class MediaService:
             raise MediaNotFoundError()
 
         logger.info("media_asset_updated", asset_id=str(asset_id))
+        _index_media_to_search(asset)
         return asset
 
     async def delete_asset(self, asset_id: UUID, org_id: UUID) -> None:
@@ -185,6 +259,37 @@ class MediaService:
         if not deleted:
             raise MediaNotFoundError()
         logger.info("media_asset_deleted", asset_id=str(asset_id))
+        _delete_media_from_search(asset_id)
+
+    async def update_subtitles(
+        self, asset_id: UUID, org_id: UUID, subtitles: list[dict], language: str
+    ) -> MediaAsset:
+        """Save subtitle data to the media asset's metadata JSONB field."""
+        asset = await self.get_asset(asset_id, org_id)
+
+        # Merge subtitles into existing metadata
+        existing_metadata = asset.metadata_ or {}
+        existing_metadata["subtitles"] = {
+            "language": language,
+            "segments": subtitles,
+            "updated_at": __import__("datetime").datetime.now(
+                __import__("datetime").timezone.utc
+            ).isoformat(),
+        }
+
+        updated = await self._repo.update_asset(
+            asset_id, org_id, {"metadata_": existing_metadata}
+        )
+        if updated is None:
+            raise MediaNotFoundError()
+
+        logger.info(
+            "media_subtitles_updated",
+            asset_id=str(asset_id),
+            language=language,
+            segment_count=len(subtitles),
+        )
+        return updated
 
     async def list_folders(self, org_id: UUID) -> list[MediaFolder]:
         return await self._repo.list_folders(org_id)
