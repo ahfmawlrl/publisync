@@ -43,19 +43,57 @@ SEED_EMAILS = [
 
 
 def delete_seed(session) -> None:
-    # Delete by email (migration-created SA has a random UUID, not our fixed one)
-    session.execute(
-        text("DELETE FROM user_organizations WHERE user_id IN (SELECT id FROM users WHERE email = ANY(:emails))"),
-        {"emails": SEED_EMAILS},
-    )
-    session.execute(
-        text("DELETE FROM refresh_tokens WHERE user_id IN (SELECT id FROM users WHERE email = ANY(:emails))"),
-        {"emails": SEED_EMAILS},
-    )
-    session.execute(text("DELETE FROM users WHERE email = ANY(:emails)"), {"emails": SEED_EMAILS})
+    """Delete existing seed data using TRUNCATE CASCADE for clean removal."""
     org_ids = [str(ORG1_ID), str(ORG2_ID)]
-    session.execute(text("DELETE FROM organizations WHERE id = ANY(:ids)"), {"ids": org_ids})
-    session.execute(text("DELETE FROM agencies WHERE id = :id"), {"id": str(AGENCY_ID)})
+
+    # Use raw connection to disable FK checks via TRUNCATE CASCADE on org-scoped data
+    # First, delete all data referencing seed users/orgs
+    session.execute(text("""
+        DO $$
+        DECLARE
+            uid uuid;
+        BEGIN
+            -- Collect seed user IDs
+            FOR uid IN SELECT id FROM users WHERE email = ANY(ARRAY[
+                'admin@publisync.kr', 'manager@digitalsotong.kr',
+                'operator@digitalsotong.kr', 'director@seoul.go.kr'
+            ]) LOOP
+                DELETE FROM ai_usage_logs WHERE user_id = uid;
+                DELETE FROM approval_requests WHERE requested_by = uid OR reviewer_id = uid;
+                DELETE FROM calendar_events WHERE created_by = uid;
+                DELETE FROM channel_histories WHERE actor_id = uid;
+                DELETE FROM comments WHERE processed_by = uid;
+                DELETE FROM content_versions WHERE changed_by = uid;
+                DELETE FROM contents WHERE author_id = uid;
+                DELETE FROM media_assets WHERE created_by = uid;
+                DELETE FROM notifications WHERE user_id = uid;
+                DELETE FROM notification_settings WHERE user_id = uid;
+                DELETE FROM reports WHERE created_by = uid;
+                DELETE FROM invitations WHERE invited_by = uid;
+                DELETE FROM system_announcements WHERE created_by = uid;
+                DELETE FROM password_reset_tokens WHERE user_id = uid;
+                DELETE FROM refresh_tokens WHERE user_id = uid;
+                DELETE FROM user_organizations WHERE user_id = uid;
+            END LOOP;
+
+            -- Delete seed users
+            DELETE FROM users WHERE email = ANY(ARRAY[
+                'admin@publisync.kr', 'manager@digitalsotong.kr',
+                'operator@digitalsotong.kr', 'director@seoul.go.kr'
+            ]);
+
+            -- Clean up org-scoped data for seed orgs
+            DELETE FROM channels WHERE organization_id = ANY(ARRAY[
+                'b0000000-0000-0000-0000-000000000001'::uuid,
+                'b0000000-0000-0000-0000-000000000002'::uuid
+            ]);
+            DELETE FROM organizations WHERE id = ANY(ARRAY[
+                'b0000000-0000-0000-0000-000000000001'::uuid,
+                'b0000000-0000-0000-0000-000000000002'::uuid
+            ]);
+            DELETE FROM agencies WHERE id = 'a0000000-0000-0000-0000-000000000001'::uuid;
+        END $$;
+    """))
     session.commit()
     print("[seed] deleted existing seed data")
 
