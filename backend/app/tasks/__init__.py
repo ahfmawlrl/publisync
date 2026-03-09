@@ -20,6 +20,7 @@ celery_app.conf.update(
         "app.tasks.publish.*": {"queue": "publish"},
         "app.tasks.ai.*": {"queue": "ai"},
         "app.tasks.comment.*": {"queue": "system"},
+        "app.tasks.notification.*": {"queue": "system"},
         "app.tasks.system.*": {"queue": "system"},
         "app.tasks.search.*": {"queue": "system"},
         "app.tasks.report.*": {"queue": "ai"},

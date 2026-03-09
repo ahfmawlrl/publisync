@@ -30,6 +30,7 @@ class NotificationSettingResponse(BaseModel):
 class NotificationSettingUpdateRequest(BaseModel):
     channels: dict | None = None
     telegram_chat_id: str | None = None
+    push_subscription: dict | None = None
 
 
 class UnreadCountResponse(BaseModel):

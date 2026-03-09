@@ -59,6 +59,9 @@ weasyprint>=62.0
 # AI
 litellm>=1.50.0
 
+# Web Push
+pywebpush>=2.0.0
+
 # Telegram
 python-telegram-bot>=21.0
 

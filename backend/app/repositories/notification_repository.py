@@ -8,6 +8,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.notification import Notification, NotificationSetting
+from app.models.user import User
 
 
 class NotificationRepository:
@@ -126,3 +127,11 @@ class NotificationRepository:
         # Re-fetch the full object to ensure it's attached to the session
         setting = result.scalar_one()
         return setting
+
+    # ── User Email Lookup ──────────────────────────────────
+
+    async def get_user_email(self, user_id: UUID) -> str | None:
+        """Look up user email for notification routing."""
+        stmt = select(User.email).where(User.id == user_id)
+        result = await self._db.execute(stmt)
+        return result.scalar_one_or_none()

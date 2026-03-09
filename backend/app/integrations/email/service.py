@@ -1,11 +1,18 @@
 """Email sending service using FastAPI-Mail."""
 
+from pathlib import Path
+
 import structlog
 from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType
+from jinja2 import Environment, FileSystemLoader
 
 from app.core.config import settings
 
 logger = structlog.get_logger()
+
+# Jinja2 template environment for email templates
+_template_dir = Path(__file__).parent / "templates"
+_jinja_env = Environment(loader=FileSystemLoader(str(_template_dir)), autoescape=True)
 
 _mail_config = ConnectionConfig(
     MAIL_USERNAME=settings.MAIL_USERNAME,
@@ -57,3 +64,44 @@ async def send_password_reset_email(email: str, token: str) -> None:
         logger.info("password_reset_email_sent", email=email[:3] + "***")
     except Exception:
         logger.error("password_reset_email_failed", email=email[:3] + "***", exc_info=True)
+
+
+async def send_notification_email(
+    email: str,
+    title: str,
+    message: str,
+    action_url: str | None = None,
+) -> bool:
+    """Send a notification alert email using Jinja2 template.
+
+    Args:
+        email: Recipient email address.
+        title: Notification title.
+        message: Notification body text.
+        action_url: Optional URL for the CTA button.
+
+    Returns:
+        True if sent successfully, False otherwise.
+    """
+    template = _jinja_env.get_template("notification_alert.html")
+    html_body = template.render(
+        title=title,
+        message=message,
+        action_url=action_url,
+        frontend_url=settings.FRONTEND_URL,
+    )
+
+    msg = MessageSchema(
+        subject=f"[PubliSync] {title}",
+        recipients=[email],
+        body=html_body,
+        subtype=MessageType.html,
+    )
+
+    try:
+        await _fast_mail.send_message(msg)
+        logger.info("notification_email_sent", email=email[:3] + "***", title=title)
+        return True
+    except Exception:
+        logger.error("notification_email_failed", email=email[:3] + "***", exc_info=True)
+        return False

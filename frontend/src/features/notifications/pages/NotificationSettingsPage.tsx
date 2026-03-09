@@ -1,7 +1,9 @@
-import { MailOutlined, SendOutlined } from '@ant-design/icons';
+import { BellOutlined, MailOutlined, SendOutlined } from '@ant-design/icons';
 import { App, Button, Card, Input, Switch, Table, Tabs, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useCallback, useEffect, useState } from 'react';
+
+import { usePushSubscription } from '@/shared/hooks/usePushSubscription';
 
 import {
   useNotificationSettings,
@@ -33,6 +35,7 @@ export default function NotificationSettingsPage() {
   const { data: settings, isLoading } = useNotificationSettings();
   const updateMutation = useUpdateNotificationSettings();
   const telegramTestMutation = useSendTelegramTest();
+  const { status: pushStatus, subscribe: subscribePush, unsubscribe: unsubscribePush, isSupported: isPushSupported } = usePushSubscription();
 
   const [channels, setChannels] = useState<NotificationChannelConfig>({
     web: { enabled: true },
@@ -236,21 +239,44 @@ export default function NotificationSettingsPage() {
       children: (
         <Card loading={isLoading}>
           <div className="mb-4 flex items-center justify-between">
-            <Text strong>웹 푸시 알림</Text>
+            <div>
+              <Text strong>웹 푸시 알림</Text>
+              {!isPushSupported && (
+                <Text type="secondary" className="ml-2 text-xs">
+                  (이 브라우저에서 지원하지 않습니다)
+                </Text>
+              )}
+            </div>
             <Switch
               checked={channels.webPush.enabled}
-              onChange={(checked) =>
-                setChannels((prev) => ({ ...prev, webPush: { enabled: checked } }))
-              }
+              disabled={!isPushSupported}
+              onChange={async (checked) => {
+                if (checked) {
+                  const ok = await subscribePush();
+                  if (ok) {
+                    setChannels((prev) => ({ ...prev, webPush: { enabled: true } }));
+                    message.success('웹 푸시 알림이 활성화되었습니다');
+                  } else {
+                    message.warning('브라우저 알림 권한을 허용해주세요');
+                  }
+                } else {
+                  await unsubscribePush();
+                  setChannels((prev) => ({ ...prev, webPush: { enabled: false } }));
+                  message.info('웹 푸시 알림이 비활성화되었습니다');
+                }
+              }}
             />
           </div>
 
           {channels.webPush.enabled && (
             <>
               <Text type="secondary" className="mb-4 block">
-                브라우저 알림 상태: {typeof Notification !== 'undefined' && Notification.permission === 'granted'
-                  ? '알림 허용됨'
-                  : '알림 미허용'}
+                <BellOutlined className="mr-1" />
+                구독 상태: {pushStatus === 'subscribed'
+                  ? '구독 중'
+                  : pushStatus === 'denied'
+                    ? '권한 차단됨'
+                    : '미구독'}
               </Text>
 
               <Table

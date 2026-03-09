@@ -1,0 +1,28 @@
+<div style="font-family: 'Pretendard', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #1677ff 0%, #4096ff 100%); padding: 24px; border-radius: 8px 8px 0 0;">
+    <h2 style="color: #ffffff; margin: 0; font-size: 20px;">PubliSync 알림</h2>
+  </div>
+
+  <div style="background: #ffffff; padding: 24px; border: 1px solid #f0f0f0; border-top: none;">
+    <h3 style="color: #262626; margin: 0 0 12px 0; font-size: 18px;">{{ title }}</h3>
+    <p style="color: #595959; margin: 0 0 24px 0; font-size: 15px; line-height: 1.6;">{{ message }}</p>
+
+    {% if action_url %}
+    <div style="text-align: center; margin: 24px 0;">
+      <a href="{{ action_url }}"
+         style="display: inline-block; padding: 12px 32px; background-color: #1677ff;
+                color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600;
+                font-size: 14px;">
+        자세히 보기
+      </a>
+    </div>
+    {% endif %}
+  </div>
+
+  <div style="background: #fafafa; padding: 16px 24px; border: 1px solid #f0f0f0; border-top: none; border-radius: 0 0 8px 8px;">
+    <p style="color: #8c8c8c; font-size: 12px; margin: 0; text-align: center;">
+      이 알림은 PubliSync 알림 설정에 의해 발송되었습니다.<br/>
+      알림 수신을 원하지 않으시면 <a href="{{ frontend_url }}/settings/notifications" style="color: #1677ff;">알림 설정</a>에서 변경할 수 있습니다.
+    </p>
+  </div>
+</div>

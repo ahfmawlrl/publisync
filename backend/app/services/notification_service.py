@@ -1,4 +1,11 @@
-"""Notification business logic — S10 (F13/F07)."""
+"""Notification business logic — S10 (F13/F07).
+
+4-channel notification routing:
+  1. IN_APP — DB record + SSE (always)
+  2. Web Push — pywebpush (if webPush enabled + push_subscription present)
+  3. Telegram — python-telegram-bot (if telegram enabled + chat_id present)
+  4. Email — FastAPI-Mail (if email enabled + user email available)
+"""
 
 from uuid import UUID
 
@@ -7,6 +14,8 @@ import structlog
 from app.api.v1.sse import publish_sse_event
 from app.core.exceptions import NotFoundError
 from app.integrations import telegram
+from app.integrations.email.service import send_notification_email
+from app.integrations.webpush import send_web_push
 from app.models.enums import NotificationChannel, NotificationType
 from app.models.notification import Notification
 from app.repositories.notification_repository import NotificationRepository
@@ -67,12 +76,15 @@ class NotificationService:
         payload: dict | None = None,
         action_url: str | None = None,
     ) -> Notification:
-        """Create a notification and dispatch it via SSE (and optionally Telegram).
+        """Create a notification and dispatch it via all enabled channels.
 
-        This is the primary method for other services to create notifications.
-        It creates an in-app notification record and publishes an SSE event.
-        If the user has Telegram enabled, it also sends a Telegram message.
+        Routing order:
+          1. IN_APP — DB record + SSE (always)
+          2. Web Push — pywebpush (if enabled + subscription present)
+          3. Telegram — Bot API (if enabled + chat_id present)
+          4. Email — FastAPI-Mail (if enabled + user email available)
         """
+        # 1. Create in-app notification
         notification = Notification(
             organization_id=org_id,
             user_id=user_id,
@@ -85,7 +97,7 @@ class NotificationService:
         )
         notification = await self._repo.create_notification(notification)
 
-        # Publish SSE event for real-time in-app notification
+        # 2. Publish SSE event for real-time in-app notification
         await publish_sse_event(
             org_id=str(org_id),
             user_id=str(user_id),
@@ -99,15 +111,49 @@ class NotificationService:
             },
         )
 
-        # Check if user has Telegram enabled and send there too
-        settings = await self._repo.get_settings(org_id, user_id)
-        if settings and settings.telegram_chat_id:
-            telegram_config = settings.channels.get("telegram", {})
-            if telegram_config.get("enabled", False):
-                telegram_text = f"<b>{title}</b>\n{message}"
-                if action_url:
-                    telegram_text += f"\n\n<a href='{action_url}'>자세히 보기</a>"
-                await telegram.send_message(settings.telegram_chat_id, telegram_text)
+        # Load user notification settings for channel routing
+        user_settings = await self._repo.get_settings(org_id, user_id)
+        if user_settings:
+            channels_config = user_settings.channels or {}
+
+            # 3. Web Push
+            web_push_config = channels_config.get("webPush", {})
+            if web_push_config.get("enabled", False) and user_settings.push_subscription:
+                try:
+                    await send_web_push(
+                        subscription_info=user_settings.push_subscription,
+                        title=title,
+                        message=message,
+                        url=action_url,
+                    )
+                except Exception:
+                    logger.warning("notification_webpush_failed", user_id=str(user_id), exc_info=True)
+
+            # 4. Telegram
+            telegram_config = channels_config.get("telegram", {})
+            if telegram_config.get("enabled", False) and user_settings.telegram_chat_id:
+                try:
+                    telegram_text = f"<b>{title}</b>\n{message}"
+                    if action_url:
+                        telegram_text += f"\n\n<a href='{action_url}'>자세히 보기</a>"
+                    await telegram.send_message(user_settings.telegram_chat_id, telegram_text)
+                except Exception:
+                    logger.warning("notification_telegram_failed", user_id=str(user_id), exc_info=True)
+
+            # 5. Email
+            email_config = channels_config.get("email", {})
+            if email_config.get("enabled", False):
+                try:
+                    user_email = await self._repo.get_user_email(user_id)
+                    if user_email:
+                        await send_notification_email(
+                            email=user_email,
+                            title=title,
+                            message=message,
+                            action_url=action_url,
+                        )
+                except Exception:
+                    logger.warning("notification_email_failed", user_id=str(user_id), exc_info=True)
 
         logger.info(
             "notification_created",
@@ -149,12 +195,18 @@ class NotificationService:
         user_id: UUID,
         data: dict,
     ) -> dict:
-        """Update notification settings (upsert)."""
+        """Update notification settings (upsert).
+
+        Supports: channels, telegram_chat_id, push_subscription.
+        """
         update_data: dict = {}
         if "channels" in data and data["channels"] is not None:
             update_data["channels"] = data["channels"]
         if "telegram_chat_id" in data and data["telegram_chat_id"] is not None:
             update_data["telegram_chat_id"] = data["telegram_chat_id"]
+        if "push_subscription" in data:
+            # Allow null to clear subscription
+            update_data["push_subscription"] = data["push_subscription"]
 
         if not update_data:
             return await self.get_settings(org_id, user_id)
