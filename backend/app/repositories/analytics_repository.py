@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.channel import Channel
 from app.models.comment import Comment
-from app.models.content import PublishResult
+from app.models.content import Content, PublishResult
 from app.models.enums import PublishResultStatus
 
 
@@ -71,6 +71,74 @@ class AnalyticsRepository:
         result = await self._db.execute(stmt)
         return result.all()
 
+    # ── Trend & Top Contents (S12 — F06) ────────────────
+
+    async def get_trend_data(
+        self,
+        org_id: UUID,
+        days: int = 30,
+        granularity: str = "daily",
+    ) -> list:
+        """Time-series reach (views) + engagement grouped by date bucket."""
+        cutoff = datetime.now(UTC) - timedelta(days=days)
+
+        if granularity == "weekly":
+            date_expr = func.date_trunc("week", PublishResult.created_at)
+        elif granularity == "monthly":
+            date_expr = func.date_trunc("month", PublishResult.created_at)
+        else:
+            date_expr = func.date(PublishResult.created_at)
+
+        engagement_expr = (
+            PublishResult.likes + PublishResult.shares + PublishResult.comments_count
+        )
+        stmt = (
+            select(
+                date_expr.label("date_bucket"),
+                func.coalesce(func.sum(PublishResult.views), 0).label("reach"),
+                func.coalesce(func.sum(engagement_expr), 0).label("engagement"),
+            )
+            .where(
+                PublishResult.organization_id == org_id,
+                PublishResult.status == PublishResultStatus.SUCCESS,
+                PublishResult.created_at >= cutoff,
+            )
+            .group_by(date_expr)
+            .order_by(date_expr)
+        )
+        result = await self._db.execute(stmt)
+        return result.all()
+
+    async def get_top_contents_data(
+        self,
+        org_id: UUID,
+        days: int = 30,
+        limit: int = 5,
+    ) -> list:
+        """Top N contents by total views within period."""
+        cutoff = datetime.now(UTC) - timedelta(days=days)
+
+        stmt = (
+            select(
+                Content.id.label("content_id"),
+                Content.title,
+                Channel.platform,
+                func.coalesce(func.sum(PublishResult.views), 0).label("total_views"),
+            )
+            .join(PublishResult, PublishResult.content_id == Content.id)
+            .join(Channel, PublishResult.channel_id == Channel.id)
+            .where(
+                Content.organization_id == org_id,
+                PublishResult.status == PublishResultStatus.SUCCESS,
+                PublishResult.created_at >= cutoff,
+            )
+            .group_by(Content.id, Content.title, Channel.platform)
+            .order_by(func.sum(PublishResult.views).desc())
+            .limit(limit)
+        )
+        result = await self._db.execute(stmt)
+        return result.all()
+
     # ── Phase 3 — Sentiment Trend (F18) ──────────────────
 
     async def get_sentiment_trend(
@@ -104,11 +172,11 @@ class AnalyticsRepository:
         """Recent comment bodies for keyword extraction."""
         cutoff = datetime.now(UTC) - timedelta(days=days)
         stmt = (
-            select(Comment.body, Comment.sentiment)
+            select(Comment.text, Comment.sentiment)
             .where(
                 Comment.organization_id == org_id,
                 Comment.created_at >= cutoff,
-                Comment.body.isnot(None),
+                Comment.text.isnot(None),
             )
             .limit(500)
         )
