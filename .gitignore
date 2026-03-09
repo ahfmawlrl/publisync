@@ -26,6 +26,9 @@ htmlcov/
 coverage.xml
 *.cover
 
+celerybeat-schedule
+celerybeat-schedule.db
+
 # Virtual environments
 .venv/
 venv/
