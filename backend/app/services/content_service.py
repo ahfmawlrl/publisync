@@ -208,10 +208,11 @@ class ContentService:
         status: str | None = None,
         platform: str | None = None,
         search: str | None = None,
+        period: str | None = None,
     ) -> tuple[list[Content], int]:
         offset = (page - 1) * limit
         return await self._repo.list_contents(
-            org_id, offset=offset, limit=limit, status=status, platform=platform, search=search
+            org_id, offset=offset, limit=limit, status=status, platform=platform, search=search, period=period
         )
 
     async def update_content(

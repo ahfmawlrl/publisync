@@ -45,6 +45,7 @@ def _to_template_response(t: ReplyTemplate) -> ReplyTemplateResponse:
 @router.get("", response_model=ApiResponse[list[ReplyTemplateResponse]])
 async def list_templates(
     category: str | None = Query(None),
+    _user=Depends(require_roles(UserRole.AGENCY_MANAGER, UserRole.AGENCY_OPERATOR)),
     workspace: WorkspaceContext = Depends(get_workspace_context),
     service: CommentService = Depends(_get_service),
 ) -> dict:

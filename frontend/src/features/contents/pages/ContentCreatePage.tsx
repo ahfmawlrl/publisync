@@ -32,7 +32,6 @@ import {
   useGenerateDescription,
   useGenerateHashtags,
   useGenerateTitle,
-  useSuggestEffects,
   useToneTransform,
   useTranslate,
 } from '@/features/ai/hooks/useAi';
@@ -92,7 +91,6 @@ export default function ContentCreatePage() {
   const hashtagMutation = useGenerateHashtags();
   const toneTransformMutation = useToneTransform();
   const contentReviewMutation = useContentReview();
-  const suggestEffectsMutation = useSuggestEffects();
 
   const translateMutation = useTranslate();
   const thumbnailMutation = useCreateThumbnail();
@@ -278,19 +276,6 @@ export default function ContentCreatePage() {
     );
   };
 
-  const handleSuggestEffects = () => {
-    const contentText = getContentText();
-    if (!contentText) return;
-    suggestEffectsMutation.mutate(
-      {
-        content_text: contentText,
-        content_type: 'video',
-        count: 5,
-      },
-      { onError: () => message.error('AI 효과음 추천에 실패했습니다') },
-    );
-  };
-
   const handleTranslate = () => {
     const contentText = getContentText();
     if (!contentText) return;
@@ -438,7 +423,16 @@ export default function ContentCreatePage() {
               </Form.Item>
 
               <Form.Item>
-                <Button onClick={() => navigate('/contents')}>취소</Button>
+                <Space>
+                  <Button
+                    type="primary"
+                    onClick={handleSaveDraft}
+                    loading={createMutation.isPending}
+                  >
+                    저장 (초안)
+                  </Button>
+                  <Button onClick={() => navigate('/contents')}>취소</Button>
+                </Space>
               </Form.Item>
           </Card>
         </Col>
@@ -510,7 +504,7 @@ export default function ContentCreatePage() {
                   children: (
                     <div>
                       <div className="mb-2 flex h-36 items-center justify-center rounded bg-gray-100 text-gray-400">
-                        미디어 미리보기
+                        트윗 미리보기
                       </div>
                       <div className="rounded border border-gray-200 p-3">
                         <Typography.Text className="text-sm">
@@ -534,6 +528,9 @@ export default function ContentCreatePage() {
                   label: '네이버',
                   children: (
                     <div>
+                      <div className="mb-2 flex h-36 items-center justify-center rounded bg-gray-100 text-gray-400">
+                        블로그 미리보기
+                      </div>
                       <Typography.Text strong className="text-base">
                         {previewTitle || '블로그 제목 미리보기'}
                       </Typography.Text>
@@ -843,7 +840,7 @@ export default function ContentCreatePage() {
             )}
           </Card>
 
-          {/* Video content features */}
+          {/* Video content features (Phase 2) */}
           <Card
             title={
               <Space>
@@ -862,36 +859,14 @@ export default function ContentCreatePage() {
                 <Button size="small" icon={<RobotOutlined />} disabled>
                   숏폼 생성 (F15)
                 </Button>
+                <Button size="small" icon={<RobotOutlined />} disabled>
+                  효과음/이모지 추천 (F03)
+                </Button>
               </div>
 
-              <Divider className="!my-2" />
-
-              {/* Effects suggestion (F03) */}
-              <Button
-                type="default"
-                icon={<RobotOutlined />}
-                onClick={handleSuggestEffects}
-                loading={suggestEffectsMutation.isPending}
-                block
-                size="small"
-              >
-                효과음/이모지 추천
-              </Button>
-              <div className="mt-1">
-                <AiSuggestionPanel
-                  title="AI 효과음/이모지 추천"
-                  suggestions={suggestEffectsMutation.data?.suggestions ?? []}
-                  loading={suggestEffectsMutation.isPending}
-                  onSelect={(content) => {
-                    const currentBody = (form.getFieldValue('body') as string) || '';
-                    form.setFieldValue('body', currentBody ? `${currentBody}\n\n${content}` : content);
-                    message.success('효과음 추천이 본문에 추가되었습니다');
-                  }}
-                  error={suggestEffectsMutation.data?.error}
-                  model={suggestEffectsMutation.data?.model}
-                  processingTimeMs={suggestEffectsMutation.data?.processing_time_ms}
-                />
-              </div>
+              <Typography.Text type="secondary" className="text-xs">
+                Phase 2에서 활성화됩니다
+              </Typography.Text>
             </Space>
           </Card>
         </Col>

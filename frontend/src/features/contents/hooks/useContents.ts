@@ -10,6 +10,7 @@ export function useContents(params: {
   status?: string;
   platform?: string;
   search?: string;
+  period?: string;
 }) {
   return useQuery({
     queryKey: ['contents', params],

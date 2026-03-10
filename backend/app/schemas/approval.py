@@ -23,6 +23,7 @@ class ApprovalRequestResponse(BaseModel):
     requested_by: str
     requested_by_name: str | None = None
     content_title: str | None = None
+    platforms: list[str] = []
     is_urgent: bool = False
     comment: str | None = None
     histories: list[ApprovalHistoryResponse] = []

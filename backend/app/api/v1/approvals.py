@@ -54,6 +54,7 @@ def _to_approval_response(r: ApprovalRequest) -> ApprovalRequestResponse:
         requested_by=str(r.requested_by),
         requested_by_name=r.requester.name if hasattr(r, "requester") and r.requester else None,
         content_title=r.content.title if hasattr(r, "content") and r.content else None,
+        platforms=list(r.content.platforms) if hasattr(r, "content") and r.content and r.content.platforms else [],
         is_urgent=r.is_urgent,
         comment=r.comment,
         histories=histories,

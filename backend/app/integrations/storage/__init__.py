@@ -5,6 +5,7 @@ from datetime import timedelta
 from io import BytesIO
 
 import structlog
+import urllib3
 from minio import Minio
 from minio.error import S3Error
 
@@ -21,15 +22,26 @@ ALLOWED_CONTENT_TYPES = ALLOWED_IMAGE_TYPES | ALLOWED_VIDEO_TYPES | ALLOWED_AUDI
 
 MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
 
+# Short timeout so presigned-upload fails fast when MinIO is down (3s connect, 5s read)
+_MINIO_HTTP = urllib3.PoolManager(
+    timeout=urllib3.Timeout(connect=3.0, read=5.0),
+    retries=urllib3.Retry(total=0),
+)
+
 
 def _get_client() -> Minio:
-    """Create a new MinIO client instance."""
+    """Create a new MinIO client instance with a short connection timeout."""
     return Minio(
         endpoint=settings.MINIO_ENDPOINT,
         access_key=settings.MINIO_ACCESS_KEY,
         secret_key=settings.MINIO_SECRET_KEY,
         secure=settings.MINIO_SECURE,
+        http_client=_MINIO_HTTP,
     )
+
+
+# Public alias used by media.py and reports.py
+get_minio_client = _get_client
 
 
 def _rewrite_to_proxy_url(url: str) -> str:

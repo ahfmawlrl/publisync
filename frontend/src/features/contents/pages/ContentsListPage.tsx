@@ -24,6 +24,7 @@ export default function ContentsListPage() {
   const [page, setPage] = useState(1);
   const [statusTab, setStatusTab] = useState<StatusTab>('all');
   const [platformFilter, setPlatformFilter] = useState<string | undefined>();
+  const [periodFilter, setPeriodFilter] = useState<string>('30d');
   const [searchText, setSearchText] = useState<string | undefined>();
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
@@ -32,6 +33,7 @@ export default function ContentsListPage() {
     status: statusTab === 'all' ? undefined : statusTab,
     platform: platformFilter,
     search: searchText,
+    period: periodFilter,
   });
 
   const deleteMutation = useDeleteContent();
@@ -196,7 +198,8 @@ export default function ContentsListPage() {
         <Select
           placeholder="최근 30일"
           style={{ width: 120 }}
-          defaultValue="30d"
+          value={periodFilter}
+          onChange={(v) => { setPeriodFilter(v); setPage(1); }}
           options={[
             { value: '7d', label: '최근 7일' },
             { value: '30d', label: '최근 30일' },

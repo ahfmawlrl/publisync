@@ -1,6 +1,6 @@
 """Repository for Content, ContentVersion, PublishResult — S5 (F01)."""
 
-from datetime import UTC
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -34,6 +34,7 @@ class ContentRepository:
         status: str | None = None,
         platform: str | None = None,
         search: str | None = None,
+        period: str | None = None,
     ) -> tuple[list[Content], int]:
         base = select(Content).where(
             Content.organization_id == org_id,
@@ -51,8 +52,18 @@ class ContentRepository:
             base = base.where(Content.platforms.any(platform))
             count_base = count_base.where(Content.platforms.any(platform))
         if search:
-            base = base.where(Content.title.ilike(f"%{search}%"))
-            count_base = count_base.where(Content.title.ilike(f"%{search}%"))
+            # Escape SQL LIKE wildcards to prevent unintended pattern matching
+            safe_search = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            like_pattern = f"%{safe_search}%"
+            base = base.where(Content.title.ilike(like_pattern))
+            count_base = count_base.where(Content.title.ilike(like_pattern))
+        if period:
+            days_map = {"7d": 7, "30d": 30, "90d": 90}
+            days = days_map.get(period)
+            if days:
+                since = datetime.now(UTC) - timedelta(days=days)
+                base = base.where(Content.created_at >= since)
+                count_base = count_base.where(Content.created_at >= since)
 
         total = (await self._db.execute(count_base)).scalar() or 0
         stmt = (
