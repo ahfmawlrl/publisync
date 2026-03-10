@@ -1,5 +1,5 @@
 import { BellOutlined, LogoutOutlined, MoonOutlined, SettingOutlined, SunOutlined, UserOutlined } from '@ant-design/icons';
-import { Avatar, Badge, Button, Dropdown, Layout, Select, Space, Tag, Typography } from 'antd';
+import { Avatar, Badge, Button, Divider, Dropdown, Layout, Select, Space, Tag, Tooltip, Typography } from 'antd';
 import type { MenuProps } from 'antd';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
@@ -42,12 +42,14 @@ export default function TopBar({ isMobile = false }: TopBarProps) {
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
 
   const { workspaces, currentOrgId, switchWorkspace } = useWorkspace();
-  const { data: unread } = useUnreadCount();
+  const hasValidWorkspace = !!currentOrgId && currentOrgId !== 'all';
+  const { data: unread } = useUnreadCount(hasValidWorkspace);
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const unreadCount = unread?.count ?? 0;
 
   const isAgencyRole = (user?.role as Role) === 'AGENCY_MANAGER' || (user?.role as Role) === 'AGENCY_OPERATOR';
 
-  /** Build workspace options — prepend "전체 기관" for agency roles (AM, AO) */
   const workspaceOptions = useMemo(() => {
     const orgOptions = workspaces.map((w) => ({ value: w.id, label: w.name }));
     if (isAgencyRole) {
@@ -65,10 +67,10 @@ export default function TopBar({ isMobile = false }: TopBarProps) {
     {
       key: 'user-info',
       label: (
-        <div>
+        <div style={{ padding: '4px 0' }}>
           <Text strong>{user?.name || ''}</Text>
           <br />
-          <Text type="secondary" className="text-xs">{user?.email || ''}</Text>
+          <Text type="secondary" style={{ fontSize: 12 }}>{user?.email || ''}</Text>
         </div>
       ),
       disabled: true,
@@ -96,13 +98,13 @@ export default function TopBar({ isMobile = false }: TopBarProps) {
       onClick: () => navigate('/settings/notifications'),
     },
     { type: 'divider' },
-    { key: 'logout', icon: <LogoutOutlined />, label: '로그아웃', onClick: handleLogout },
+    { key: 'logout', icon: <LogoutOutlined />, label: '로그아웃', onClick: handleLogout, danger: true },
   ];
 
   return (
     <>
       <Header
-        className="flex items-center justify-between border-b border-gray-200 bg-white px-6 dark:border-gray-700 dark:bg-gray-900"
+        className="flex items-center justify-between border-b border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"
         style={{
           position: 'fixed',
           top: 0,
@@ -114,45 +116,67 @@ export default function TopBar({ isMobile = false }: TopBarProps) {
           transition: 'left 0.2s',
         }}
       >
-        {/* Left side: Workspace switcher + Search (desktop) / Logo (mobile) */}
-        {isMobile ? (
-          <Text strong className="text-base">PubliSync</Text>
-        ) : (
-          <Space size="middle" split={<div className="h-6 w-px bg-gray-300 dark:bg-gray-600" />}>
-            <Select
-              value={currentOrgId || undefined}
-              onChange={switchWorkspace}
-              placeholder="워크스페이스 선택"
-              style={{ width: 200 }}
-              options={workspaceOptions}
-            />
-            <SearchBar />
-          </Space>
-        )}
-
-        {/* Right side */}
-        <Space size="middle">
-          <Button
-            type="text"
-            icon={theme === 'dark' ? <SunOutlined /> : <MoonOutlined />}
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            aria-label="테마 전환"
+        {/* ── Left: Workspace Switcher + Search ── */}
+        <div className="flex items-center gap-3">
+          <Select
+            value={currentOrgId || undefined}
+            onChange={switchWorkspace}
+            placeholder="워크스페이스 선택"
+            style={{ minWidth: isMobile ? 120 : 180 }}
+            options={workspaceOptions}
           />
-          <Badge count={unread?.count ?? 0} size="small">
+          {!isMobile && <SearchBar />}
+        </div>
+
+        {/* ── Right: Theme · Notifications · Profile ── */}
+        <div className="flex items-center gap-1">
+          {/* Theme toggle */}
+          <Tooltip title={theme === 'dark' ? '라이트 모드' : '다크 모드'}>
             <Button
               type="text"
-              icon={<BellOutlined />}
-              aria-label="알림"
-              onClick={() => setDrawerOpen(true)}
+              size="large"
+              icon={theme === 'dark' ? <SunOutlined style={{ fontSize: 18, color: '#faad14' }} /> : <MoonOutlined style={{ fontSize: 18, color: '#722ed1' }} />}
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              aria-label="테마 전환"
             />
-          </Badge>
-          <Dropdown menu={{ items: profileItems }} trigger={['click']}>
-            <Space className="cursor-pointer">
-              <Avatar size="small">{user?.name?.[0] || 'U'}</Avatar>
-              <Text className="hidden lg:inline">{user?.name}</Text>
-            </Space>
+          </Tooltip>
+
+          {/* Notification bell with badge */}
+          <Tooltip title="알림">
+            <Badge count={unreadCount} size="small" offset={[-4, 4]}>
+              <Button
+                type="text"
+                size="large"
+                icon={<BellOutlined style={{ fontSize: 18, color: '#1677ff' }} />}
+                aria-label={`알림 ${unreadCount > 0 ? `${unreadCount}건 미읽음` : ''}`}
+                onClick={() => setDrawerOpen(true)}
+              />
+            </Badge>
+          </Tooltip>
+
+          {/* Vertical divider */}
+          <Divider type="vertical" style={{ height: 24, margin: '0 4px' }} />
+
+          {/* Profile dropdown */}
+          <Dropdown menu={{ items: profileItems }} trigger={['click']} placement="bottomRight">
+            <div className="flex items-center gap-2 cursor-pointer rounded-md px-2 py-1 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800">
+              <Avatar
+                size={32}
+                style={{ backgroundColor: ROLE_COLORS[user?.role || ''] === 'blue' ? '#1677ff' : undefined }}
+              >
+                {user?.name?.[0] || 'U'}
+              </Avatar>
+              {!isMobile && (
+                <span className="flex flex-col leading-tight">
+                  <Text strong style={{ fontSize: 13, lineHeight: '18px' }}>{user?.name}</Text>
+                  <Text type="secondary" style={{ fontSize: 11, lineHeight: '14px' }}>
+                    {ROLE_LABELS[user?.role || ''] || ''}
+                  </Text>
+                </span>
+              )}
+            </div>
           </Dropdown>
-        </Space>
+        </div>
       </Header>
 
       <NotificationDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />

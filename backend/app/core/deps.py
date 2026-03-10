@@ -65,7 +65,10 @@ async def get_workspace_context(
     if not x_workspace_id:
         raise CrossTenantAccessError("X-Workspace-Id header is required")
 
-    org_id = UUID(x_workspace_id)
+    try:
+        org_id = UUID(x_workspace_id)
+    except ValueError:
+        raise CrossTenantAccessError("X-Workspace-Id must be a valid UUID") from None
 
     # SA can access any workspace
     if user.role != UserRole.SYSTEM_ADMIN:

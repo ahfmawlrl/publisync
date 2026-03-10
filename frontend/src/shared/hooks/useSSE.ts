@@ -92,7 +92,7 @@ export function useSSE(options: UseSSEOptions = {}) {
   }, []);
 
   useEffect(() => {
-    if (!enabled || !accessToken || !orgId) {
+    if (!enabled || !accessToken || !orgId || orgId === 'all') {
       closeConnection();
       clearPolling();
       setStatus('disconnected');

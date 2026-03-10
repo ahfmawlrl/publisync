@@ -53,7 +53,14 @@ export interface PlatformTrendItem {
   shares: number;
 }
 
-export function useDashboardSummary(period = '7d') {
+/**
+ * All workspace-dependent hooks accept an `enabled` flag.
+ * When the user selects "전체 기관" (all orgs aggregate view),
+ * the dashboard page passes `enabled=false` to prevent calling
+ * workspace-scoped endpoints without a valid org UUID.
+ */
+
+export function useDashboardSummary(period = '7d', enabled = true) {
   return useQuery({
     queryKey: ['dashboard', 'summary', period],
     queryFn: async () => {
@@ -62,11 +69,12 @@ export function useDashboardSummary(period = '7d') {
       });
       return res.data.data;
     },
-    refetchInterval: 300_000, // 5 min
+    enabled,
+    refetchInterval: enabled ? 300_000 : false,
   });
 }
 
-export function useRecentContents() {
+export function useRecentContents(enabled = true) {
   return useQuery({
     queryKey: ['dashboard', 'recent-contents'],
     queryFn: async () => {
@@ -75,33 +83,36 @@ export function useRecentContents() {
       });
       return res.data.data;
     },
-    refetchInterval: 300_000,
+    enabled,
+    refetchInterval: enabled ? 300_000 : false,
   });
 }
 
-export function useTodaySchedule() {
+export function useTodaySchedule(enabled = true) {
   return useQuery({
     queryKey: ['dashboard', 'today-schedule'],
     queryFn: async () => {
       const res = await apiClient.get<ApiResponse<TodayScheduleItem[]>>('/dashboard/today-schedule');
       return res.data.data;
     },
-    refetchInterval: 300_000,
+    enabled,
+    refetchInterval: enabled ? 300_000 : false,
   });
 }
 
-export function useApprovalStatus() {
+export function useApprovalStatus(enabled = true) {
   return useQuery({
     queryKey: ['dashboard', 'approval-status'],
     queryFn: async () => {
       const res = await apiClient.get<ApiResponse<ApprovalStatusItem[]>>('/dashboard/approval-status');
       return res.data.data;
     },
-    refetchInterval: 300_000,
+    enabled,
+    refetchInterval: enabled ? 300_000 : false,
   });
 }
 
-export function useSentimentSummary(period = '7d') {
+export function useSentimentSummary(period = '7d', enabled = true) {
   return useQuery({
     queryKey: ['dashboard', 'sentiment-summary', period],
     queryFn: async () => {
@@ -110,11 +121,12 @@ export function useSentimentSummary(period = '7d') {
       });
       return res.data.data;
     },
-    refetchInterval: 300_000,
+    enabled,
+    refetchInterval: enabled ? 300_000 : false,
   });
 }
 
-export function usePlatformTrends(period = '7d') {
+export function usePlatformTrends(period = '7d', enabled = true) {
   return useQuery({
     queryKey: ['dashboard', 'platform-trends', period],
     queryFn: async () => {
@@ -123,7 +135,8 @@ export function usePlatformTrends(period = '7d') {
       });
       return res.data.data;
     },
-    refetchInterval: 300_000,
+    enabled,
+    refetchInterval: enabled ? 300_000 : false,
   });
 }
 
@@ -145,6 +158,6 @@ export function useAllOrganizations(enabled = false) {
       return res.data.data;
     },
     enabled,
-    refetchInterval: 300_000,
+    refetchInterval: enabled ? 300_000 : false,
   });
 }

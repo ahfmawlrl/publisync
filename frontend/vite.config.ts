@@ -28,6 +28,12 @@ export default defineConfig({
         target: "http://localhost:8000",
         changeOrigin: true,
       },
+      // MinIO presigned URL uploads — browser puts files via /storage/...
+      "/storage": {
+        target: "http://localhost:9000",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/storage/, ""),
+      },
     },
   },
 });

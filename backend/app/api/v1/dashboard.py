@@ -46,20 +46,22 @@ async def get_badge_counts(
 # ── GET /dashboard/summary ───────────────────────────────
 @router.get("/summary", response_model=ApiResponse[DashboardSummaryResponse])
 async def get_summary(
+    period: str = Query("7d", pattern=r"^(7d|30d)$"),
     workspace: WorkspaceContext = Depends(get_workspace_context),
     service: DashboardService = Depends(_get_dashboard_service),
 ) -> dict:
-    summary = await service.get_summary(workspace.org_id)
+    summary = await service.get_summary(workspace.org_id, period=period)
     return {"success": True, "data": summary}
 
 
 # ── GET /dashboard/platform-trends ───────────────────────
 @router.get("/platform-trends", response_model=ApiResponse[list[PlatformTrendItem]])
 async def get_platform_trends(
+    period: str = Query("7d", pattern=r"^(7d|30d)$"),
     workspace: WorkspaceContext = Depends(get_workspace_context),
     service: DashboardService = Depends(_get_dashboard_service),
 ) -> dict:
-    trends = await service.get_platform_trends(workspace.org_id)
+    trends = await service.get_platform_trends(workspace.org_id, period=period)
     return {"success": True, "data": trends}
 
 
@@ -97,11 +99,12 @@ async def get_today_schedule(
 # ── GET /dashboard/sentiment-summary ─────────────────────
 @router.get("/sentiment-summary", response_model=ApiResponse[list[SentimentSummaryItem]])
 async def get_sentiment_summary(
+    period: str = Query("7d", pattern=r"^(7d|30d)$"),
     workspace: WorkspaceContext = Depends(get_workspace_context),
     service: DashboardService = Depends(_get_dashboard_service),
 ) -> dict:
     """Comment sentiment distribution for donut chart (Phase 1-B)."""
-    data = await service.get_sentiment_summary(workspace.org_id)
+    data = await service.get_sentiment_summary(workspace.org_id, period=period)
     return {"success": True, "data": data}
 
 
