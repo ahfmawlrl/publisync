@@ -27,7 +27,7 @@ class UserRepository:
         return await self._db.get(User, user_id)
 
     async def get_by_email(self, email: str) -> User | None:
-        stmt = select(User).where(User.email == email)
+        stmt = select(User).where(User.email == email, User.deleted_at.is_(None))
         result = await self._db.execute(stmt)
         return result.scalar_one_or_none()
 
@@ -36,9 +36,19 @@ class UserRepository:
         await self._db.flush()
         return user
 
-    async def increment_failed_login(self, user: User) -> None:
-        user.failed_login_count += 1
-        await self._db.flush()
+    async def increment_failed_login(self, user: User) -> int:
+        """Atomically increment failed_login_count and return the new value."""
+        stmt = (
+            update(User)
+            .where(User.id == user.id)
+            .values(failed_login_count=User.failed_login_count + 1)
+            .returning(User.failed_login_count)
+        )
+        result = await self._db.execute(stmt)
+        new_count = result.scalar_one()
+        # Sync ORM instance to avoid stale read
+        user.failed_login_count = new_count
+        return new_count
 
     async def reset_failed_login(self, user: User) -> None:
         user.failed_login_count = 0
@@ -51,6 +61,14 @@ class UserRepository:
         await self._db.flush()
 
     async def update_last_login(self, user: User) -> None:
+        user.last_login_at = datetime.now(UTC)
+        await self._db.flush()
+
+    async def record_successful_login(self, user: User) -> None:
+        """Reset failed login count and update last_login_at in a single flush."""
+        if user.failed_login_count > 0:
+            user.failed_login_count = 0
+            user.locked_until = None
         user.last_login_at = datetime.now(UTC)
         await self._db.flush()
 
@@ -108,6 +126,16 @@ class UserRepository:
         )
         await self._db.execute(stmt)
 
+    async def cleanup_expired_tokens(self, user_id: UUID) -> None:
+        """Delete revoked or expired refresh tokens for a user to prevent table bloat."""
+        from sqlalchemy import delete
+
+        stmt = delete(RefreshToken).where(
+            RefreshToken.user_id == user_id,
+            (RefreshToken.is_revoked.is_(True)) | (RefreshToken.expires_at <= datetime.now(UTC)),
+        )
+        await self._db.execute(stmt)
+
     # ── PasswordResetToken ──────────────────────────────
 
     async def create_password_reset_token(self, token: PasswordResetToken) -> None:
@@ -126,6 +154,18 @@ class UserRepository:
     async def mark_reset_token_used(self, token: PasswordResetToken) -> None:
         token.is_used = True
         await self._db.flush()
+
+    async def invalidate_previous_reset_tokens(self, user_id: UUID) -> None:
+        """Mark all unused reset tokens for a user as used before issuing a new one."""
+        stmt = (
+            update(PasswordResetToken)
+            .where(
+                PasswordResetToken.user_id == user_id,
+                PasswordResetToken.is_used.is_(False),
+            )
+            .values(is_used=True)
+        )
+        await self._db.execute(stmt)
 
     # ── Invitation ──────────────────────────────────────
 

@@ -7,6 +7,7 @@ interface User {
   name: string;
   role: string;
   status: string;
+  profileImageUrl: string | null;
 }
 
 interface AuthState {
@@ -15,6 +16,7 @@ interface AuthState {
   user: User | null;
   setAuth: (tokens: { accessToken: string; refreshToken: string }, user: User) => void;
   setAccessToken: (token: string) => void;
+  setRefreshToken: (token: string) => void;
   logout: () => void;
 }
 
@@ -31,6 +33,7 @@ export const useAuthStore = create<AuthState>()(
           user,
         }),
       setAccessToken: (token) => set({ accessToken: token }),
+      setRefreshToken: (token) => set({ refreshToken: token }),
       logout: () => set({ accessToken: null, refreshToken: null, user: null }),
     }),
     { name: 'publisync-auth' },

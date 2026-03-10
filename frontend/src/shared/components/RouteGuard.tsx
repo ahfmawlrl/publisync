@@ -1,5 +1,5 @@
 import { Result, Spin } from 'antd';
-import { Navigate, Outlet } from 'react-router';
+import { Navigate, Outlet, useLocation } from 'react-router';
 
 import { useAuthStore } from '@/shared/stores/useAuthStore';
 import { useWorkspace } from '@/shared/hooks/useWorkspace';
@@ -19,10 +19,11 @@ export default function RouteGuard({ requiredRoles }: RouteGuardProps) {
   const accessToken = useAuthStore((s) => s.accessToken);
   const user = useAuthStore((s) => s.user);
   const { currentOrgId, isLoading: wsLoading } = useWorkspace();
+  const location = useLocation();
 
-  // 1. Not authenticated → redirect to login
+  // 1. Not authenticated → redirect to login (preserve intended destination)
   if (!accessToken || !user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
   }
 
   // 2. Role check

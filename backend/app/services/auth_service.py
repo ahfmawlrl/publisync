@@ -62,8 +62,8 @@ class AuthService:
 
         # Verify password
         if not verify_password(password, user.password_hash):
-            await self._repo.increment_failed_login(user)
-            if user.failed_login_count >= MAX_FAILED_ATTEMPTS:
+            new_count = await self._repo.increment_failed_login(user)
+            if new_count >= MAX_FAILED_ATTEMPTS:
                 await self._repo.lock_account(
                     user,
                     datetime.now(UTC) + timedelta(minutes=LOCK_DURATION_MINUTES),
@@ -75,10 +75,11 @@ class AuthService:
         if user.status != UserStatus.ACTIVE:
             raise AuthenticationError("Account is not active")
 
-        # Reset failed count & update last login
-        if user.failed_login_count > 0:
-            await self._repo.reset_failed_login(user)
-        await self._repo.update_last_login(user)
+        # Reset failed count & update last login (single flush)
+        await self._repo.record_successful_login(user)
+
+        # Cleanup expired/revoked refresh tokens to prevent table bloat
+        await self._repo.cleanup_expired_tokens(user.id)
 
         # Generate tokens
         access = create_access_token(user.id, user.role.value)
@@ -113,7 +114,7 @@ class AuthService:
         if stored is None:
             raise AuthenticationError("Invalid or expired refresh token")
 
-        # Rotation: revoke old, issue new
+        # Rotation: revoke old, issue new pair
         await self._repo.revoke_refresh_token(stored)
 
         user = await self._repo.get_by_id(stored.user_id)
@@ -121,8 +122,18 @@ class AuthService:
             raise AuthenticationError("User not found or inactive")
 
         access = create_access_token(user.id, user.role.value)
+        raw_refresh, refresh_hash, refresh_exp = create_refresh_token(user.id)
+
+        await self._repo.create_refresh_token(
+            RefreshToken(
+                user_id=user.id,
+                token_hash=refresh_hash,
+                expires_at=refresh_exp,
+            )
+        )
+
         logger.info("token_refreshed", user_id=str(user.id))
-        return RefreshResponse(access_token=access)
+        return RefreshResponse(access_token=access, refresh_token=raw_refresh)
 
     # ── Logout ───────────────────────────────────────────
 
@@ -142,6 +153,9 @@ class AuthService:
         if user is None:
             # Silent — don't reveal whether the email exists
             return None
+
+        # Invalidate any previous unused reset tokens
+        await self._repo.invalidate_previous_reset_tokens(user.id)
 
         raw = generate_token()
         token_hash = hash_token(raw)

@@ -1,6 +1,6 @@
 import { LockOutlined, MailOutlined } from '@ant-design/icons';
 import { App, Button, Card, Checkbox, Form, Input, Typography } from 'antd';
-import { Link, useNavigate } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 
 import PubliSyncLogo from '@/shared/components/PubliSyncLogo';
 import { useLogin } from '../hooks/useLogin';
@@ -15,15 +15,19 @@ interface LoginFormData {
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { message } = App.useApp();
   const login = useLogin();
   const [form] = Form.useForm<LoginFormData>();
+
+  // Redirect to the page the user originally intended to visit
+  const from = (location.state as { from?: string })?.from || '/';
 
   const handleSubmit = async (values: LoginFormData) => {
     try {
       await login.mutateAsync(values);
       message.success('로그인 성공');
-      navigate('/');
+      navigate(from, { replace: true });
     } catch (err: unknown) {
       const error = err as {
         response?: { status?: number; data?: { error?: { message?: string } } };

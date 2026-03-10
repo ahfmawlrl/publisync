@@ -38,6 +38,7 @@ export function useInviteAccept() {
           name: data.user.name,
           role: data.user.role,
           status: data.user.status,
+          profileImageUrl: data.user.profile_image_url,
         },
       );
     },
