@@ -44,6 +44,7 @@ import WaveformViewer from '@/shared/components/WaveformViewer';
 import {
   useCreateFolder,
   useDeleteMedia,
+  useMediaAsset,
   useMediaFolders,
   useMediaList,
   useUpdateMedia,
@@ -102,6 +103,7 @@ function getMediaIcon(mediaType: MediaType) {
 }
 
 interface UploadingItem {
+  id: string;
   filename: string;
   progress: number;
   error?: string;
@@ -144,6 +146,9 @@ export default function MediaLibraryPage() {
   });
 
   const { data: folders } = useMediaFolders();
+  const { data: detailAsset } = useMediaAsset(
+    detailModalOpen && selectedAsset ? selectedAsset.id : null,
+  );
   const updateMutation = useUpdateMedia();
   const deleteMutation = useDeleteMedia();
   const createFolderMutation = useCreateFolder();
@@ -177,7 +182,8 @@ export default function MediaLibraryPage() {
   // Upload handler
   const uploadFile = useCallback(
     async (file: File) => {
-      const uploadingItem: UploadingItem = { filename: file.name, progress: 0 };
+      const uploadId = crypto.randomUUID();
+      const uploadingItem: UploadingItem = { id: uploadId, filename: file.name, progress: 0 };
       setUploadingFiles((prev) => [...prev, uploadingItem]);
 
       try {
@@ -203,7 +209,7 @@ export default function MediaLibraryPage() {
             if (e.lengthComputable) {
               const progress = Math.round((e.loaded / e.total) * 100);
               setUploadingFiles((prev) =>
-                prev.map((f) => (f.filename === file.name ? { ...f, progress } : f)),
+                prev.map((f) => (f.id === uploadId ? { ...f, progress } : f)),
               );
             }
           };
@@ -232,16 +238,16 @@ export default function MediaLibraryPage() {
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : '업로드 실패';
         setUploadingFiles((prev) =>
-          prev.map((f) => (f.filename === file.name ? { ...f, error: errorMsg } : f)),
+          prev.map((f) => (f.id === uploadId ? { ...f, error: errorMsg } : f)),
         );
         messageApi.error(`${file.name}: ${errorMsg}`);
       } finally {
         setTimeout(() => {
-          setUploadingFiles((prev) => prev.filter((f) => f.filename !== file.name));
+          setUploadingFiles((prev) => prev.filter((f) => f.id !== uploadId));
         }, 1500);
       }
     },
-    [messageApi, selectedFolderId],
+    [messageApi, selectedFolderId, queryClient],
   );
 
   const onDrop = useCallback(
@@ -251,8 +257,23 @@ export default function MediaLibraryPage() {
     [uploadFile],
   );
 
+  const onDropRejected = useCallback(
+    (fileRejections: { file: File; errors: { code: string; message: string }[] }[]) => {
+      fileRejections.forEach(({ file, errors }) => {
+        const reasons = errors.map((e) => {
+          if (e.code === 'file-too-large') return '100MB 초과';
+          if (e.code === 'file-invalid-type') return '지원하지 않는 형식';
+          return e.message;
+        });
+        messageApi.error(`${file.name}: ${reasons.join(', ')}`);
+      });
+    },
+    [messageApi],
+  );
+
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
+    onDropRejected,
     accept: ACCEPTED_TYPES,
     maxSize: MAX_SIZE,
   });
@@ -576,7 +597,7 @@ export default function MediaLibraryPage() {
           {uploadingFiles.length > 0 && (
             <div className="space-y-2">
               {uploadingFiles.map((item) => (
-                <div key={item.filename} className="flex items-center gap-2">
+                <div key={item.id} className="flex items-center gap-2">
                   <LoadingOutlined />
                   <Text className="flex-1 truncate text-xs">{item.filename}</Text>
                   {item.error ? (
@@ -698,20 +719,24 @@ export default function MediaLibraryPage() {
                 <br />
                 <Text>{selectedAsset.version}</Text>
               </div>
-              {selectedAsset.width && selectedAsset.height && (
-                <div>
-                  <Text type="secondary">해상도</Text>
-                  <br />
-                  <Text>
-                    {selectedAsset.width} x {selectedAsset.height}
-                  </Text>
-                </div>
-              )}
-              {selectedAsset.duration && (
+              {(detailAsset?.width ?? selectedAsset.width) &&
+                (detailAsset?.height ?? selectedAsset.height) && (
+                  <div>
+                    <Text type="secondary">해상도</Text>
+                    <br />
+                    <Text>
+                      {detailAsset?.width ?? selectedAsset.width} x{' '}
+                      {detailAsset?.height ?? selectedAsset.height}
+                    </Text>
+                  </div>
+                )}
+              {(detailAsset?.duration ?? selectedAsset.duration) && (
                 <div>
                   <Text type="secondary">재생 시간</Text>
                   <br />
-                  <Text>{selectedAsset.duration.toFixed(1)}초</Text>
+                  <Text>
+                    {(detailAsset?.duration ?? selectedAsset.duration)!.toFixed(1)}초
+                  </Text>
                 </div>
               )}
               <div>
@@ -734,6 +759,30 @@ export default function MediaLibraryPage() {
                     <Tag key={tag}>{tag}</Tag>
                   ))}
                 </Space>
+              </div>
+            )}
+            {/* Metadata from detail query */}
+            {detailAsset?.metadata && Object.keys(detailAsset.metadata).length > 0 && (
+              <div>
+                <Text type="secondary">메타데이터</Text>
+                <div className="mt-1 rounded bg-gray-50 p-2">
+                  {detailAsset.metadata.subtitles && (
+                    <div className="text-xs">
+                      <Text>
+                        자막: {(detailAsset.metadata.subtitles as { language?: string }).language || '알 수 없음'}{' '}
+                        ({(detailAsset.metadata.subtitles as { segments?: unknown[] }).segments?.length || 0}개 세그먼트)
+                      </Text>
+                    </div>
+                  )}
+                  {Object.entries(detailAsset.metadata)
+                    .filter(([key]) => key !== 'subtitles')
+                    .map(([key, value]) => (
+                      <div key={key} className="text-xs">
+                        <Text type="secondary">{key}:</Text>{' '}
+                        <Text>{typeof value === 'object' ? JSON.stringify(value) : String(value)}</Text>
+                      </div>
+                    ))}
+                </div>
               </div>
             )}
           </div>

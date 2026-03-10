@@ -297,6 +297,10 @@ class MediaService:
     async def create_folder(
         self, org_id: UUID, name: str, parent_id: UUID | None
     ) -> MediaFolder:
+        existing = await self._repo.get_folder_by_name(org_id, name, parent_id)
+        if existing:
+            raise ValidationError("같은 이름의 폴더가 이미 존재합니다")
+
         folder = await self._repo.create_folder(org_id, name, parent_id)
         logger.info("media_folder_created", folder_id=str(folder.id), name=name)
         return folder

@@ -32,6 +32,10 @@ def _get_client() -> Minio:
     )
 
 
+# Public alias used by media.py, reports.py download/thumbnail endpoints
+get_minio_client = _get_client
+
+
 def _rewrite_to_proxy_url(url: str) -> str:
     """Rewrite a MinIO presigned URL to use the /storage proxy path.
 

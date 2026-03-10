@@ -33,6 +33,7 @@ export interface MediaAssetListItem {
   duration: number | null;
   width: number | null;
   height: number | null;
+  thumbnail_url: string | null;
   tags: string[];
   folder_id: string | null;
   version: number;

@@ -10,6 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.media import MediaAsset, MediaFolder
 
 
+def _escape_like(value: str) -> str:
+    """Escape LIKE/ILIKE wildcard characters to prevent unintended pattern matching."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 class MediaRepository:
     def __init__(self, db: AsyncSession) -> None:
         self._db = db
@@ -42,8 +47,9 @@ class MediaRepository:
             base = base.where(MediaAsset.folder_id == folder_id)
             count_base = count_base.where(MediaAsset.folder_id == folder_id)
         if search:
-            base = base.where(MediaAsset.filename.ilike(f"%{search}%"))
-            count_base = count_base.where(MediaAsset.filename.ilike(f"%{search}%"))
+            escaped = _escape_like(search)
+            base = base.where(MediaAsset.filename.ilike(f"%{escaped}%"))
+            count_base = count_base.where(MediaAsset.filename.ilike(f"%{escaped}%"))
         if tags:
             base = base.where(MediaAsset.tags.overlap(tags))
             count_base = count_base.where(MediaAsset.tags.overlap(tags))
@@ -134,6 +140,21 @@ class MediaRepository:
         )
         result = await self._db.execute(stmt)
         return list(result.scalars().all())
+
+    async def get_folder_by_name(
+        self, org_id: UUID, name: str, parent_id: UUID | None
+    ) -> MediaFolder | None:
+        """Check if a folder with the same name exists under the same parent."""
+        stmt = select(MediaFolder).where(
+            MediaFolder.organization_id == org_id,
+            MediaFolder.name == name,
+        )
+        if parent_id is not None:
+            stmt = stmt.where(MediaFolder.parent_id == parent_id)
+        else:
+            stmt = stmt.where(MediaFolder.parent_id.is_(None))
+        result = await self._db.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def create_folder(self, org_id: UUID, name: str, parent_id: UUID | None) -> MediaFolder:
         folder = MediaFolder(

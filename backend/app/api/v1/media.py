@@ -2,8 +2,10 @@
 
 from uuid import UUID
 
+import structlog
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse, StreamingResponse
+from minio.error import S3Error
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db_session
@@ -28,6 +30,8 @@ from app.schemas.media import (
     SubtitleUpdateRequest,
 )
 from app.services.media_service import MediaService
+
+logger = structlog.get_logger()
 
 router = APIRouter()
 
@@ -74,6 +78,7 @@ def _to_asset_list_item(a: MediaAsset) -> MediaAssetListItem:
         height=a.height,
         tags=a.tags or [],
         folder_id=str(a.folder_id) if a.folder_id else None,
+        thumbnail_url=a.thumbnail_url,
         version=a.version,
         created_by=str(a.created_by),
         created_at=a.created_at.isoformat(),
@@ -101,7 +106,7 @@ async def list_media(
     search: str | None = Query(None),
     tags: list[str] | None = Query(None),
     workspace: WorkspaceContext = Depends(get_workspace_context),
-    _user: User = Depends(require_roles(UserRole.AGENCY_MANAGER, UserRole.AGENCY_OPERATOR)),
+    _user: User = Depends(require_roles(UserRole.AGENCY_MANAGER, UserRole.AGENCY_OPERATOR, UserRole.CLIENT_DIRECTOR)),
     service: MediaService = Depends(_get_service),
 ) -> dict:
     """List media assets with optional filtering."""
@@ -144,7 +149,7 @@ async def create_media_record(
 @router.get("/folders", response_model=ApiResponse[list[MediaFolderResponse]])
 async def list_folders(
     workspace: WorkspaceContext = Depends(get_workspace_context),
-    _user: User = Depends(require_roles(UserRole.AGENCY_MANAGER, UserRole.AGENCY_OPERATOR)),
+    _user: User = Depends(require_roles(UserRole.AGENCY_MANAGER, UserRole.AGENCY_OPERATOR, UserRole.CLIENT_DIRECTOR)),
     service: MediaService = Depends(_get_service),
 ) -> dict:
     """List all media folders for the organization."""
@@ -171,6 +176,7 @@ async def create_folder(
 async def get_presigned_upload_url(
     body: PresignedUploadRequest,
     workspace: WorkspaceContext = Depends(get_workspace_context),
+    _user: User = Depends(require_roles(UserRole.AGENCY_MANAGER, UserRole.AGENCY_OPERATOR)),
 ) -> dict:
     """Generate a presigned PUT URL for direct client-side upload to MinIO."""
     if body.content_type not in ALLOWED_CONTENT_TYPES:
@@ -199,7 +205,7 @@ async def get_presigned_upload_url(
 async def get_media_asset(
     asset_id: UUID,
     workspace: WorkspaceContext = Depends(get_workspace_context),
-    _user: User = Depends(require_roles(UserRole.AGENCY_MANAGER, UserRole.AGENCY_OPERATOR)),
+    _user: User = Depends(require_roles(UserRole.AGENCY_MANAGER, UserRole.AGENCY_OPERATOR, UserRole.CLIENT_DIRECTOR)),
     service: MediaService = Depends(_get_service),
 ) -> dict:
     """Get a single media asset by ID."""
@@ -257,7 +263,7 @@ async def delete_media_asset(
 async def download_media_asset(
     asset_id: UUID,
     workspace: WorkspaceContext = Depends(get_workspace_context),
-    _user: User = Depends(require_roles(UserRole.AGENCY_MANAGER, UserRole.AGENCY_OPERATOR)),
+    _user: User = Depends(require_roles(UserRole.AGENCY_MANAGER, UserRole.AGENCY_OPERATOR, UserRole.CLIENT_DIRECTOR)),
     service: MediaService = Depends(_get_service),
 ):
     """Stream the original media file from MinIO storage."""
@@ -276,7 +282,8 @@ async def download_media_asset(
                 "Content-Disposition": f'inline; filename="{asset.original_filename or asset.filename}"',
             },
         )
-    except Exception:
+    except S3Error as e:
+        logger.warning("minio_download_s3_error", asset_id=str(asset_id), error=str(e))
         return JSONResponse(
             status_code=404,
             content={
@@ -287,6 +294,18 @@ async def download_media_asset(
                 },
             },
         )
+    except Exception as e:
+        logger.error("minio_download_failed", asset_id=str(asset_id), error=str(e))
+        return JSONResponse(
+            status_code=502,
+            content={
+                "success": False,
+                "error": {
+                    "code": "STORAGE_ERROR",
+                    "message": "스토리지 서버에 연결할 수 없습니다.",
+                },
+            },
+        )
 
 
 # ── GET /media/{asset_id}/thumbnail ────────────────────
@@ -294,7 +313,7 @@ async def download_media_asset(
 async def get_media_thumbnail(
     asset_id: UUID,
     workspace: WorkspaceContext = Depends(get_workspace_context),
-    _user: User = Depends(require_roles(UserRole.AGENCY_MANAGER, UserRole.AGENCY_OPERATOR)),
+    _user: User = Depends(require_roles(UserRole.AGENCY_MANAGER, UserRole.AGENCY_OPERATOR, UserRole.CLIENT_DIRECTOR)),
     service: MediaService = Depends(_get_service),
 ):
     """Stream the thumbnail image for a media asset. Falls back to original for images."""
@@ -325,7 +344,8 @@ async def get_media_thumbnail(
             response.stream(32 * 1024),
             media_type="image/jpeg",
         )
-    except Exception:
+    except S3Error as e:
+        logger.warning("minio_thumbnail_s3_error", asset_id=str(asset_id), error=str(e))
         return JSONResponse(
             status_code=404,
             content={
@@ -333,6 +353,18 @@ async def get_media_thumbnail(
                 "error": {
                     "code": "THUMBNAIL_NOT_FOUND",
                     "message": "썸네일을 불러올 수 없습니다.",
+                },
+            },
+        )
+    except Exception as e:
+        logger.error("minio_thumbnail_failed", asset_id=str(asset_id), error=str(e))
+        return JSONResponse(
+            status_code=502,
+            content={
+                "success": False,
+                "error": {
+                    "code": "STORAGE_ERROR",
+                    "message": "스토리지 서버에 연결할 수 없습니다.",
                 },
             },
         )
