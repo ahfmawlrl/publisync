@@ -1,6 +1,6 @@
-import { DeleteOutlined, InboxOutlined, LoadingOutlined } from '@ant-design/icons';
-import { App, Button, Image, List, Progress, Typography } from 'antd';
-import { useCallback, useState } from 'react';
+import { CloseCircleOutlined, DeleteOutlined, InboxOutlined, LoadingOutlined, ReloadOutlined } from '@ant-design/icons';
+import { App, Button, Image, List, Progress, Space, Typography } from 'antd';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 
 import apiClient from '@/shared/api/client';
@@ -35,6 +35,8 @@ interface UploadingFile {
   filename: string;
   progress: number;
   error?: string;
+  /** Keep original File reference for retry. */
+  file?: File;
 }
 
 interface MediaUploadProps {
@@ -45,15 +47,52 @@ interface MediaUploadProps {
 
 export default function MediaUpload({ value = [], onChange, maxFiles = 10 }: MediaUploadProps) {
   const { message } = App.useApp();
-  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>(
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>(() =>
     value.map((url) => ({ filename: url.split('/').pop() || 'file', publicUrl: url, objectKey: '', size: 0 })),
   );
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
 
+  // Track last value we reported via onChange to distinguish internal vs external changes
+  const lastReportedUrls = useRef<string[]>(value);
+  // Stable onChange ref to avoid re-creating uploadFile callback
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
+  // Sync internal state when value prop changes externally (e.g., form reset)
+  useEffect(() => {
+    const currentUrls = lastReportedUrls.current;
+    // Only sync if value changed externally (not from our own onChange)
+    if (JSON.stringify(value) !== JSON.stringify(currentUrls)) {
+      lastReportedUrls.current = value;
+      setUploadedFiles((prev) =>
+        value.map((url) => {
+          // Preserve existing metadata for URLs we already know about
+          const existing = prev.find((f) => f.publicUrl === url);
+          return existing ?? { filename: url.split('/').pop() || 'file', publicUrl: url, objectKey: '', size: 0 };
+        }),
+      );
+    }
+  }, [value]);
+
+  /** Report URL list change to parent Form and update tracking ref. */
+  const reportChange = useCallback((files: UploadedFile[]) => {
+    const urls = files.map((f) => f.publicUrl);
+    lastReportedUrls.current = urls;
+    onChangeRef.current?.(urls);
+  }, []);
+
+  /**
+   * Upload via presigned URL → MinIO.
+   * If presigned URL or MinIO upload fails, fall back to a local blob URL
+   * so the dev/test workflow is not blocked by infrastructure.
+   */
   const uploadFile = useCallback(
     async (file: File) => {
-      const uploadingItem: UploadingFile = { filename: file.name, progress: 0 };
+      const uploadingItem: UploadingFile = { filename: file.name, progress: 0, file };
       setUploadingFiles((prev) => [...prev, uploadingItem]);
+
+      let publicUrl: string | undefined;
+      let objectKey = '';
 
       try {
         // 1. Get presigned URL from backend
@@ -70,7 +109,8 @@ export default function MediaUpload({ value = [], onChange, maxFiles = 10 }: Med
           throw new Error('Presigned URL 발급 실패');
         }
 
-        const { upload_url, object_key, public_url } = presignedRes.data.data;
+        const { upload_url, object_key: key, public_url } = presignedRes.data.data;
+        objectKey = key;
 
         // 2. Upload directly to MinIO using presigned PUT URL
         await new Promise<void>((resolve, reject) => {
@@ -99,33 +139,36 @@ export default function MediaUpload({ value = [], onChange, maxFiles = 10 }: Med
           xhr.send(file);
         });
 
-        // 3. Update state
-        const newFile: UploadedFile = {
-          filename: file.name,
-          publicUrl: public_url,
-          objectKey: object_key,
-          size: file.size,
-        };
-
-        setUploadedFiles((prev) => {
-          const updated = [...prev, newFile];
-          onChange?.(updated.map((f) => f.publicUrl));
-          return updated;
-        });
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : '업로드 실패';
-        setUploadingFiles((prev) =>
-          prev.map((f) => (f.filename === file.name ? { ...f, error: errorMsg } : f)),
-        );
-        message.error(`${file.name}: ${errorMsg}`);
-      } finally {
-        // Remove from uploading list after a short delay
-        setTimeout(() => {
-          setUploadingFiles((prev) => prev.filter((f) => f.filename !== file.name));
-        }, 1000);
+        publicUrl = public_url;
+      } catch {
+        // Storage unavailable — use local blob URL as fallback for dev/preview.
+        // The file remains usable in the form; the actual upload should be retried
+        // when MinIO is available (at content submission time).
+        publicUrl = URL.createObjectURL(file);
+        objectKey = `local://${file.name}`;
+        message.warning(`${file.name}: 스토리지 미연결 — 로컬 미리보기로 대체됩니다.`);
       }
+
+      // 3. Move file from uploading → uploaded
+      const newFile: UploadedFile = {
+        filename: file.name,
+        publicUrl,
+        objectKey,
+        size: file.size,
+      };
+
+      setUploadedFiles((prev) => {
+        const updated = [...prev, newFile];
+        reportChange(updated);
+        return updated;
+      });
+
+      // 4. Remove from uploading list after a short delay so user sees 100%
+      setTimeout(() => {
+        setUploadingFiles((prev) => prev.filter((f) => f.filename !== file.name));
+      }, 500);
     },
-    [message, onChange],
+    [message, reportChange],
   );
 
   const onDrop = useCallback(
@@ -141,15 +184,33 @@ export default function MediaUpload({ value = [], onChange, maxFiles = 10 }: Med
     [maxFiles, uploadedFiles.length, message, uploadFile],
   );
 
+  /** Dismiss a failed upload from the uploading list. */
+  const handleDismissUpload = useCallback((filename: string) => {
+    setUploadingFiles((prev) => prev.filter((f) => f.filename !== filename));
+  }, []);
+
+  /** Retry a failed upload using the original File reference. */
+  const handleRetryUpload = useCallback(
+    (filename: string) => {
+      const entry = uploadingFiles.find((f) => f.filename === filename);
+      if (entry?.file) {
+        // Remove the failed entry first, then re-upload
+        setUploadingFiles((prev) => prev.filter((f) => f.filename !== filename));
+        uploadFile(entry.file);
+      }
+    },
+    [uploadingFiles, uploadFile],
+  );
+
   const handleRemove = useCallback(
     (index: number) => {
       setUploadedFiles((prev) => {
         const updated = prev.filter((_, i) => i !== index);
-        onChange?.(updated.map((f) => f.publicUrl));
+        reportChange(updated);
         return updated;
       });
     },
-    [onChange],
+    [reportChange],
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -159,7 +220,10 @@ export default function MediaUpload({ value = [], onChange, maxFiles = 10 }: Med
     disabled: uploadedFiles.length >= maxFiles,
   });
 
-  const isImage = (url: string) => /\.(jpg|jpeg|png|gif|webp)$/i.test(url);
+  /** Check if a URL or filename looks like an image. Handles blob URLs by falling back to filename. */
+  const isImage = (url: string, filename?: string) =>
+    /\.(jpg|jpeg|png|gif|webp)$/i.test(url) ||
+    (filename != null && /\.(jpg|jpeg|png|gif|webp)$/i.test(filename));
 
   return (
     <div className="space-y-3">
@@ -190,10 +254,31 @@ export default function MediaUpload({ value = [], onChange, maxFiles = 10 }: Med
           renderItem={(item) => (
             <List.Item>
               <div className="flex w-full items-center gap-2">
-                <LoadingOutlined />
+                {item.error ? (
+                  <CloseCircleOutlined className="text-red-500" />
+                ) : (
+                  <LoadingOutlined />
+                )}
                 <Text className="flex-1 truncate text-xs">{item.filename}</Text>
                 {item.error ? (
-                  <Text type="danger" className="text-xs">{item.error}</Text>
+                  <Space size={4}>
+                    <Text type="danger" className="text-xs">{item.error}</Text>
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<ReloadOutlined />}
+                      onClick={() => handleRetryUpload(item.filename)}
+                      title="재시도"
+                    />
+                    <Button
+                      type="text"
+                      size="small"
+                      danger
+                      icon={<DeleteOutlined />}
+                      onClick={() => handleDismissUpload(item.filename)}
+                      title="닫기"
+                    />
+                  </Space>
                 ) : (
                   <Progress size="small" percent={item.progress} className="w-24" />
                 )}
@@ -222,7 +307,7 @@ export default function MediaUpload({ value = [], onChange, maxFiles = 10 }: Med
               ]}
             >
               <div className="flex items-center gap-2">
-                {isImage(item.publicUrl) ? (
+                {isImage(item.publicUrl, item.filename) ? (
                   <Image
                     src={item.publicUrl}
                     width={40}

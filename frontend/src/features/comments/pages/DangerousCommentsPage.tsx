@@ -21,8 +21,8 @@ import { useState } from 'react';
 import { useGenerateReply } from '@/features/ai/hooks/useAi';
 import { getPlatformConfig } from '@/shared/constants/platform';
 import {
-  useApproveDelete,
   useDangerousComments,
+  useDeleteRequest,
   useHideComment,
   useIgnoreDangerous,
   useReplyComment,
@@ -54,7 +54,7 @@ export default function DangerousCommentsPage() {
   const { data, isLoading } = useDangerousComments({ page, status: statusMap[activeTab] });
 
   const ignoreMutation = useIgnoreDangerous();
-  const approveDeleteMutation = useApproveDelete();
+  const deleteRequestMutation = useDeleteRequest();
   const hideMutation = useHideComment();
   const replyMutation = useReplyComment();
   const aiReplyMutation = useGenerateReply();
@@ -145,17 +145,20 @@ export default function DangerousCommentsPage() {
             <Button size="small" icon={<EyeInvisibleOutlined />}>숨김 처리</Button>
           </Popconfirm>
           <Popconfirm
-            title="이 댓글의 삭제를 승인하시겠습니까?"
+            title="이 댓글의 삭제를 요청하시겠습니까?"
             onConfirm={() => {
-              approveDeleteMutation.mutate(comment.id, {
-                onSuccess: () => message.success('삭제 요청이 등록되었습니다'),
-                onError: () => message.error('삭제 요청에 실패했습니다'),
-              });
+              deleteRequestMutation.mutate(
+                { id: comment.id },
+                {
+                  onSuccess: () => message.success('삭제 요청이 등록되었습니다'),
+                  onError: () => message.error('삭제 요청에 실패했습니다'),
+                },
+              );
             }}
             okText="요청"
             cancelText="취소"
           >
-            <Button size="small" danger icon={<DeleteOutlined />}>삭제 승인 요청</Button>
+            <Button size="small" danger icon={<DeleteOutlined />}>삭제 요청</Button>
           </Popconfirm>
           <Popconfirm
             title="이 댓글의 위험 표시를 해제하시겠습니까?"

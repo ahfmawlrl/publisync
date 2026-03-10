@@ -86,11 +86,12 @@ async def list_contents(
     status: str | None = Query(None),
     platform: str | None = Query(None),
     search: str | None = Query(None),
+    period: str | None = Query(None, pattern=r"^(7d|30d|90d)$"),
     workspace: WorkspaceContext = Depends(get_workspace_context),
     service: ContentService = Depends(_get_service),
 ) -> dict:
     contents, total = await service.list_contents(
-        workspace.org_id, page=page, limit=limit, status=status, platform=platform, search=search
+        workspace.org_id, page=page, limit=limit, status=status, platform=platform, search=search, period=period
     )
     return {
         "success": True,

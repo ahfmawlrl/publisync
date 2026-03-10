@@ -1,10 +1,10 @@
 """Dashboard business logic — S7."""
 
-from datetime import UTC, datetime, time
+from datetime import UTC, datetime, time, timedelta
 from uuid import UUID
 
 import structlog
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.approval import ApprovalRequest
@@ -15,6 +15,7 @@ from app.models.enums import (
     ApprovalStatus,
     ChannelStatus,
     ContentStatus,
+    OrgStatus,
     PublishResultStatus,
 )
 from app.models.user import Organization
@@ -31,16 +32,28 @@ from app.schemas.dashboard import (
 logger = structlog.get_logger()
 
 
+def _period_start(period: str) -> datetime | None:
+    """Convert period string ('7d', '30d') to a start datetime."""
+    days = {"7d": 7, "30d": 30}.get(period)
+    if days is None:
+        return None
+    return datetime.now(UTC) - timedelta(days=days)
+
+
 class DashboardService:
     def __init__(self, db: AsyncSession) -> None:
         self._db = db
 
-    async def get_summary(self, org_id: UUID) -> DashboardSummaryResponse:
+    async def get_summary(self, org_id: UUID, period: str = "7d") -> DashboardSummaryResponse:
         """Dashboard KPI summary with basic counts."""
-        # Total contents
+        period_start = _period_start(period)
+
+        # Total contents (within period if applicable)
         total_q = select(func.count()).select_from(Content).where(
             Content.organization_id == org_id, Content.deleted_at.is_(None)
         )
+        if period_start:
+            total_q = total_q.where(Content.created_at >= period_start)
         total = (await self._db.execute(total_q)).scalar() or 0
 
         # Published
@@ -49,6 +62,8 @@ class DashboardService:
             Content.status == ContentStatus.PUBLISHED,
             Content.deleted_at.is_(None),
         )
+        if period_start:
+            pub_q = pub_q.where(Content.created_at >= period_start)
         published = (await self._db.execute(pub_q)).scalar() or 0
 
         # Scheduled
@@ -78,6 +93,8 @@ class DashboardService:
             func.coalesce(func.sum(PublishResult.views), 0),
             func.coalesce(func.sum(PublishResult.likes), 0),
         ).where(PublishResult.organization_id == org_id)
+        if period_start:
+            stats_q = stats_q.where(PublishResult.created_at >= period_start)
         stats = (await self._db.execute(stats_q)).one()
 
         return DashboardSummaryResponse(
@@ -90,7 +107,7 @@ class DashboardService:
             total_likes=stats[1],
         )
 
-    async def get_platform_trends(self, org_id: UUID) -> list[PlatformTrendItem]:
+    async def get_platform_trends(self, org_id: UUID, period: str = "7d") -> list[PlatformTrendItem]:
         """Aggregate publish results by platform."""
         stmt = (
             select(
@@ -107,6 +124,10 @@ class DashboardService:
             )
             .group_by(Channel.platform)
         )
+        period_start = _period_start(period)
+        if period_start:
+            stmt = stmt.where(PublishResult.created_at >= period_start)
+
         result = await self._db.execute(stmt)
         return [
             PlatformTrendItem(
@@ -185,7 +206,7 @@ class DashboardService:
             for c in result.scalars().all()
         ]
 
-    async def get_sentiment_summary(self, org_id: UUID) -> list[SentimentSummaryItem]:
+    async def get_sentiment_summary(self, org_id: UUID, period: str = "7d") -> list[SentimentSummaryItem]:
         """Count comments by sentiment for donut chart."""
         stmt = (
             select(Comment.sentiment, func.count())
@@ -195,6 +216,10 @@ class DashboardService:
             )
             .group_by(Comment.sentiment)
         )
+        period_start = _period_start(period)
+        if period_start:
+            stmt = stmt.where(Comment.created_at >= period_start)
+
         result = await self._db.execute(stmt)
         rows = result.all()
         total = sum(r[1] for r in rows) or 1  # avoid division by zero
@@ -209,45 +234,71 @@ class DashboardService:
         ]
 
     async def get_all_organizations_summary(self) -> list[OrgSummaryItem]:
-        """AM-only: get summary for all organizations."""
-        stmt = select(Organization).where(Organization.status == "ACTIVE")
-        result = await self._db.execute(stmt)
-        orgs = result.scalars().all()
+        """AM-only: get summary for all organizations using aggregated queries."""
+        # Set RLS bypass — this endpoint is restricted to AM/SA via require_roles.
+        # Both variables must be set: tenant_isolation policy calls
+        # current_setting('app.current_org_id') without missing_ok, which would
+        # throw if unset. A nil UUID ensures no error while sa_bypass grants access.
+        await self._db.execute(text("SET LOCAL app.current_org_id = '00000000-0000-0000-0000-000000000000'"))
+        await self._db.execute(text("SET LOCAL app.user_role = 'SYSTEM_ADMIN'"))
 
-        summaries = []
-        for org in orgs:
-            content_q = select(func.count()).select_from(Content).where(
-                Content.organization_id == org.id, Content.deleted_at.is_(None)
+        # Fetch all active orgs
+        org_stmt = select(Organization.id, Organization.name, Organization.slug).where(
+            Organization.status == OrgStatus.ACTIVE,
+        )
+        org_result = await self._db.execute(org_stmt)
+        orgs = org_result.all()
+
+        if not orgs:
+            return []
+
+        org_ids = [o.id for o in orgs]
+
+        # Aggregate content counts in one query
+        content_stmt = (
+            select(
+                Content.organization_id,
+                func.count().label("total"),
+                func.count().filter(Content.status == ContentStatus.PUBLISHED).label("published"),
             )
-            total = (await self._db.execute(content_q)).scalar() or 0
+            .where(Content.organization_id.in_(org_ids), Content.deleted_at.is_(None))
+            .group_by(Content.organization_id)
+        )
+        content_result = await self._db.execute(content_stmt)
+        content_map: dict[UUID, tuple[int, int]] = {}
+        for row in content_result.all():
+            content_map[row[0]] = (row[1], row[2])
 
-            pub_q = select(func.count()).select_from(Content).where(
-                Content.organization_id == org.id,
-                Content.status == ContentStatus.PUBLISHED,
-                Content.deleted_at.is_(None),
-            )
-            published = (await self._db.execute(pub_q)).scalar() or 0
+        # Aggregate channel counts in one query
+        channel_stmt = (
+            select(Channel.organization_id, func.count())
+            .where(Channel.organization_id.in_(org_ids), Channel.status == ChannelStatus.ACTIVE)
+            .group_by(Channel.organization_id)
+        )
+        channel_result = await self._db.execute(channel_stmt)
+        channel_map: dict[UUID, int] = {row[0]: row[1] for row in channel_result.all()}
 
-            chan_q = select(func.count()).select_from(Channel).where(
-                Channel.organization_id == org.id,
-                Channel.status == ChannelStatus.ACTIVE,
-            )
-            channels = (await self._db.execute(chan_q)).scalar() or 0
-
-            pend_q = select(func.count()).select_from(ApprovalRequest).where(
-                ApprovalRequest.organization_id == org.id,
+        # Aggregate pending approval counts in one query
+        approval_stmt = (
+            select(ApprovalRequest.organization_id, func.count())
+            .where(
+                ApprovalRequest.organization_id.in_(org_ids),
                 ApprovalRequest.status.in_([ApprovalStatus.PENDING_REVIEW, ApprovalStatus.IN_REVIEW]),
             )
-            pending = (await self._db.execute(pend_q)).scalar() or 0
+            .group_by(ApprovalRequest.organization_id)
+        )
+        approval_result = await self._db.execute(approval_stmt)
+        approval_map: dict[UUID, int] = {row[0]: row[1] for row in approval_result.all()}
 
-            summaries.append(OrgSummaryItem(
+        return [
+            OrgSummaryItem(
                 id=str(org.id),
                 name=org.name,
                 slug=org.slug,
-                total_contents=total,
-                published_contents=published,
-                active_channels=channels,
-                pending_approvals=pending,
-            ))
-
-        return summaries
+                total_contents=content_map.get(org.id, (0, 0))[0],
+                published_contents=content_map.get(org.id, (0, 0))[1],
+                active_channels=channel_map.get(org.id, 0),
+                pending_approvals=approval_map.get(org.id, 0),
+            )
+            for org in orgs
+        ]

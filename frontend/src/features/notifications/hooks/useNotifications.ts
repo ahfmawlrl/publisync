@@ -15,7 +15,7 @@ export function useNotifications(params: {
   page?: number;
   limit?: number;
   type?: string;
-}) {
+}, enabled = true) {
   return useQuery({
     queryKey: ['notifications', params],
     queryFn: async () => {
@@ -24,17 +24,19 @@ export function useNotifications(params: {
       });
       return res.data;
     },
+    enabled,
   });
 }
 
-export function useUnreadCount() {
+export function useUnreadCount(enabled = true) {
   return useQuery({
     queryKey: ['notifications', 'unread-count'],
     queryFn: async () => {
       const res = await apiClient.get<ApiResponse<UnreadCountData>>('/notifications/unread-count');
       return res.data.data;
     },
-    refetchInterval: 30_000,
+    refetchInterval: enabled ? 30_000 : false,
+    enabled,
   });
 }
 

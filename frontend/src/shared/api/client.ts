@@ -16,9 +16,9 @@ apiClient.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-  // Workspace injection
+  // Workspace injection — skip sentinel value 'all' (aggregate view)
   const orgId = useWorkspaceStore.getState().currentOrgId;
-  if (orgId) {
+  if (orgId && orgId !== 'all') {
     config.headers['X-Workspace-Id'] = orgId;
   }
   return config;

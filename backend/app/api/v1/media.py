@@ -188,11 +188,24 @@ async def get_presigned_upload_url(
             },
         }
 
-    result = generate_presigned_upload_url(
-        org_id=str(workspace.org_id),
-        filename=body.filename,
-        content_type=body.content_type,
-    )
+    try:
+        result = generate_presigned_upload_url(
+            org_id=str(workspace.org_id),
+            filename=body.filename,
+            content_type=body.content_type,
+        )
+    except Exception as exc:
+        # MinIO 연결 실패 등 — 30초 대기 대신 즉시 에러 반환
+        return JSONResponse(
+            status_code=502,
+            content={
+                "success": False,
+                "error": {
+                    "code": "STORAGE_UNAVAILABLE",
+                    "message": f"파일 스토리지에 연결할 수 없습니다: {exc}",
+                },
+            },
+        )
 
     return {
         "success": True,

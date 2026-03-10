@@ -93,7 +93,7 @@ const ROLE_MENUS: Record<string, Role[]> = {
 // ── Phase-based menu visibility ──
 // Change this constant to unlock menus for later phases.
 type Phase = '1-A' | '1-B' | '2' | '3' | '4';
-const CURRENT_PHASE: Phase = '1-A';
+const CURRENT_PHASE: Phase = '4';
 
 /** Ordered list of phases — each phase includes all prior phases */
 const PHASE_ORDER: Phase[] = ['1-A', '1-B', '2', '3', '4'];
@@ -171,14 +171,15 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const hasValidWorkspace = !!currentOrgId && currentOrgId !== 'all';
   const { data: badges } = useQuery({
     queryKey: ['badge-counts', currentOrgId],
     queryFn: async () => {
       const res = await apiClient.get<ApiResponse<BadgeCounts>>('/dashboard/badge-counts');
       return res.data.data;
     },
-    enabled: !!currentOrgId,
-    refetchInterval: 60_000,
+    enabled: hasValidWorkspace,
+    refetchInterval: hasValidWorkspace ? 60_000 : false,
   });
 
   const isCollapsed = isMobile ? false : collapsed;
@@ -338,7 +339,13 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
       aria-label="메인 네비게이션"
       style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
     >
-      <div className="flex h-16 items-center justify-center">
+      <div
+        className="flex h-16 items-center justify-center cursor-pointer"
+        onClick={() => navigate('/')}
+        role="link"
+        tabIndex={0}
+        onKeyDown={(e) => e.key === 'Enter' && navigate('/')}
+      >
         <PubliSyncLogo collapsed={isCollapsed} size="md" />
       </div>
       <div style={{ flex: 1, overflow: 'auto' }}>

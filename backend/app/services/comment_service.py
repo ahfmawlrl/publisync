@@ -89,6 +89,7 @@ class CommentService:
         platform: str | None = None,
         channel_id: UUID | None = None,
         search: str | None = None,
+        sentiment: str | None = None,
     ) -> tuple[list[Comment], int]:
         offset = (page - 1) * limit
         return await self._repo.list_comments(
@@ -99,6 +100,7 @@ class CommentService:
             platform=platform,
             channel_id=channel_id,
             search=search,
+            sentiment=sentiment,
         )
 
     async def get_comment(self, comment_id: UUID, org_id: UUID) -> Comment:
@@ -112,9 +114,12 @@ class CommentService:
         org_id: UUID,
         page: int = 1,
         limit: int = 20,
+        status: str | None = None,
     ) -> tuple[list[Comment], int]:
         offset = (page - 1) * limit
-        return await self._repo.get_dangerous_comments(org_id, offset=offset, limit=limit)
+        return await self._repo.get_dangerous_comments(
+            org_id, offset=offset, limit=limit, status=status
+        )
 
     # ── Platform adapter helper ────────────────────────
 

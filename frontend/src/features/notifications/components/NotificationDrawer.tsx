@@ -10,6 +10,8 @@ import {
 import { Badge, Button, Drawer, Empty, List, Space, Spin, Tabs, Tag, Typography } from 'antd';
 import { useNavigate } from 'react-router';
 
+import { useWorkspaceStore } from '@/shared/stores/useWorkspaceStore';
+
 import { useMarkAllRead, useMarkRead, useNotifications, useUnreadCount } from '../hooks/useNotifications';
 import type { NotificationRecord, NotificationType } from '../types';
 
@@ -77,11 +79,13 @@ function groupByDate(items: NotificationRecord[]): { label: string; items: Notif
 
 export default function NotificationDrawer({ open, onClose }: NotificationDrawerProps) {
   const navigate = useNavigate();
-  const { data: unread } = useUnreadCount();
+  const currentOrgId = useWorkspaceStore((s) => s.currentOrgId);
+  const hasValidWorkspace = !!currentOrgId && currentOrgId !== 'all';
+  const { data: unread } = useUnreadCount(hasValidWorkspace);
   const markReadMutation = useMarkRead();
   const markAllReadMutation = useMarkAllRead();
 
-  const { data: allData, isLoading: allLoading } = useNotifications({ page: 1, limit: 50 });
+  const { data: allData, isLoading: allLoading } = useNotifications({ page: 1, limit: 50 }, hasValidWorkspace);
   const allItems = allData?.data || [];
   const unreadItems = allItems.filter((n) => !n.is_read);
 

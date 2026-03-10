@@ -9,6 +9,7 @@ from app.core.database import get_db_session
 from app.core.deps import WorkspaceContext, get_workspace_context, require_roles
 from app.models.comment import Comment
 from app.models.enums import UserRole
+from app.models.user import User
 from app.repositories.channel_repository import ChannelRepository
 from app.repositories.comment_repository import CommentRepository
 from app.schemas.comment import (
@@ -95,6 +96,10 @@ async def list_comments(
     platform: str | None = Query(None),
     channel_id: str | None = Query(None),
     search: str | None = Query(None),
+    sentiment: str | None = Query(None, description="감성 필터 (POSITIVE/NEUTRAL/NEGATIVE/DANGEROUS)"),
+    _user: User = Depends(
+        require_roles(UserRole.AGENCY_MANAGER, UserRole.AGENCY_OPERATOR, UserRole.CLIENT_DIRECTOR)
+    ),
     workspace: WorkspaceContext = Depends(get_workspace_context),
     service: CommentService = Depends(_get_service),
 ) -> dict:
@@ -107,6 +112,7 @@ async def list_comments(
         platform=platform,
         channel_id=channel_uuid,
         search=search,
+        sentiment=sentiment,
     )
     return {
         "success": True,
@@ -122,11 +128,15 @@ async def list_comments(
 async def list_dangerous_comments(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
+    status: str | None = Query(None, description="처리 상태 필터 (UNPROCESSED/PUBLISHED/HIDDEN)"),
+    _user: User = Depends(
+        require_roles(UserRole.AGENCY_MANAGER, UserRole.AGENCY_OPERATOR, UserRole.CLIENT_DIRECTOR)
+    ),
     workspace: WorkspaceContext = Depends(get_workspace_context),
     service: CommentService = Depends(_get_service),
 ) -> dict:
     comments, total = await service.get_dangerous_comments(
-        workspace.org_id, page=page, limit=limit
+        workspace.org_id, page=page, limit=limit, status=status
     )
     return {
         "success": True,
@@ -141,6 +151,9 @@ async def list_dangerous_comments(
 @router.get("/{comment_id}", response_model=ApiResponse[CommentResponse])
 async def get_comment(
     comment_id: UUID,
+    _user: User = Depends(
+        require_roles(UserRole.AGENCY_MANAGER, UserRole.AGENCY_OPERATOR, UserRole.CLIENT_DIRECTOR)
+    ),
     workspace: WorkspaceContext = Depends(get_workspace_context),
     service: CommentService = Depends(_get_service),
 ) -> dict:
@@ -188,7 +201,7 @@ async def hide_comment(
 @router.post(
     "/{comment_id}/delete-request",
     response_model=ApiResponse[CommentResponse],
-    dependencies=[Depends(require_roles(UserRole.AGENCY_OPERATOR))],
+    dependencies=[Depends(require_roles(UserRole.AGENCY_MANAGER, UserRole.AGENCY_OPERATOR, UserRole.CLIENT_DIRECTOR))],
 )
 async def request_delete(
     comment_id: UUID,

@@ -7,6 +7,7 @@ import type { MetricKey } from '@/shared/components/charts';
 import { APPROVAL_STATUS_CONFIG, getStatusConfig } from '@/shared/constants/contentStatus';
 import { getPlatformConfig } from '@/shared/constants/platform';
 import { useAuthStore } from '@/shared/stores/useAuthStore';
+import { useWorkspaceStore } from '@/shared/stores/useWorkspaceStore';
 
 import {
   useAllOrganizations,
@@ -26,16 +27,70 @@ type MetricFilter = 'all' | MetricKey;
 export default function DashboardPage() {
   const navigate = useNavigate();
   const userRole = useAuthStore((s) => s.user?.role);
+  const currentOrgId = useWorkspaceStore((s) => s.currentOrgId);
   const [selectedMetric, setSelectedMetric] = useState<MetricFilter>('all');
   const [period, setPeriod] = useState('7d');
-  const { data: summary, isLoading } = useDashboardSummary(period);
-  const { data: recentContents } = useRecentContents();
-  const { data: todaySchedule } = useTodaySchedule();
-  const { data: approvalStatus } = useApprovalStatus();
-  const { data: sentimentData } = useSentimentSummary(period);
-  const { data: platformTrends } = usePlatformTrends(period);
+
+  // "전체 기관" 선택 시 개별 워크스페이스 API를 호출하지 않음
+  const isAllOrgsView = currentOrgId === 'all';
+  const hasWorkspace = !!currentOrgId && !isAllOrgsView;
+
   const isAM = userRole === 'AGENCY_MANAGER' || userRole === 'SYSTEM_ADMIN';
   const { data: allOrgs, isLoading: isOrgsLoading } = useAllOrganizations(isAM);
+
+  // 워크스페이스 의존 쿼리 — "전체 기관"이면 비활성화
+  const { data: summary, isLoading } = useDashboardSummary(period, hasWorkspace);
+  const { data: recentContents } = useRecentContents(hasWorkspace);
+  const { data: todaySchedule } = useTodaySchedule(hasWorkspace);
+  const { data: approvalStatus } = useApprovalStatus(hasWorkspace);
+  const { data: sentimentData } = useSentimentSummary(period, hasWorkspace);
+  const { data: platformTrends } = usePlatformTrends(period, hasWorkspace);
+
+  // "전체 기관" 뷰에서는 기관비교 테이블 로딩만 표시
+  if (isAllOrgsView) {
+    return (
+      <div>
+        <div className="mb-4 flex items-center justify-between">
+          <Title level={4} className="!mb-0">대시보드</Title>
+          <Select
+            value={period}
+            onChange={setPeriod}
+            style={{ width: 120 }}
+            options={[
+              { value: '7d', label: '최근 7일' },
+              { value: '30d', label: '최근 30일' },
+            ]}
+          />
+        </div>
+
+        <Card title="기관별 현황 비교" size="small" className="mb-4">
+          <Table<OrgSummaryItem>
+            rowKey="id"
+            loading={isOrgsLoading}
+            dataSource={allOrgs || []}
+            pagination={false}
+            size="small"
+            locale={{ emptyText: '기관 데이터가 없습니다' }}
+            columns={[
+              { title: '기관명', dataIndex: 'name', key: 'name', render: (name: string) => <Text strong>{name}</Text> },
+              { title: '전체 콘텐츠', dataIndex: 'total_contents', key: 'total_contents', align: 'right' as const },
+              { title: '게시 완료', dataIndex: 'published_contents', key: 'published_contents', align: 'right' as const },
+              { title: '활성 채널', dataIndex: 'active_channels', key: 'active_channels', align: 'right' as const },
+              {
+                title: '대기 승인',
+                dataIndex: 'pending_approvals',
+                key: 'pending_approvals',
+                align: 'right' as const,
+                render: (v: number) => v > 0 ? <Text type="warning">{v}건</Text> : <Text type="secondary">0건</Text>,
+              },
+            ]}
+          />
+        </Card>
+
+        <Text type="secondary">개별 기관 대시보드를 보려면 상단 워크스페이스에서 기관을 선택하세요.</Text>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -96,14 +151,14 @@ export default function DashboardPage() {
             locale={{ emptyText: '기관 데이터가 없습니다' }}
             columns={[
               { title: '기관명', dataIndex: 'name', key: 'name', render: (name: string) => <Text strong>{name}</Text> },
-              { title: '전체 콘텐츠', dataIndex: 'total_contents', key: 'total_contents', align: 'right' },
-              { title: '게시 완료', dataIndex: 'published_contents', key: 'published_contents', align: 'right' },
-              { title: '활성 채널', dataIndex: 'active_channels', key: 'active_channels', align: 'right' },
+              { title: '전체 콘텐츠', dataIndex: 'total_contents', key: 'total_contents', align: 'right' as const },
+              { title: '게시 완료', dataIndex: 'published_contents', key: 'published_contents', align: 'right' as const },
+              { title: '활성 채널', dataIndex: 'active_channels', key: 'active_channels', align: 'right' as const },
               {
                 title: '대기 승인',
                 dataIndex: 'pending_approvals',
                 key: 'pending_approvals',
-                align: 'right',
+                align: 'right' as const,
                 render: (v: number) => v > 0 ? <Text type="warning">{v}건</Text> : <Text type="secondary">0건</Text>,
               },
             ]}

@@ -25,6 +25,7 @@ class CommentRepository:
         platform: str | None = None,
         channel_id: UUID | None = None,
         search: str | None = None,
+        sentiment: str | None = None,
     ) -> tuple[list[Comment], int]:
         base = select(Comment).where(Comment.organization_id == org_id)
         count_base = select(func.count()).select_from(Comment).where(
@@ -40,6 +41,9 @@ class CommentRepository:
         if channel_id:
             base = base.where(Comment.channel_id == channel_id)
             count_base = count_base.where(Comment.channel_id == channel_id)
+        if sentiment:
+            base = base.where(Comment.sentiment == sentiment)
+            count_base = count_base.where(Comment.sentiment == sentiment)
         if search:
             like_pattern = f"%{search}%"
             base = base.where(
@@ -64,6 +68,7 @@ class CommentRepository:
         org_id: UUID,
         offset: int = 0,
         limit: int = 20,
+        status: str | None = None,
     ) -> tuple[list[Comment], int]:
         base = select(Comment).where(
             Comment.organization_id == org_id,
@@ -73,6 +78,10 @@ class CommentRepository:
             Comment.organization_id == org_id,
             Comment.sentiment == CommentSentiment.DANGEROUS,
         )
+
+        if status:
+            base = base.where(Comment.status == status)
+            count_base = count_base.where(Comment.status == status)
 
         total = (await self._db.execute(count_base)).scalar() or 0
         stmt = base.order_by(Comment.created_at.desc()).offset(offset).limit(limit)
