@@ -48,6 +48,7 @@ class CalendarRepository:
         event = CalendarEvent(**data)
         self._db.add(event)
         await self._db.flush()
+        await self._db.refresh(event)
         return event
 
     async def update_event(self, event_id: UUID, org_id: UUID, data: dict) -> CalendarEvent | None:
@@ -59,6 +60,7 @@ class CalendarRepository:
         for key, value in data.items():
             setattr(event, key, value)
         await self._db.flush()
+        await self._db.refresh(event)
         return event
 
     async def delete_events_by_type(self, org_id: UUID, event_type: str) -> int:

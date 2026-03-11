@@ -46,6 +46,10 @@ def delete_seed(session) -> None:
     """Delete existing seed data using TRUNCATE CASCADE for clean removal."""
     org_ids = [str(ORG1_ID), str(ORG2_ID)]
 
+    # Set RLS session variables so DELETE can reach RLS-protected tables
+    session.execute(text("SET app.current_org_id = 'b0000000-0000-0000-0000-000000000001'"))
+    session.execute(text("SET app.user_role = 'SYSTEM_ADMIN'"))
+
     # Use raw connection to disable FK checks via TRUNCATE CASCADE on org-scoped data
     # First, delete all data referencing seed users/orgs
     session.execute(text("""
@@ -58,12 +62,17 @@ def delete_seed(session) -> None:
                 'admin@publisync.kr', 'manager@digitalsotong.kr',
                 'operator@digitalsotong.kr', 'director@seoul.go.kr'
             ]) LOOP
+                DELETE FROM reply_templates WHERE created_by = uid;
                 DELETE FROM ai_usage_logs WHERE user_id = uid;
-                DELETE FROM approval_requests WHERE requested_by = uid OR reviewer_id = uid;
+                DELETE FROM ai_jobs WHERE user_id = uid;
+                DELETE FROM approval_histories WHERE reviewer_id = uid;
+                DELETE FROM approval_requests WHERE requested_by = uid;
                 DELETE FROM calendar_events WHERE created_by = uid;
                 DELETE FROM channel_histories WHERE actor_id = uid;
                 DELETE FROM comments WHERE processed_by = uid;
                 DELETE FROM content_versions WHERE changed_by = uid;
+                DELETE FROM publish_results WHERE content_id IN (SELECT id FROM contents WHERE author_id = uid);
+                DELETE FROM content_media_assets WHERE content_id IN (SELECT id FROM contents WHERE author_id = uid);
                 DELETE FROM contents WHERE author_id = uid;
                 DELETE FROM media_assets WHERE created_by = uid;
                 DELETE FROM notifications WHERE user_id = uid;
@@ -83,6 +92,18 @@ def delete_seed(session) -> None:
             ]);
 
             -- Clean up org-scoped data for seed orgs
+            DELETE FROM approval_workflows WHERE organization_id = ANY(ARRAY[
+                'b0000000-0000-0000-0000-000000000001'::uuid,
+                'b0000000-0000-0000-0000-000000000002'::uuid
+            ]);
+            DELETE FROM reply_templates WHERE organization_id = ANY(ARRAY[
+                'b0000000-0000-0000-0000-000000000001'::uuid,
+                'b0000000-0000-0000-0000-000000000002'::uuid
+            ]);
+            DELETE FROM media_folders WHERE organization_id = ANY(ARRAY[
+                'b0000000-0000-0000-0000-000000000001'::uuid,
+                'b0000000-0000-0000-0000-000000000002'::uuid
+            ]);
             DELETE FROM channels WHERE organization_id = ANY(ARRAY[
                 'b0000000-0000-0000-0000-000000000001'::uuid,
                 'b0000000-0000-0000-0000-000000000002'::uuid

@@ -72,6 +72,7 @@ class MediaRepository:
         asset = MediaAsset(**data)
         self._db.add(asset)
         await self._db.flush()
+        await self._db.refresh(asset)
         return asset
 
     async def update_asset(self, asset_id: UUID, org_id: UUID, data: dict) -> MediaAsset | None:
@@ -81,6 +82,7 @@ class MediaRepository:
         for key, value in data.items():
             setattr(asset, key, value)
         await self._db.flush()
+        await self._db.refresh(asset)
         return asset
 
     async def soft_delete_asset(self, asset_id: UUID, org_id: UUID) -> bool:
@@ -164,4 +166,5 @@ class MediaRepository:
         )
         self._db.add(folder)
         await self._db.flush()
+        await self._db.refresh(folder)
         return folder

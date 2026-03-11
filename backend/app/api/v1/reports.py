@@ -1,9 +1,9 @@
 """Reports API — 7 endpoints (S18, F19).
 
 GET    /reports                  — list reports (SA, AM, CD)
-POST   /reports/generate         — AI generate report (AM) → 202
+POST   /reports/generate         — AI generate report (AM, AO) → 202
 GET    /reports/{id}             — report detail (SA, AM, CD)
-PUT    /reports/{id}             — edit report (AM)
+PUT    /reports/{id}             — edit report (AM, AO)
 POST   /reports/{id}/finalize    — finalize report (AM)
 GET    /reports/{id}/download    — download PDF (SA, AM, CD)
 DELETE /reports/{id}             — delete draft report (AM)
@@ -77,7 +77,7 @@ async def list_reports(
 async def generate_report(
     body: ReportGenerateRequest,
     workspace: WorkspaceContext = Depends(get_workspace_context),
-    _user: User = Depends(require_roles(UserRole.AGENCY_MANAGER)),
+    _user: User = Depends(require_roles(UserRole.AGENCY_MANAGER, UserRole.AGENCY_OPERATOR)),
     service: ReportService = Depends(_get_service),
 ) -> dict:
     report, job = await service.generate_report(
@@ -146,7 +146,7 @@ async def update_report(
     report_id: str,
     body: ReportUpdateRequest,
     workspace: WorkspaceContext = Depends(get_workspace_context),
-    _user: User = Depends(require_roles(UserRole.AGENCY_MANAGER)),
+    _user: User = Depends(require_roles(UserRole.AGENCY_MANAGER, UserRole.AGENCY_OPERATOR)),
     service: ReportService = Depends(_get_service),
 ) -> dict:
     report = await service.update_report(

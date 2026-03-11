@@ -53,6 +53,7 @@ class NotificationRepository:
         notification.is_read = True
         notification.read_at = datetime.now(UTC).isoformat()
         await self._db.flush()
+        await self._db.refresh(notification)
         return notification
 
     async def mark_all_read(self, org_id: UUID, user_id: UUID) -> int:
@@ -87,6 +88,7 @@ class NotificationRepository:
     async def create_notification(self, notification: Notification) -> Notification:
         self._db.add(notification)
         await self._db.flush()
+        await self._db.refresh(notification)
         return notification
 
     # ── NotificationSetting ───────────────────────────────

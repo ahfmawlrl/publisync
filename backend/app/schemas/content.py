@@ -11,6 +11,7 @@ class ContentCreateRequest(BaseModel):
     scheduled_at: str | None = None
     platform_contents: dict | None = None
     media_urls: list[str] = []
+    hashtags: list[str] | None = None
     ai_generated: bool = False
     metadata: dict | None = None
 
@@ -23,6 +24,7 @@ class ContentUpdateRequest(BaseModel):
     scheduled_at: str | None = None
     platform_contents: dict | None = None
     media_urls: list[str] | None = None
+    hashtags: list[str] | None = None
     metadata: dict | None = None
 
 
@@ -39,6 +41,7 @@ class ContentResponse(BaseModel):
     author_name: str | None = None
     platform_contents: dict | None = None
     metadata: dict | None = None
+    hashtags: list[str] = []
     ai_generated: bool = False
     media_urls: list[str] = []
     created_at: str

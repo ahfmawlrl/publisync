@@ -66,6 +66,7 @@ class AuditRepository:
         """INSERT only — audit logs are immutable."""
         self._db.add(log)
         await self._db.flush()
+        await self._db.refresh(log)
         return log
 
     async def export_logs(

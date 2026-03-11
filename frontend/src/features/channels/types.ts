@@ -16,6 +16,7 @@ export interface ChannelHistoryRecord {
   event_type: string;
   details: Record<string, unknown> | null;
   actor_id: string | null;
+  actor_name: string | null;
   created_at: string;
 }
 

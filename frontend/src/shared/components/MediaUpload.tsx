@@ -1,5 +1,5 @@
 import { CloseCircleOutlined, DeleteOutlined, InboxOutlined, LoadingOutlined, ReloadOutlined } from '@ant-design/icons';
-import { App, Button, Image, List, Progress, Space, Typography } from 'antd';
+import { App, Button, Image, List, Progress, Space, Tag, Typography } from 'antd';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 
@@ -293,37 +293,41 @@ export default function MediaUpload({ value = [], onChange, maxFiles = 10 }: Med
         <List
           size="small"
           dataSource={uploadedFiles}
-          renderItem={(item, index) => (
-            <List.Item
-              actions={[
-                <Button
-                  key="delete"
-                  type="text"
-                  danger
-                  size="small"
-                  icon={<DeleteOutlined />}
-                  onClick={() => handleRemove(index)}
-                />,
-              ]}
-            >
-              <div className="flex items-center gap-2">
-                {isImage(item.publicUrl, item.filename) ? (
-                  <Image
-                    src={item.publicUrl}
-                    width={40}
-                    height={40}
-                    className="rounded object-cover"
-                    fallback="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'/>"
-                  />
-                ) : (
-                  <div className="flex h-10 w-10 items-center justify-center rounded bg-gray-100 text-xs">
-                    파일
-                  </div>
-                )}
-                <Text className="truncate text-xs">{item.filename}</Text>
-              </div>
-            </List.Item>
-          )}
+          renderItem={(item, index) => {
+            const isLocal = item.publicUrl.startsWith('blob:');
+            return (
+              <List.Item
+                actions={[
+                  <Button
+                    key="delete"
+                    type="text"
+                    danger
+                    size="small"
+                    icon={<DeleteOutlined />}
+                    onClick={() => handleRemove(index)}
+                  />,
+                ]}
+              >
+                <div className="flex items-center gap-2">
+                  {isImage(item.publicUrl, item.filename) ? (
+                    <Image
+                      src={item.publicUrl}
+                      width={40}
+                      height={40}
+                      className="rounded object-cover"
+                      fallback="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'/>"
+                    />
+                  ) : (
+                    <div className="flex h-10 w-10 items-center justify-center rounded bg-gray-100 text-xs">
+                      파일
+                    </div>
+                  )}
+                  <Text className="truncate text-xs">{item.filename}</Text>
+                  {isLocal && <Tag color="warning" className="text-xs">로컬 전용</Tag>}
+                </div>
+              </List.Item>
+            );
+          }}
         />
       )}
     </div>

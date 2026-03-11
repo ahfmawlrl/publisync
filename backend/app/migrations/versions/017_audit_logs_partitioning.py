@@ -54,6 +54,19 @@ def upgrade() -> None:
         FOR VALUES FROM ('2026-04-01') TO ('2026-05-01')
     """)
 
+    # ── Step 3b: Enable RLS on initial partitions ────────────
+    for part in ("audit_logs_2026_03", "audit_logs_2026_04"):
+        op.execute(f"ALTER TABLE {part} ENABLE ROW LEVEL SECURITY")
+        op.execute(f"ALTER TABLE {part} FORCE ROW LEVEL SECURITY")
+        op.execute(
+            f"CREATE POLICY tenant_isolation ON {part}"
+            " FOR ALL USING (organization_id = current_setting('app.current_org_id')::uuid)"
+        )
+        op.execute(
+            f"CREATE POLICY sa_bypass ON {part}"
+            " FOR ALL USING (current_setting('app.user_role', true) = 'SYSTEM_ADMIN')"
+        )
+
     # ── Step 4: Migrate existing data ────────────────────────
     op.execute("""
         INSERT INTO audit_logs
@@ -117,6 +130,18 @@ def upgrade() -> None:
             EXECUTE format(
                 'CREATE TABLE %I PARTITION OF audit_logs FOR VALUES FROM (%L) TO (%L)',
                 partition_name, start_date, end_date
+            );
+
+            -- Apply RLS on the new partition
+            EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', partition_name);
+            EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', partition_name);
+            EXECUTE format(
+                'CREATE POLICY tenant_isolation ON %I FOR ALL USING (organization_id = current_setting(''app.current_org_id'')::uuid)',
+                partition_name
+            );
+            EXECUTE format(
+                'CREATE POLICY sa_bypass ON %I FOR ALL USING (current_setting(''app.user_role'', true) = ''SYSTEM_ADMIN'')',
+                partition_name
             );
 
             RETURN partition_name || ' created';

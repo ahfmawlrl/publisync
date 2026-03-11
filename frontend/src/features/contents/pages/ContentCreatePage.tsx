@@ -119,12 +119,19 @@ export default function ContentCreatePage() {
 
   /** Build ContentCreateData from form values. */
   const buildCreateData = (values: Record<string, unknown>): ContentCreateData => {
+    // Filter out blob: URLs — they're only valid in the current browser session
+    const rawUrls = (values.media_urls as string[]) || [];
+    const persistableUrls = rawUrls.filter((url) => !url.startsWith('blob:'));
+    if (persistableUrls.length < rawUrls.length) {
+      message.warning('스토리지에 업로드되지 않은 미디어는 저장에서 제외됩니다.');
+    }
+
     const data: ContentCreateData = {
       title: values.title as string,
       body: values.body as string | undefined,
       platforms: (values.platforms as string[]) || [],
       channel_ids: (values.channel_ids as string[]) || [],
-      media_urls: (values.media_urls as string[]) || [],
+      media_urls: persistableUrls,
     };
 
     // Persist hashtags

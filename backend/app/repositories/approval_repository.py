@@ -44,8 +44,9 @@ class ApprovalRepository:
         )
 
         if status:
-            base = base.where(ApprovalRequest.status == status)
-            count_base = count_base.where(ApprovalRequest.status == status)
+            normalized_status = status.upper()
+            base = base.where(ApprovalRequest.status == normalized_status)
+            count_base = count_base.where(ApprovalRequest.status == normalized_status)
 
         if content_id:
             base = base.where(ApprovalRequest.content_id == content_id)
@@ -81,12 +82,14 @@ class ApprovalRepository:
     async def create(self, request: ApprovalRequest) -> ApprovalRequest:
         self._db.add(request)
         await self._db.flush()
+        await self._db.refresh(request)
         return request
 
     async def update(self, request: ApprovalRequest, data: dict) -> ApprovalRequest:
         for key, value in data.items():
             setattr(request, key, value)
         await self._db.flush()
+        await self._db.refresh(request)
         return request
 
     async def count_pending(self, org_id: UUID) -> int:
@@ -136,6 +139,7 @@ class ApprovalRepository:
                 if value is not None:
                     setattr(existing, key, value)
             await self._db.flush()
+            await self._db.refresh(existing)
             return existing
         else:
             wf = ApprovalWorkflow(
@@ -146,4 +150,5 @@ class ApprovalRepository:
             )
             self._db.add(wf)
             await self._db.flush()
+            await self._db.refresh(wf)
             return wf

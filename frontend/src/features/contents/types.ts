@@ -11,6 +11,7 @@ export interface ContentRecord {
   author_name: string | null;
   platform_contents: Record<string, unknown> | null;
   metadata: Record<string, unknown> | null;
+  hashtags: string[];
   ai_generated: boolean;
   media_urls: string[];
   created_at: string;

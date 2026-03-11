@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db_session
 from app.core.deps import WorkspaceContext, get_workspace_context
 from app.models.content import Content, PublishResult
+from app.repositories.approval_repository import ApprovalRepository
 from app.repositories.content_repository import ContentRepository
 from app.schemas.common import ApiResponse, PaginatedResponse, PaginationMeta
 from app.schemas.content import (
@@ -23,10 +24,14 @@ router = APIRouter()
 
 
 def _get_service(db: AsyncSession = Depends(get_db_session)) -> ContentService:
-    return ContentService(ContentRepository(db))
+    return ContentService(
+        ContentRepository(db),
+        approval_repo=ApprovalRepository(db),
+    )
 
 
 def _to_content_response(c: Content) -> ContentResponse:
+    meta = c.metadata_ or {}
     return ContentResponse(
         id=str(c.id),
         organization_id=str(c.organization_id),
@@ -40,6 +45,7 @@ def _to_content_response(c: Content) -> ContentResponse:
         author_name=c.author.name if hasattr(c, "author") and c.author else None,
         platform_contents=c.platform_contents,
         metadata=c.metadata_,
+        hashtags=meta.get("hashtags", []),
         ai_generated=c.ai_generated,
         media_urls=c.media_urls or [],
         created_at=c.created_at.isoformat(),
@@ -156,7 +162,7 @@ async def request_review(
     workspace: WorkspaceContext = Depends(get_workspace_context),
     service: ContentService = Depends(_get_service),
 ) -> dict:
-    content = await service.request_review(content_id, workspace.org_id)
+    content = await service.request_review(content_id, workspace.org_id, requester_id=workspace.user.id)
     return {"success": True, "data": _to_content_response(content)}
 
 

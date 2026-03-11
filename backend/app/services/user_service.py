@@ -25,11 +25,15 @@ class UserService:
         self,
         org_id: UUID | None = None,
         role: UserRole | None = None,
+        search: str | None = None,
+        status: str | None = None,
         page: int = 1,
         limit: int = 20,
     ) -> tuple[list[User], int]:
         offset = (page - 1) * limit
-        return await self._repo.list_users(org_id=org_id, role=role, offset=offset, limit=limit)
+        return await self._repo.list_users(
+            org_id=org_id, role=role, search=search, status=status, offset=offset, limit=limit,
+        )
 
     async def get_user(self, user_id: UUID) -> User:
         user = await self._repo.get_by_id(user_id)

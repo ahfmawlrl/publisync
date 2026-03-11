@@ -34,6 +34,7 @@ class UserRepository:
     async def create_user(self, user: User) -> User:
         self._db.add(user)
         await self._db.flush()
+        await self._db.refresh(user)
         return user
 
     async def increment_failed_login(self, user: User) -> int:
@@ -126,15 +127,36 @@ class UserRepository:
         )
         await self._db.execute(stmt)
 
-    async def cleanup_expired_tokens(self, user_id: UUID) -> None:
-        """Delete revoked or expired refresh tokens for a user to prevent table bloat."""
+    async def cleanup_expired_tokens(self, user_id: UUID, max_active: int = 5) -> None:
+        """Delete revoked/expired tokens and cap active tokens per user."""
         from sqlalchemy import delete
 
+        # 1. Remove expired & revoked tokens
         stmt = delete(RefreshToken).where(
             RefreshToken.user_id == user_id,
             (RefreshToken.is_revoked.is_(True)) | (RefreshToken.expires_at <= datetime.now(UTC)),
         )
         await self._db.execute(stmt)
+
+        # 2. Cap active tokens: keep only the newest `max_active`
+        keep_ids_subq = (
+            select(RefreshToken.id)
+            .where(
+                RefreshToken.user_id == user_id,
+                RefreshToken.is_revoked.is_(False),
+                RefreshToken.expires_at > datetime.now(UTC),
+            )
+            .order_by(RefreshToken.created_at.desc())
+            .limit(max_active)
+            .scalar_subquery()
+        )
+        stmt2 = delete(RefreshToken).where(
+            RefreshToken.user_id == user_id,
+            RefreshToken.is_revoked.is_(False),
+            RefreshToken.expires_at > datetime.now(UTC),
+            RefreshToken.id.not_in(keep_ids_subq),
+        )
+        await self._db.execute(stmt2)
 
     # ── PasswordResetToken ──────────────────────────────
 
@@ -196,6 +218,8 @@ class UserRepository:
         self,
         org_id: UUID | None = None,
         role: UserRole | None = None,
+        search: str | None = None,
+        status: str | None = None,
         offset: int = 0,
         limit: int = 20,
     ) -> tuple[list[User], int]:
@@ -210,6 +234,14 @@ class UserRepository:
         if role:
             base = base.where(User.role == role)
             count_base = count_base.where(User.role == role)
+        if search:
+            pattern = f"%{search}%"
+            search_filter = User.name.ilike(pattern) | User.email.ilike(pattern)
+            base = base.where(search_filter)
+            count_base = count_base.where(search_filter)
+        if status:
+            base = base.where(User.status == status)
+            count_base = count_base.where(User.status == status)
 
         total = (await self._db.execute(count_base)).scalar() or 0
         stmt = base.order_by(User.created_at.desc()).offset(offset).limit(limit)
@@ -220,6 +252,7 @@ class UserRepository:
         for key, value in data.items():
             setattr(user, key, value)
         await self._db.flush()
+        await self._db.refresh(user)
         return user
 
     async def soft_delete_user(self, user: User) -> None:

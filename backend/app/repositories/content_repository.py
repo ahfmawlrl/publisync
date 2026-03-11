@@ -46,8 +46,9 @@ class ContentRepository:
         )
 
         if status:
-            base = base.where(Content.status == status)
-            count_base = count_base.where(Content.status == status)
+            normalized_status = status.upper()
+            base = base.where(Content.status == normalized_status)
+            count_base = count_base.where(Content.status == normalized_status)
         if platform:
             base = base.where(Content.platforms.any(platform))
             count_base = count_base.where(Content.platforms.any(platform))
@@ -78,12 +79,14 @@ class ContentRepository:
     async def create(self, content: Content) -> Content:
         self._db.add(content)
         await self._db.flush()
+        await self._db.refresh(content)
         return content
 
     async def update(self, content: Content, data: dict) -> Content:
         for key, value in data.items():
             setattr(content, key, value)
         await self._db.flush()
+        await self._db.refresh(content)
         return content
 
     async def soft_delete(self, content: Content) -> None:
@@ -108,6 +111,7 @@ class ContentRepository:
     async def add_version(self, version: ContentVersion) -> ContentVersion:
         self._db.add(version)
         await self._db.flush()
+        await self._db.refresh(version)
         return version
 
     async def get_latest_version_number(self, content_id: UUID) -> int:
@@ -123,6 +127,7 @@ class ContentRepository:
     async def add_publish_result(self, pr: PublishResult) -> PublishResult:
         self._db.add(pr)
         await self._db.flush()
+        await self._db.refresh(pr)
         return pr
 
     async def list_publish_results(

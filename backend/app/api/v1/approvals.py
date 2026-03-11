@@ -74,6 +74,28 @@ def _to_workflow_response(w: ApprovalWorkflow) -> WorkflowResponse:
     )
 
 
+# ── GET /workflows (before /{approval_id} to avoid route conflict) ──
+@router.get("/workflows", response_model=ApiResponse[list[WorkflowResponse]])
+async def get_workflows(
+    workspace: WorkspaceContext = Depends(get_workspace_context),
+    service: ApprovalService = Depends(_get_service),
+) -> dict:
+    workflows = await service.get_workflows(workspace.org_id)
+    return {"success": True, "data": [_to_workflow_response(w) for w in workflows]}
+
+
+# ── PUT /workflows ──────────────────────────────────────
+@router.put("/workflows", response_model=ApiResponse[WorkflowResponse])
+async def update_workflow(
+    body: WorkflowUpdateRequest,
+    _user: User = Depends(require_roles(UserRole.AGENCY_MANAGER)),
+    workspace: WorkspaceContext = Depends(get_workspace_context),
+    service: ApprovalService = Depends(_get_service),
+) -> dict:
+    wf = await service.update_workflow(workspace.org_id, body.model_dump(exclude_unset=True))
+    return {"success": True, "data": _to_workflow_response(wf)}
+
+
 # ── GET /approvals ──────────────────────────────────────
 @router.get("", response_model=PaginatedResponse[ApprovalRequestResponse])
 async def list_approvals(
@@ -131,25 +153,3 @@ async def reject(
 ) -> dict:
     req = await service.reject(approval_id, workspace.org_id, workspace.user.id, body.comment)
     return {"success": True, "data": _to_approval_response(req)}
-
-
-# ── GET /workflows ──────────────────────────────────────
-@router.get("/workflows", response_model=ApiResponse[list[WorkflowResponse]])
-async def get_workflows(
-    workspace: WorkspaceContext = Depends(get_workspace_context),
-    service: ApprovalService = Depends(_get_service),
-) -> dict:
-    workflows = await service.get_workflows(workspace.org_id)
-    return {"success": True, "data": [_to_workflow_response(w) for w in workflows]}
-
-
-# ── PUT /workflows ──────────────────────────────────────
-@router.put("/workflows", response_model=ApiResponse[WorkflowResponse])
-async def update_workflow(
-    body: WorkflowUpdateRequest,
-    _user: User = Depends(require_roles(UserRole.AGENCY_MANAGER)),
-    workspace: WorkspaceContext = Depends(get_workspace_context),
-    service: ApprovalService = Depends(_get_service),
-) -> dict:
-    wf = await service.update_workflow(workspace.org_id, body.model_dump(exclude_unset=True))
-    return {"success": True, "data": _to_workflow_response(wf)}

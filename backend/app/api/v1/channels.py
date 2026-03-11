@@ -77,7 +77,7 @@ async def list_channels(
 @router.post("/connect/initiate", response_model=ApiResponse[ChannelConnectInitiateResponse])
 async def connect_initiate(
     body: ChannelConnectInitiateRequest,
-    _user: User = Depends(require_roles(UserRole.AGENCY_MANAGER)),
+    _user: User = Depends(require_roles(UserRole.SYSTEM_ADMIN, UserRole.AGENCY_MANAGER)),
     workspace: WorkspaceContext = Depends(get_workspace_context),
     service: ChannelService = Depends(_get_service),
 ) -> dict:
@@ -103,12 +103,25 @@ async def connect_callback(
     return {"success": True, "data": _to_channel_response(channel)}
 
 
+# ── GET /channels/api-status ────────────────────────────
+# NOTE: Static path must be declared before /{channel_id} routes to avoid
+# FastAPI matching "api-status" as a channel_id parameter.
+
+@router.get("/api-status", response_model=ApiResponse[list[ApiStatusResponse]])
+async def get_api_status(
+    workspace: WorkspaceContext = Depends(get_workspace_context),
+    service: ChannelService = Depends(_get_service),
+) -> dict:
+    statuses = await service.get_api_status(workspace.org_id)
+    return {"success": True, "data": statuses}
+
+
 # ── DELETE /channels/:id ─────────────────────────────────
 
 @router.delete("/{channel_id}", status_code=204)
 async def disconnect_channel(
     channel_id: UUID,
-    _user: User = Depends(require_roles(UserRole.AGENCY_MANAGER)),
+    _user: User = Depends(require_roles(UserRole.SYSTEM_ADMIN, UserRole.AGENCY_MANAGER)),
     workspace: WorkspaceContext = Depends(get_workspace_context),
     service: ChannelService = Depends(_get_service),
 ) -> None:
@@ -145,14 +158,3 @@ async def get_channel_history(
         "data": [_to_history_response(h) for h in histories],
         "meta": PaginationMeta(total=total, page=page, limit=limit, total_pages=(total + limit - 1) // limit),
     }
-
-
-# ── GET /channels/api-status ────────────────────────────
-
-@router.get("/api-status", response_model=ApiResponse[list[ApiStatusResponse]])
-async def get_api_status(
-    workspace: WorkspaceContext = Depends(get_workspace_context),
-    service: ChannelService = Depends(_get_service),
-) -> dict:
-    statuses = await service.get_api_status(workspace.org_id)
-    return {"success": True, "data": statuses}

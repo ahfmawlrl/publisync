@@ -3,7 +3,7 @@
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import extract, func, select
+from sqlalchemy import extract, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.channel import Channel
@@ -20,8 +20,10 @@ class AnalyticsRepository:
         self,
         org_id: UUID,
         platform: str | None = None,
+        days: int = 30,
     ) -> list:
         """Aggregate performance from publish_results grouped by platform."""
+        cutoff = datetime.now(UTC) - timedelta(days=days)
         stmt = (
             select(
                 Channel.platform,
@@ -35,6 +37,7 @@ class AnalyticsRepository:
             .where(
                 PublishResult.organization_id == org_id,
                 PublishResult.status == PublishResultStatus.SUCCESS,
+                PublishResult.created_at >= cutoff,
             )
         )
 
@@ -48,12 +51,20 @@ class AnalyticsRepository:
     async def get_engagement_heatmap(
         self,
         org_id: UUID,
+        days: int = 30,
     ) -> list:
-        """Build engagement heatmap: hour × day_of_week from publish_results."""
+        """Build engagement heatmap: hour × day_of_week from publish_results.
+
+        Returns day_of_week as ISO convention: 0=Monday .. 6=Sunday
+        (converted from PostgreSQL DOW where 0=Sunday).
+        """
+        cutoff = datetime.now(UTC) - timedelta(days=days)
+        # PostgreSQL ISODOW: 1=Monday..7=Sunday → subtract 1 → 0=Monday..6=Sunday
+        iso_dow_expr = (extract("isodow", PublishResult.created_at) - 1).label("day_of_week")
         stmt = (
             select(
                 extract("hour", PublishResult.created_at).label("hour"),
-                extract("dow", PublishResult.created_at).label("day_of_week"),
+                iso_dow_expr,
                 func.sum(
                     PublishResult.views
                     + PublishResult.likes
@@ -64,9 +75,10 @@ class AnalyticsRepository:
             .where(
                 PublishResult.organization_id == org_id,
                 PublishResult.status == PublishResultStatus.SUCCESS,
+                PublishResult.created_at >= cutoff,
             )
-            .group_by("hour", "day_of_week")
-            .order_by("day_of_week", "hour")
+            .group_by("hour", iso_dow_expr)
+            .order_by(iso_dow_expr, "hour")
         )
         result = await self._db.execute(stmt)
         return result.all()
@@ -267,6 +279,17 @@ class AnalyticsRepository:
 
     # ── Phase 4 — Benchmark (F23) ───────────────────────
 
+    async def _temporarily_bypass_rls(self) -> str:
+        """Temporarily elevate to SA role for cross-org queries, return original role."""
+        result = await self._db.execute(text("SELECT current_setting('app.user_role', true)"))
+        original_role = result.scalar() or "AGENCY_MANAGER"
+        await self._db.execute(text("SET LOCAL app.user_role = 'SYSTEM_ADMIN'"))
+        return original_role
+
+    async def _restore_rls(self, original_role: str) -> None:
+        """Restore original user role after cross-org query."""
+        await self._db.execute(text(f"SET LOCAL app.user_role = '{original_role}'"))
+
     async def get_benchmark_data(
         self,
         org_id: UUID,
@@ -276,7 +299,7 @@ class AnalyticsRepository:
 
         cutoff = datetime.now(UTC) - timedelta(days=period_days)
 
-        # Org's own performance
+        # Org's own performance (uses normal RLS — current org only)
         org_stmt = (
             select(
                 Channel.platform,
@@ -298,25 +321,30 @@ class AnalyticsRepository:
         org_data = org_result.all()
 
         # All orgs performance (for industry average)
-        all_stmt = (
-            select(
-                Channel.platform,
-                PublishResult.organization_id,
-                func.sum(PublishResult.views).label("total_views"),
-                func.sum(PublishResult.likes).label("total_likes"),
-                func.sum(PublishResult.shares).label("total_shares"),
-                func.sum(PublishResult.comments_count).label("total_comments"),
-                func.count(PublishResult.id).label("post_count"),
+        # Temporarily bypass RLS to read cross-org aggregate data
+        original_role = await self._temporarily_bypass_rls()
+        try:
+            all_stmt = (
+                select(
+                    Channel.platform,
+                    PublishResult.organization_id,
+                    func.sum(PublishResult.views).label("total_views"),
+                    func.sum(PublishResult.likes).label("total_likes"),
+                    func.sum(PublishResult.shares).label("total_shares"),
+                    func.sum(PublishResult.comments_count).label("total_comments"),
+                    func.count(PublishResult.id).label("post_count"),
+                )
+                .join(Channel, PublishResult.channel_id == Channel.id)
+                .where(
+                    PublishResult.status == PublishResultStatus.SUCCESS,
+                    PublishResult.created_at >= cutoff,
+                )
+                .group_by(Channel.platform, PublishResult.organization_id)
             )
-            .join(Channel, PublishResult.channel_id == Channel.id)
-            .where(
-                PublishResult.status == PublishResultStatus.SUCCESS,
-                PublishResult.created_at >= cutoff,
-            )
-            .group_by(Channel.platform, PublishResult.organization_id)
-        )
-        all_result = await self._db.execute(all_stmt)
-        all_data = all_result.all()
+            all_result = await self._db.execute(all_stmt)
+            all_data = all_result.all()
+        finally:
+            await self._restore_rls(original_role)
 
         return {"org_data": org_data, "all_data": all_data}
 
@@ -330,30 +358,35 @@ class AnalyticsRepository:
 
         cutoff = datetime.now(UTC) - timedelta(days=period_days)
 
-        stmt = (
-            select(
-                PublishResult.organization_id,
-                Organization.name.label("org_name"),
-                Channel.platform,
-                func.sum(PublishResult.views).label("total_views"),
-                func.sum(PublishResult.likes).label("total_likes"),
-                func.sum(PublishResult.shares).label("total_shares"),
-                func.sum(PublishResult.comments_count).label("total_comments"),
-                func.count(PublishResult.id).label("post_count"),
+        # Temporarily bypass RLS to read cross-org comparison data
+        original_role = await self._temporarily_bypass_rls()
+        try:
+            stmt = (
+                select(
+                    PublishResult.organization_id,
+                    Organization.name.label("org_name"),
+                    Channel.platform,
+                    func.sum(PublishResult.views).label("total_views"),
+                    func.sum(PublishResult.likes).label("total_likes"),
+                    func.sum(PublishResult.shares).label("total_shares"),
+                    func.sum(PublishResult.comments_count).label("total_comments"),
+                    func.count(PublishResult.id).label("post_count"),
+                )
+                .join(Channel, PublishResult.channel_id == Channel.id)
+                .join(Organization, PublishResult.organization_id == Organization.id)
+                .where(
+                    PublishResult.organization_id.in_(org_ids),
+                    PublishResult.status == PublishResultStatus.SUCCESS,
+                    PublishResult.created_at >= cutoff,
+                )
+                .group_by(
+                    PublishResult.organization_id,
+                    Organization.name,
+                    Channel.platform,
+                )
+                .order_by(Organization.name, Channel.platform)
             )
-            .join(Channel, PublishResult.channel_id == Channel.id)
-            .join(Organization, PublishResult.organization_id == Organization.id)
-            .where(
-                PublishResult.organization_id.in_(org_ids),
-                PublishResult.status == PublishResultStatus.SUCCESS,
-                PublishResult.created_at >= cutoff,
-            )
-            .group_by(
-                PublishResult.organization_id,
-                Organization.name,
-                Channel.platform,
-            )
-            .order_by(Organization.name, Channel.platform)
-        )
-        result = await self._db.execute(stmt)
-        return result.all()
+            result = await self._db.execute(stmt)
+            return result.all()
+        finally:
+            await self._restore_rls(original_role)

@@ -5,7 +5,7 @@ import { useState } from 'react';
 
 import apiClient from '@/shared/api/client';
 import type { ApiResponse } from '@/shared/api/types';
-
+import MediaThumbnail from '@/shared/components/MediaThumbnail';
 import { APPROVAL_STATUS_CONFIG } from '@/shared/constants/contentStatus';
 import { APPROVAL_MESSAGES } from '@/shared/constants/messages';
 import { getPlatformConfig } from '@/shared/constants/platform';
@@ -149,15 +149,7 @@ export default function ApprovalsListPage() {
                   <Image.PreviewGroup>
                     <div className="flex flex-wrap gap-2">
                       {contentData.media_urls.map((url, idx) => (
-                        <Image
-                          key={idx}
-                          src={url}
-                          alt={`미디어 ${idx + 1}`}
-                          width={120}
-                          height={120}
-                          className="rounded object-cover"
-                          fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mN88P/BfwAJhAPk3KBkEgAAAABJRU5ErkJggg=="
-                        />
+                        <MediaThumbnail key={idx} src={url} alt={`미디어 ${idx + 1}`} width={120} height={120} />
                       ))}
                     </div>
                   </Image.PreviewGroup>

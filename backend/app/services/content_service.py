@@ -9,8 +9,10 @@ from uuid import UUID
 import structlog
 
 from app.core.exceptions import ContentNotFoundError, WorkflowStateConflictError
+from app.models.approval import ApprovalHistory, ApprovalRequest
 from app.models.content import Content, ContentVersion, PublishResult
-from app.models.enums import ContentStatus, PublishResultStatus
+from app.models.enums import ApprovalAction, ApprovalStatus, ContentStatus, PublishResultStatus
+from app.repositories.approval_repository import ApprovalRepository
 from app.repositories.content_repository import ContentRepository
 
 logger = structlog.get_logger()
@@ -72,9 +74,11 @@ class ContentService:
         self,
         repo: ContentRepository,
         calendar_service: CalendarService | None = None,
+        approval_repo: ApprovalRepository | None = None,
     ) -> None:
         self._repo = repo
         self._calendar = calendar_service
+        self._approval_repo = approval_repo
 
     async def _sync_calendar_create(
         self, org_id: UUID, content_id: UUID, title: str,
@@ -149,6 +153,12 @@ class ContentService:
         channel_ids_raw = data.get("channel_ids", [])
         channel_ids = [UUID(cid) if isinstance(cid, str) else cid for cid in channel_ids_raw]
 
+        # Merge hashtags into metadata (no dedicated column yet)
+        meta = dict(data.get("metadata") or {})
+        hashtags = data.pop("hashtags", None)
+        if hashtags:
+            meta["hashtags"] = hashtags
+
         content = Content(
             organization_id=org_id,
             title=data["title"],
@@ -159,7 +169,7 @@ class ContentService:
             scheduled_at=scheduled_at,
             author_id=author_id,
             platform_contents=data.get("platform_contents"),
-            metadata_=data.get("metadata"),
+            metadata_=meta or None,
             ai_generated=data.get("ai_generated", False),
             media_urls=data.get("media_urls", []),
         )
@@ -234,14 +244,17 @@ class ContentService:
             update_data["platforms"] = data["platforms"]
         if data.get("channel_ids") is not None:
             update_data["channel_ids"] = [UUID(cid) if isinstance(cid, str) else cid for cid in data["channel_ids"]]
-        if data.get("scheduled_at") is not None:
+        if "scheduled_at" in data:
             update_data["scheduled_at"] = datetime.fromisoformat(data["scheduled_at"]) if data["scheduled_at"] else None
         if data.get("platform_contents") is not None:
             update_data["platform_contents"] = data["platform_contents"]
         if data.get("media_urls") is not None:
             update_data["media_urls"] = data["media_urls"]
-        if data.get("metadata") is not None:
-            update_data["metadata_"] = data["metadata"]
+        if data.get("metadata") is not None or data.get("hashtags") is not None:
+            meta = dict(data.get("metadata") or content.metadata_ or {})
+            if data.get("hashtags") is not None:
+                meta["hashtags"] = data["hashtags"]
+            update_data["metadata_"] = meta or None
 
         if update_data:
             content = await self._repo.update(content, update_data)
@@ -318,15 +331,46 @@ class ContentService:
             update_data["title"] = data["title"]
         if data.get("body") is not None:
             update_data["body"] = data["body"]
+        if data.get("platforms") is not None:
+            update_data["platforms"] = data["platforms"]
+        if data.get("media_urls") is not None:
+            update_data["media_urls"] = data["media_urls"]
+        if "scheduled_at" in data:
+            update_data["scheduled_at"] = datetime.fromisoformat(data["scheduled_at"]) if data["scheduled_at"] else None
+        if data.get("metadata") is not None or data.get("hashtags") is not None:
+            meta = dict(data.get("metadata") or content.metadata_ or {})
+            if data.get("hashtags") is not None:
+                meta["hashtags"] = data["hashtags"]
+            update_data["metadata_"] = meta or None
         if update_data:
             content = await self._repo.update(content, update_data)
         logger.info("content_draft_saved", content_id=str(content_id))
         return content
 
-    async def request_review(self, content_id: UUID, org_id: UUID) -> Content:
+    async def request_review(self, content_id: UUID, org_id: UUID, requester_id: UUID | None = None) -> Content:
         content = await self.get_content(content_id, org_id)
         self._validate_transition(content.status, ContentStatus.PENDING_REVIEW)
         content = await self._repo.update(content, {"status": ContentStatus.PENDING_REVIEW})
+
+        # Create ApprovalRequest record so the approval list shows this item
+        if self._approval_repo is not None:
+            approval_request = ApprovalRequest(
+                content_id=content_id,
+                organization_id=org_id,
+                status=ApprovalStatus.PENDING_REVIEW,
+                requested_by=requester_id or content.author_id,
+            )
+            approval_request = await self._approval_repo.create(approval_request)
+
+            # Add initial history entry (SUBMIT action)
+            await self._approval_repo.add_history(ApprovalHistory(
+                request_id=approval_request.id,
+                organization_id=org_id,
+                step=0,
+                action=ApprovalAction.SUBMIT,
+                reviewer_id=requester_id or content.author_id,
+            ))
+
         logger.info("content_review_requested", content_id=str(content_id))
         return content
 

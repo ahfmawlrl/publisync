@@ -18,6 +18,7 @@ class AiUsageRepository:
         """Persist a single AI usage log entry."""
         self._db.add(log)
         await self._db.flush()
+        await self._db.refresh(log)
         return log
 
     async def get_usage_stats(

@@ -48,7 +48,8 @@ export function getOrgStatusConfig(status: string): StatusConfig {
 // ── 기관 플랜 ──────────────────────────────────
 
 export const PLAN_OPTIONS = [
-  { value: 'basic', label: '베이직' },
-  { value: 'standard', label: '스탠다드' },
-  { value: 'premium', label: '프리미엄' },
+  { value: 'FREE', label: '무료' },
+  { value: 'BASIC', label: '베이직' },
+  { value: 'PRO', label: '프로' },
+  { value: 'ENTERPRISE', label: '엔터프라이즈' },
 ];

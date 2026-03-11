@@ -6,6 +6,7 @@ import { useNavigate, useParams } from 'react-router';
 
 import apiClient from '@/shared/api/client';
 import type { PaginatedResponse } from '@/shared/api/types';
+import MediaThumbnail from '@/shared/components/MediaThumbnail';
 import { getStatusConfig } from '@/shared/constants/contentStatus';
 import { CONTENT_MESSAGES } from '@/shared/constants/messages';
 import { getPlatformConfig } from '@/shared/constants/platform';
@@ -202,15 +203,7 @@ export default function ContentDetailPage() {
                         <Image.PreviewGroup>
                           <div className="flex flex-wrap gap-2">
                             {content.media_urls.map((url, idx) => (
-                              <Image
-                                key={idx}
-                                src={url}
-                                alt={`미디어 ${idx + 1}`}
-                                width={160}
-                                height={160}
-                                className="rounded object-cover"
-                                fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mN88P/BfwAJhAPk3KBkEgAAAABJRU5ErkJggg=="
-                              />
+                              <MediaThumbnail key={idx} src={url} alt={`미디어 ${idx + 1}`} />
                             ))}
                           </div>
                         </Image.PreviewGroup>

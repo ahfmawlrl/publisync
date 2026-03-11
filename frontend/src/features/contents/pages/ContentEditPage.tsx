@@ -102,6 +102,7 @@ export default function ContentEditPage() {
         title: content.title,
         body: content.body,
         platforms: content.platforms,
+        hashtags: content.hashtags || [],
         media_urls: content.media_urls || [],
         scheduled_at: content.scheduled_at ? dayjs(content.scheduled_at) : null,
       });
@@ -118,15 +119,22 @@ export default function ContentEditPage() {
 
   /** Build update data from form values. */
   const buildUpdateData = (values: Record<string, unknown>) => {
+    // Filter out blob: URLs — they're only valid in the current browser session
+    const rawUrls = (values.media_urls as string[]) || [];
+    const persistableUrls = rawUrls.filter((url) => !url.startsWith('blob:'));
+    if (persistableUrls.length < rawUrls.length) {
+      message.warning('스토리지에 업로드되지 않은 미디어는 저장에서 제외됩니다.');
+    }
+
     const data: Record<string, unknown> = {
       title: values.title as string,
       body: values.body as string | undefined,
       platforms: (values.platforms as string[]) || [],
-      media_urls: (values.media_urls as string[]) || [],
+      media_urls: persistableUrls,
     };
-    const hashtags = values.hashtags as string | undefined;
-    if (hashtags) {
-      data.hashtags = hashtags.split(/\s+/).filter(Boolean);
+    const hashtags = values.hashtags as string[] | undefined;
+    if (hashtags && hashtags.length > 0) {
+      data.hashtags = hashtags;
     }
     if (values.scheduled_at) {
       data.scheduled_at = (values.scheduled_at as { toISOString: () => string }).toISOString();
@@ -374,7 +382,7 @@ export default function ContentEditPage() {
                   </Button>
                 }
               >
-                <Input placeholder="#서울시 #정책브리핑 #3월" />
+                <Select mode="tags" placeholder="#서울시 #정책브리핑 #3월" tokenSeparators={[' ', ',']} />
               </Form.Item>
 
               <Form.Item name="scheduled_at" label="예약 게시일시">
@@ -447,6 +455,53 @@ export default function ContentEditPage() {
                       </div>
                     ),
                   },
+                  {
+                    key: 'x',
+                    label: 'X',
+                    children: (
+                      <div>
+                        <div className="mb-2 flex h-36 items-center justify-center rounded bg-gray-100 text-gray-400">
+                          트윗 미리보기
+                        </div>
+                        <div className="rounded border border-gray-200 p-3">
+                          <Typography.Text className="text-sm">
+                            {(previewBody || '트윗 내용 미리보기...').slice(0, 280)}
+                          </Typography.Text>
+                          {previewBody.length > 280 && (
+                            <Typography.Text type="danger" className="mt-1 block text-xs">
+                              280자 초과 ({previewBody.length}자)
+                            </Typography.Text>
+                          )}
+                          <br />
+                          <Typography.Text className="text-xs" style={{ color: '#1677ff' }}>
+                            {previewHashtags}
+                          </Typography.Text>
+                        </div>
+                      </div>
+                    ),
+                  },
+                  {
+                    key: 'naver',
+                    label: '네이버',
+                    children: (
+                      <div>
+                        <div className="mb-2 flex h-36 items-center justify-center rounded bg-gray-100 text-gray-400">
+                          블로그 미리보기
+                        </div>
+                        <Typography.Text strong className="text-base">
+                          {previewTitle || '블로그 제목 미리보기'}
+                        </Typography.Text>
+                        <Divider className="!my-2" />
+                        <Typography.Text className="text-xs leading-relaxed">
+                          {previewBody.slice(0, 200) || '블로그 본문 미리보기...'}
+                        </Typography.Text>
+                        <br />
+                        <Typography.Text className="mt-2 block text-xs" style={{ color: '#03c75a' }}>
+                          {previewHashtags}
+                        </Typography.Text>
+                      </div>
+                    ),
+                  },
                 ]}
               />
             </Card>
@@ -508,9 +563,14 @@ export default function ContentEditPage() {
                       suggestions={hashtagMutation.data?.suggestions ?? []}
                       loading={hashtagMutation.isPending}
                       onSelect={(c) => {
-                        const currentHashtags = (form.getFieldValue('hashtags') as string) || '';
-                        const hashtag = c.startsWith('#') ? c : `#${c}`;
-                        form.setFieldValue('hashtags', currentHashtags ? `${currentHashtags} ${hashtag}` : hashtag);
+                        const currentHashtags = (form.getFieldValue('hashtags') as string[]) || [];
+                        const newTags = c
+                          .split(/[\s,]+/)
+                          .map((t) => t.trim())
+                          .filter(Boolean)
+                          .map((t) => (t.startsWith('#') ? t : `#${t}`));
+                        const merged = [...currentHashtags, ...newTags.filter((t) => !currentHashtags.includes(t))];
+                        form.setFieldValue('hashtags', merged);
                       }}
                       error={hashtagMutation.data?.error}
                       model={hashtagMutation.data?.model}

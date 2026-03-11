@@ -45,7 +45,8 @@ class CommentRepository:
             base = base.where(Comment.sentiment == sentiment)
             count_base = count_base.where(Comment.sentiment == sentiment)
         if search:
-            like_pattern = f"%{search}%"
+            safe_search = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            like_pattern = f"%{safe_search}%"
             base = base.where(
                 Comment.text.ilike(like_pattern) | Comment.author_name.ilike(like_pattern)
             )
@@ -92,6 +93,7 @@ class CommentRepository:
         for key, value in data.items():
             setattr(comment, key, value)
         await self._db.flush()
+        await self._db.refresh(comment)
         return comment
 
     # ── ReplyTemplate queries ────────────────────────────
@@ -123,12 +125,14 @@ class CommentRepository:
     async def create_template(self, template: ReplyTemplate) -> ReplyTemplate:
         self._db.add(template)
         await self._db.flush()
+        await self._db.refresh(template)
         return template
 
     async def update_template(self, template: ReplyTemplate, data: dict) -> ReplyTemplate:
         for key, value in data.items():
             setattr(template, key, value)
         await self._db.flush()
+        await self._db.refresh(template)
         return template
 
     async def soft_delete_template(self, template: ReplyTemplate) -> None:

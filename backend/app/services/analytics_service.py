@@ -31,7 +31,8 @@ class AnalyticsService:
         period: str = "30d",
     ) -> list[PerformanceDataResponse]:
         """Aggregate performance data from publish_results grouped by platform."""
-        rows = await self._repo.get_performance_by_platform(org_id, platform=platform)
+        days = {"7d": 7, "30d": 30, "90d": 90}.get(period, 30)
+        rows = await self._repo.get_performance_by_platform(org_id, platform=platform, days=days)
 
         performance: list[PerformanceDataResponse] = []
         for row in rows:
@@ -70,7 +71,8 @@ class AnalyticsService:
         period: str = "30d",
     ) -> list[EngagementHeatmapItem]:
         """Build engagement heatmap: hour x day_of_week from publish_results."""
-        rows = await self._repo.get_engagement_heatmap(org_id)
+        days = {"7d": 7, "30d": 30, "90d": 90}.get(period, 30)
+        rows = await self._repo.get_engagement_heatmap(org_id, days=days)
 
         heatmap: list[EngagementHeatmapItem] = []
         for row in rows:

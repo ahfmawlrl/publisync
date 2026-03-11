@@ -1,6 +1,6 @@
 """Pydantic schemas for auth endpoints."""
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 # ── Login ─────────────────────────────────────────────────
 
@@ -52,7 +52,7 @@ class PasswordResetRequestBody(BaseModel):
 
 class PasswordResetBody(BaseModel):
     token: str
-    new_password: str
+    new_password: str = Field(min_length=8)
 
 
 # ── Invitation ───────────────────────────────────────────
@@ -60,7 +60,7 @@ class PasswordResetBody(BaseModel):
 class InviteAcceptRequest(BaseModel):
     token: str
     name: str
-    password: str
+    password: str = Field(min_length=8)
 
 
 class InviteVerifyResponse(BaseModel):

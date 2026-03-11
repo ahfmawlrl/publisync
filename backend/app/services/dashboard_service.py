@@ -97,6 +97,14 @@ class DashboardService:
             stats_q = stats_q.where(PublishResult.created_at >= period_start)
         stats = (await self._db.execute(stats_q)).one()
 
+        # Total comments
+        comment_q = select(func.count()).select_from(Comment).where(
+            Comment.organization_id == org_id,
+        )
+        if period_start:
+            comment_q = comment_q.where(Comment.created_at >= period_start)
+        total_comments = (await self._db.execute(comment_q)).scalar() or 0
+
         return DashboardSummaryResponse(
             total_contents=total,
             published_contents=published,
@@ -105,6 +113,7 @@ class DashboardService:
             active_channels=active_channels,
             total_views=stats[0],
             total_likes=stats[1],
+            total_comments=total_comments,
         )
 
     async def get_platform_trends(self, org_id: UUID, period: str = "7d") -> list[PlatformTrendItem]:

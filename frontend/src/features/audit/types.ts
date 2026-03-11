@@ -2,6 +2,7 @@ export interface AuditLogRecord {
   id: string;
   organization_id: string;
   actor_id: string | null;
+  actor_name: string | null;
   actor_role: string | null;
   action: string;
   resource_type: string;

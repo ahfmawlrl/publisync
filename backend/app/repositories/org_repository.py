@@ -40,6 +40,7 @@ class OrgRepository:
     async def create_org(self, org: Organization) -> Organization:
         self._db.add(org)
         await self._db.flush()
+        await self._db.refresh(org)
         return org
 
     async def update_org(self, org: Organization, data: dict) -> Organization:
@@ -47,6 +48,7 @@ class OrgRepository:
             if value is not None:
                 setattr(org, key, value)
         await self._db.flush()
+        await self._db.refresh(org)
         return org
 
     async def soft_delete_org(self, org: Organization) -> None:
@@ -96,6 +98,7 @@ class OrgRepository:
     async def create_agency(self, agency: Agency) -> Agency:
         self._db.add(agency)
         await self._db.flush()
+        await self._db.refresh(agency)
         return agency
 
     # ── Role ─────────────────────────────────────────────

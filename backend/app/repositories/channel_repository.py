@@ -45,12 +45,14 @@ class ChannelRepository:
     async def create(self, channel: Channel) -> Channel:
         self._db.add(channel)
         await self._db.flush()
+        await self._db.refresh(channel)
         return channel
 
     async def update(self, channel: Channel, data: dict) -> Channel:
         for key, value in data.items():
             setattr(channel, key, value)
         await self._db.flush()
+        await self._db.refresh(channel)
         return channel
 
     async def delete(self, channel: Channel) -> None:

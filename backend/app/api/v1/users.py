@@ -65,12 +65,16 @@ async def get_me(
 async def list_users(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
+    search: str | None = Query(None),
     role: UserRole | None = None,
+    status: str | None = Query(None),
     organization_id: UUID | None = None,
     _user: User = Depends(require_roles(UserRole.SYSTEM_ADMIN, UserRole.AGENCY_MANAGER)),
     service: UserService = Depends(_get_user_service),
 ) -> dict:
-    users, total = await service.list_users(org_id=organization_id, role=role, page=page, limit=limit)
+    users, total = await service.list_users(
+        org_id=organization_id, role=role, search=search, status=status, page=page, limit=limit,
+    )
     return {
         "success": True,
         "data": [_to_user_response(u) for u in users],

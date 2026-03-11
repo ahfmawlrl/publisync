@@ -63,7 +63,7 @@ async def get_ai_usage(
 ) -> dict:
     """Get AI usage statistics for the current organization."""
     stats = await service.get_usage_stats(org_id=workspace.org_id)
-    return {"success": True, "data": {**stats, "organization_id": str(workspace.org_id)}}
+    return {"success": True, "data": stats.model_dump()}
 
 
 # ── GET /ai/jobs ──────────────────────────────────────────
