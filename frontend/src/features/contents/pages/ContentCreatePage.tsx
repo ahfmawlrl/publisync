@@ -81,7 +81,7 @@ export default function ContentCreatePage() {
   const channelOptions = useMemo(() => {
     if (!channelsData || !watchedPlatforms?.length) return [];
     return channelsData
-      .filter((ch) => watchedPlatforms.includes(ch.platform) && ch.status === 'CONNECTED')
+      .filter((ch) => watchedPlatforms.includes(ch.platform) && ch.status === 'ACTIVE')
       .map((ch) => ({ value: ch.id, label: `${ch.name} (${ch.platform})` }));
   }, [channelsData, watchedPlatforms]);
 

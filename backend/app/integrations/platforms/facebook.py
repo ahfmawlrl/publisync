@@ -8,6 +8,7 @@ Uses Facebook Graph API v19.0.
 """
 
 from datetime import datetime
+from urllib.parse import urlencode
 
 import httpx
 import structlog
@@ -52,8 +53,7 @@ class FacebookAdapter(PlatformAdapter):
             "response_type": "code",
             "state": state,
         }
-        qs = "&".join(f"{k}={v}" for k, v in params.items())
-        return f"{FB_AUTH_URL}?{qs}"
+        return f"{FB_AUTH_URL}?{urlencode(params)}"
 
     async def exchange_code(self, code: str, redirect_uri: str) -> TokenInfo:
         async with httpx.AsyncClient() as client:
@@ -68,6 +68,8 @@ class FacebookAdapter(PlatformAdapter):
                 },
                 timeout=30.0,
             )
+            if resp.status_code != 200:
+                logger.error("fb_exchange_code_failed", status=resp.status_code, body=resp.text[:500])
             resp.raise_for_status()
             data = resp.json()
 
@@ -82,6 +84,8 @@ class FacebookAdapter(PlatformAdapter):
                 },
                 timeout=30.0,
             )
+            if ll_resp.status_code != 200:
+                logger.error("fb_long_lived_token_failed", status=ll_resp.status_code, body=ll_resp.text[:500])
             ll_resp.raise_for_status()
             ll_data = ll_resp.json()
 
@@ -133,10 +137,48 @@ class FacebookAdapter(PlatformAdapter):
         )
 
     async def publish(self, access_token: str, content: dict) -> PublishResult:
-        return PublishResult(
-            success=False,
-            error_message="Facebook publish not yet implemented",
-        )
+        """Post to Facebook Page feed via Graph API."""
+        try:
+            page_id = content.get("channel_account_id", "me")
+            title = content.get("title", "")
+            body = content.get("body", "")
+            message = f"{title}\n\n{body}" if title and body else (body or title)
+
+            params: dict = {
+                "message": message,
+                "access_token": access_token,
+            }
+            # 이미지 URL이 있으면 link 첨부
+            media_urls = content.get("media_urls", [])
+            if media_urls:
+                params["link"] = media_urls[0]
+
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(
+                    f"{GRAPH_API_BASE}/{page_id}/feed",
+                    params=params,
+                    timeout=30.0,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                post_id = data.get("id")
+
+            logger.info("facebook_published", post_id=post_id, page_id=page_id)
+            return PublishResult(
+                success=True,
+                platform_post_id=post_id,
+                platform_url=f"https://facebook.com/{post_id}" if post_id else None,
+            )
+        except httpx.HTTPStatusError as exc:
+            error_body = exc.response.text[:300] if exc.response else ""
+            logger.error("facebook_publish_failed", status=exc.response.status_code, body=error_body)
+            return PublishResult(
+                success=False,
+                error_message=f"Facebook publish failed: {exc.response.status_code} - {error_body}",
+            )
+        except Exception as exc:
+            logger.error("facebook_publish_error", error=str(exc))
+            return PublishResult(success=False, error_message=f"Facebook error: {exc!s}")
 
     async def validate_content(self, content: dict) -> list[ContentValidationError]:
         errors = []

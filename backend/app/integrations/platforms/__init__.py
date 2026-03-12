@@ -20,8 +20,8 @@ def get_adapter(platform: PlatformType) -> PlatformAdapter:
         )
     if platform == PlatformType.INSTAGRAM:
         return InstagramAdapter(
-            app_id=getattr(settings, "INSTAGRAM_APP_ID", ""),
-            app_secret=getattr(settings, "INSTAGRAM_APP_SECRET", ""),
+            app_id=getattr(settings, "META_APP_ID", ""),
+            app_secret=getattr(settings, "META_APP_SECRET", ""),
         )
     if platform == PlatformType.FACEBOOK:
         return FacebookAdapter(

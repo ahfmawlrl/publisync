@@ -38,8 +38,10 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import apiClient from '@/shared/api/client';
 import type { ApiResponse } from '@/shared/api/types';
+import AuthImage from '@/shared/components/AuthImage';
 import VideoPlayer from '@/shared/components/VideoPlayer';
 import WaveformViewer from '@/shared/components/WaveformViewer';
+import useAuthBlobUrl from '@/shared/hooks/useAuthBlobUrl';
 
 import {
   useCreateFolder,
@@ -334,7 +336,13 @@ export default function MediaLibraryPage() {
   const isImage = (mimeType: string) => mimeType.startsWith('image/');
   const isVideo = (mediaType: MediaType) => mediaType === 'VIDEO';
   const isAudio = (mediaType: MediaType) => mediaType === 'AUDIO';
-  const getMediaDownloadUrl = (id: string) => `/api/v1/media/${id}/download`;
+
+  // 선택된 에셋이 비디오/오디오일 때만 인증된 blob URL 생성
+  const mediaDownloadPath =
+    selectedAsset && (isVideo(selectedAsset.media_type) || isAudio(selectedAsset.media_type))
+      ? `/media/${selectedAsset.id}/download`
+      : null;
+  const { blobUrl: mediaBlobUrl } = useAuthBlobUrl(mediaDownloadPath);
 
   const assets = mediaData?.data || [];
   const total = mediaData?.meta?.total || 0;
@@ -433,15 +441,15 @@ export default function MediaLibraryPage() {
                   cover={
                     isImage(asset.mime_type) ? (
                       <div className="flex h-32 items-center justify-center overflow-hidden bg-gray-50">
-                        <img
+                        <AuthImage
                           alt={asset.filename}
-                          src={`/api/v1/media/${asset.id}/thumbnail`}
+                          src={`/media/${asset.id}/thumbnail`}
                           className="h-full w-full object-cover"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none';
-                            (e.target as HTMLImageElement).parentElement!.innerHTML =
-                              '<div class="flex h-full w-full items-center justify-center text-3xl text-gray-300"><span>&#128247;</span></div>';
-                          }}
+                          fallback={
+                            <div className="flex h-full w-full items-center justify-center text-3xl text-gray-300">
+                              <PictureOutlined />
+                            </div>
+                          }
                         />
                       </div>
                     ) : (
@@ -660,32 +668,39 @@ export default function MediaLibraryPage() {
             {/* Image preview */}
             {isImage(selectedAsset.mime_type) && (
               <div className="flex justify-center rounded bg-gray-50 p-4">
-                <img
+                <AuthImage
                   alt={selectedAsset.filename}
-                  src={`/api/v1/media/${selectedAsset.id}/thumbnail`}
+                  src={`/media/${selectedAsset.id}/thumbnail`}
                   className="max-h-64 object-contain"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                  }}
                 />
               </div>
             )}
             {/* Video preview */}
-            {isVideo(selectedAsset.media_type) && (
+            {isVideo(selectedAsset.media_type) && mediaBlobUrl && (
               <div className="overflow-hidden rounded bg-gray-50">
                 <VideoPlayer
-                  src={getMediaDownloadUrl(selectedAsset.id)}
+                  src={mediaBlobUrl}
                   type={selectedAsset.mime_type}
                 />
               </div>
             )}
+            {isVideo(selectedAsset.media_type) && !mediaBlobUrl && (
+              <div className="flex h-48 items-center justify-center rounded bg-gray-50">
+                <Spin tip="동영상 로딩 중..." />
+              </div>
+            )}
             {/* Audio preview */}
-            {isAudio(selectedAsset.media_type) && (
+            {isAudio(selectedAsset.media_type) && mediaBlobUrl && (
               <div className="rounded bg-gray-50 p-4">
                 <WaveformViewer
-                  audioUrl={getMediaDownloadUrl(selectedAsset.id)}
+                  audioUrl={mediaBlobUrl}
                   height={80}
                 />
+              </div>
+            )}
+            {isAudio(selectedAsset.media_type) && !mediaBlobUrl && (
+              <div className="flex h-20 items-center justify-center rounded bg-gray-50">
+                <Spin tip="오디오 로딩 중..." />
               </div>
             )}
             <div className="grid grid-cols-2 gap-2 text-sm">

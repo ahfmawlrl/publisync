@@ -82,7 +82,7 @@ export default function ApprovalsListPage() {
     return (
       <div
         key={record.id}
-        className="mb-3 cursor-pointer rounded-lg border-l-4 bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
+        className="mb-3 cursor-pointer rounded-lg border-l-4 bg-[var(--ant-color-bg-container)] p-4 shadow-sm transition-shadow hover:shadow-md"
         style={{
           borderLeftColor: isUrgent ? '#ff4d4f' : '#faad14',
         }}

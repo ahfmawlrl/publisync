@@ -108,9 +108,92 @@ class YouTubeAdapter(PlatformAdapter):
         )
 
     async def publish(self, access_token: str, content: dict) -> PublishResult:
-        # Full implementation requires multipart upload — stub for S4
-        logger.info("youtube_publish_stub", title=content.get("title"))
-        return PublishResult(success=False, error_message="YouTube publish requires video upload (Phase S5)")
+        """Upload a video to YouTube via resumable upload API.
+
+        Requires media_urls with at least one video file URL.
+        If no video is provided, returns a descriptive error (Fallback principle).
+        """
+        import httpx
+
+        media_urls = content.get("media_urls", [])
+        if not media_urls:
+            return PublishResult(
+                success=False,
+                error_message="YouTube는 동영상 파일 없이 게시할 수 없습니다. 동영상을 첨부해 주세요.",
+            )
+
+        title = content.get("title", "")[:100]
+        description = content.get("body", "")[:5000]
+
+        try:
+            async with httpx.AsyncClient() as client:
+                # Step 1: Initiate resumable upload
+                metadata = {
+                    "snippet": {
+                        "title": title,
+                        "description": description,
+                        "categoryId": "22",  # People & Blogs
+                    },
+                    "status": {
+                        "privacyStatus": "public",
+                        "selfDeclaredMadeForKids": False,
+                    },
+                }
+                init_resp = await client.post(
+                    "https://www.googleapis.com/upload/youtube/v3/videos",
+                    params={"uploadType": "resumable", "part": "snippet,status"},
+                    json=metadata,
+                    headers={
+                        "Authorization": f"Bearer {access_token}",
+                        "Content-Type": "application/json; charset=UTF-8",
+                        "X-Upload-Content-Type": "video/*",
+                    },
+                    timeout=30.0,
+                )
+                init_resp.raise_for_status()
+                upload_url = init_resp.headers.get("Location")
+
+                if not upload_url:
+                    return PublishResult(
+                        success=False,
+                        error_message="YouTube resumable upload URL을 받지 못했습니다.",
+                    )
+
+                # Step 2: Download video from media_urls[0] and upload
+                video_resp = await client.get(media_urls[0], timeout=120.0)
+                video_resp.raise_for_status()
+                video_bytes = video_resp.content
+
+                upload_resp = await client.put(
+                    upload_url,
+                    content=video_bytes,
+                    headers={
+                        "Authorization": f"Bearer {access_token}",
+                        "Content-Type": "video/*",
+                        "Content-Length": str(len(video_bytes)),
+                    },
+                    timeout=300.0,  # 대용량 업로드 대비
+                )
+                upload_resp.raise_for_status()
+                data = upload_resp.json()
+                video_id = data.get("id")
+
+            logger.info("youtube_published", video_id=video_id)
+            return PublishResult(
+                success=True,
+                platform_post_id=video_id,
+                platform_url=f"https://youtu.be/{video_id}" if video_id else None,
+            )
+        except httpx.HTTPStatusError as exc:
+            error_body = exc.response.text[:300] if exc.response else ""
+            logger.error("youtube_publish_failed", status=exc.response.status_code, body=error_body)
+            return PublishResult(
+                success=False,
+                error_message=f"YouTube publish failed: {exc.response.status_code} - {error_body}",
+            )
+        except Exception as exc:
+            logger.error("youtube_publish_error", error=str(exc))
+            return PublishResult(success=False, error_message=f"YouTube error: {exc!s}")
 
     async def validate_content(self, content: dict) -> list[ContentValidationError]:
         errors = []

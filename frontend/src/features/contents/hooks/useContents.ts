@@ -110,6 +110,19 @@ export function usePublishHistory(contentId: string | null, page: number = 1) {
   });
 }
 
+export function usePublishContent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiClient.post<ApiResponse<ContentRecord>>(`/contents/${id}/publish`);
+      return res.data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contents'] });
+    },
+  });
+}
+
 export function useRetryPublish() {
   const queryClient = useQueryClient();
   return useMutation({

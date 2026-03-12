@@ -126,13 +126,33 @@ class NaverBlogAdapter(PlatformAdapter):
                     timeout=30.0,
                 )
                 resp.raise_for_status()
-                # Naver Blog API doesn't return post URL directly
-            return PublishResult(success=True, platform_post_id=None, platform_url=None)
+                data = resp.json()
+
+                # Naver Blog API returns logNo in response
+                log_no = data.get("logNo") or data.get("result", {}).get("logNo")
+                blog_id = content.get("channel_account_id", "")
+                platform_url = (
+                    f"https://blog.naver.com/{blog_id}/{log_no}"
+                    if blog_id and log_no
+                    else None
+                )
+
+            logger.info("naver_blog_published", log_no=log_no, blog_id=blog_id)
+            return PublishResult(
+                success=True,
+                platform_post_id=str(log_no) if log_no else None,
+                platform_url=platform_url,
+            )
         except httpx.HTTPStatusError as exc:
+            error_body = exc.response.text[:300] if exc.response else ""
+            logger.error("naver_blog_publish_failed", status=exc.response.status_code, body=error_body)
             return PublishResult(
                 success=False,
-                error_message=f"Naver Blog publish failed: {exc.response.status_code}",
+                error_message=f"Naver Blog publish failed: {exc.response.status_code} - {error_body}",
             )
+        except Exception as exc:
+            logger.error("naver_blog_publish_error", error=str(exc))
+            return PublishResult(success=False, error_message=f"Naver Blog error: {exc!s}")
 
     async def validate_content(self, content: dict) -> list[ContentValidationError]:
         errors = []

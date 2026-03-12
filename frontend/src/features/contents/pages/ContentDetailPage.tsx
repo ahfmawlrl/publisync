@@ -1,4 +1,4 @@
-import { ArrowLeftOutlined, DeleteOutlined, EditOutlined, ReloadOutlined, SendOutlined, StopOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, CloudUploadOutlined, DeleteOutlined, EditOutlined, ReloadOutlined, SendOutlined, StopOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { App, Button, Card, Descriptions, Empty, Image, Popconfirm, Space, Spin, Tabs, Tag, Timeline, Typography } from 'antd';
 import { useMemo } from 'react';
@@ -10,7 +10,7 @@ import MediaThumbnail from '@/shared/components/MediaThumbnail';
 import { getStatusConfig } from '@/shared/constants/contentStatus';
 import { CONTENT_MESSAGES } from '@/shared/constants/messages';
 import { getPlatformConfig } from '@/shared/constants/platform';
-import { useCancelPublish, useContent, useDeleteContent, usePublishHistory, useRequestReview, useRetryPublish } from '../hooks/useContents';
+import { useCancelPublish, useContent, useDeleteContent, usePublishContent, usePublishHistory, useRequestReview, useRetryPublish } from '../hooks/useContents';
 
 interface ApprovalHistoryItem {
   id: string;
@@ -58,6 +58,7 @@ export default function ContentDetailPage() {
   });
   const reviewMutation = useRequestReview();
   const deleteMutation = useDeleteContent();
+  const publishMutation = usePublishContent();
   const cancelPublishMutation = useCancelPublish();
   const retryPublishMutation = useRetryPublish();
 
@@ -131,6 +132,23 @@ export default function ContentDetailPage() {
             >
               검토 요청
             </Button>
+          )}
+          {content.status === 'APPROVED' && (
+            <Popconfirm
+              title="선택한 플랫폼에 콘텐츠를 게시하시겠습니까?"
+              onConfirm={() => {
+                publishMutation.mutate(content.id, {
+                  onSuccess: () => message.success('게시가 완료되었습니다'),
+                  onError: () => message.error('게시에 실패했습니다'),
+                });
+              }}
+              okText="게시"
+              cancelText="취소"
+            >
+              <Button type="primary" icon={<CloudUploadOutlined />} loading={publishMutation.isPending}>
+                게시
+              </Button>
+            </Popconfirm>
           )}
           {content.status === 'SCHEDULED' && (
             <Popconfirm

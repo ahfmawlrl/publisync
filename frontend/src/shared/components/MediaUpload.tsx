@@ -1,6 +1,8 @@
-import { CloseCircleOutlined, DeleteOutlined, InboxOutlined, LoadingOutlined, ReloadOutlined } from '@ant-design/icons';
+import { CloseCircleOutlined, DeleteOutlined, FolderOpenOutlined, InboxOutlined, LoadingOutlined, ReloadOutlined } from '@ant-design/icons';
 import { App, Button, Image, List, Progress, Space, Tag, Typography } from 'antd';
 import { useCallback, useEffect, useRef, useState } from 'react';
+
+import MediaLibraryPickerModal from '@/features/contents/components/MediaLibraryPickerModal';
 import { useDropzone } from 'react-dropzone';
 
 import apiClient from '@/shared/api/client';
@@ -220,6 +222,29 @@ export default function MediaUpload({ value = [], onChange, maxFiles = 10 }: Med
     disabled: uploadedFiles.length >= maxFiles,
   });
 
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const handlePickerSelect = useCallback(
+    (items: { url: string; filename: string; size: number }[]) => {
+      const remaining = maxFiles - uploadedFiles.length;
+      const toAdd = items.slice(0, remaining);
+      if (toAdd.length === 0) return;
+
+      setUploadedFiles((prev) => {
+        const newFiles: UploadedFile[] = toAdd.map((item) => ({
+          filename: item.filename,
+          publicUrl: item.url,
+          objectKey: `library://${item.filename}`,
+          size: item.size,
+        }));
+        const updated = [...prev, ...newFiles];
+        reportChange(updated);
+        return updated;
+      });
+    },
+    [maxFiles, uploadedFiles.length, reportChange],
+  );
+
   /** Check if a URL or filename looks like an image. Handles blob URLs by falling back to filename. */
   const isImage = (url: string, filename?: string) =>
     /\.(jpg|jpeg|png|gif|webp)$/i.test(url) ||
@@ -245,6 +270,23 @@ export default function MediaUpload({ value = [], onChange, maxFiles = 10 }: Med
           이미지, 동영상, PDF · 최대 {maxFiles}개
         </Text>
       </div>
+
+      {/* Media Library Picker Button */}
+      <Button
+        icon={<FolderOpenOutlined />}
+        onClick={() => setPickerOpen(true)}
+        disabled={uploadedFiles.length >= maxFiles}
+        block
+      >
+        미디어 라이브러리에서 선택
+      </Button>
+
+      <MediaLibraryPickerModal
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onSelect={handlePickerSelect}
+        maxSelect={maxFiles - uploadedFiles.length}
+      />
 
       {/* Uploading progress */}
       {uploadingFiles.length > 0 && (

@@ -185,6 +185,17 @@ async def get_publish_history(
     }
 
 
+# ── POST /contents/:id/publish ────────────────────────
+@router.post("/{content_id}/publish", response_model=ApiResponse[ContentResponse])
+async def publish_content(
+    content_id: UUID,
+    workspace: WorkspaceContext = Depends(get_workspace_context),
+    service: ContentService = Depends(_get_service),
+) -> dict:
+    content = await service.publish(content_id, workspace.org_id)
+    return {"success": True, "data": _to_content_response(content)}
+
+
 # ── POST /contents/:id/retry-publish ─────────────────
 @router.post("/{content_id}/retry-publish", response_model=ApiResponse[ContentResponse])
 async def retry_publish(

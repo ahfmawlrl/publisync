@@ -381,6 +381,134 @@ class ContentService:
         offset = (page - 1) * limit
         return await self._repo.list_publish_results(content_id, offset=offset, limit=limit)
 
+    async def publish(self, content_id: UUID, org_id: UUID) -> Content:
+        """APPROVED 상태의 콘텐츠를 게시(PUBLISHING → PUBLISHED) 처리한다."""
+        content = await self.get_content(content_id, org_id)
+        if content.status != ContentStatus.APPROVED:
+            raise WorkflowStateConflictError("Can only publish approved content")
+
+        content = await self._repo.update(content, {"status": ContentStatus.PUBLISHING})
+        logger.info("content_publish_started", content_id=str(content_id))
+
+        # 채널 미연동 환경에서는 바로 PUBLISHED로 전환 (데모/테스트 Fallback)
+        channel_ids = content.channel_ids or []
+        if not channel_ids:
+            content = await self._repo.update(content, {"status": ContentStatus.PUBLISHED})
+            logger.info("content_published_no_channels", content_id=str(content_id))
+            return content
+
+        # 실제 채널이 있으면 각 플랫폼에 게시 실행
+        content = await self._execute_publish(content, org_id)
+        return content
+
+    async def _execute_publish(self, content: Content, org_id: UUID) -> Content:
+        """각 채널에 대해 플랫폼 어댑터를 호출하여 실제 게시를 수행한다.
+
+        각 채널별 PublishResult 레코드를 생성하고,
+        전체 결과에 따라 최종 상태(PUBLISHED/PARTIALLY_PUBLISHED/PUBLISH_FAILED)를 결정한다.
+        """
+        from uuid import UUID as UUIDType
+
+        from app.core.encryption import decrypt_token
+        from app.integrations.platforms import get_adapter
+        from app.models.channel import Channel
+
+        channel_ids = content.channel_ids or []
+        db = self._repo._db
+
+        for ch_id in channel_ids:
+            ch_uuid = ch_id if isinstance(ch_id, UUIDType) else UUIDType(str(ch_id))
+            channel = await db.get(Channel, ch_uuid)
+
+            if not channel:
+                logger.warning("publish_channel_not_found", channel_id=str(ch_id))
+                # PublishResult FAILED 기록
+                pr = PublishResult(
+                    content_id=content.id,
+                    organization_id=org_id,
+                    channel_id=ch_uuid,
+                    status=PublishResultStatus.FAILED,
+                    error_message=f"Channel {ch_id} not found",
+                )
+                db.add(pr)
+                continue
+
+            # 토큰 복호화
+            try:
+                access_token = decrypt_token(channel.access_token_enc) if channel.access_token_enc else ""
+            except Exception as exc:
+                logger.error("publish_token_decrypt_failed", channel_id=str(ch_id), error=str(exc))
+                pr = PublishResult(
+                    content_id=content.id,
+                    organization_id=org_id,
+                    channel_id=ch_uuid,
+                    status=PublishResultStatus.FAILED,
+                    error_message=f"Token decrypt failed: {exc!s}",
+                )
+                db.add(pr)
+                continue
+
+            # 플랫폼 어댑터 호출
+            adapter = get_adapter(channel.platform)
+            content_data = {
+                "title": content.title,
+                "body": content.body or "",
+                "media_urls": content.media_urls or [],
+                "channel_account_id": channel.platform_account_id,
+                "platforms": content.platforms or [],
+            }
+
+            try:
+                result = await adapter.publish(access_token, content_data)
+            except Exception as exc:
+                logger.error("publish_adapter_error", channel_id=str(ch_id), error=str(exc))
+                result = None
+
+            if result and result.success:
+                pr = PublishResult(
+                    content_id=content.id,
+                    organization_id=org_id,
+                    channel_id=ch_uuid,
+                    status=PublishResultStatus.SUCCESS,
+                    platform_post_id=result.platform_post_id,
+                    platform_url=result.platform_url,
+                )
+                logger.info(
+                    "publish_channel_success",
+                    channel_id=str(ch_id),
+                    platform=channel.platform.value,
+                    platform_post_id=result.platform_post_id,
+                )
+            else:
+                error_msg = result.error_message if result else "Unknown adapter error"
+                pr = PublishResult(
+                    content_id=content.id,
+                    organization_id=org_id,
+                    channel_id=ch_uuid,
+                    status=PublishResultStatus.FAILED,
+                    error_message=error_msg,
+                )
+                logger.warning(
+                    "publish_channel_failed",
+                    channel_id=str(ch_id),
+                    platform=channel.platform.value,
+                    error=error_msg,
+                )
+
+            db.add(pr)
+
+        await db.flush()
+
+        # 최종 상태 결정
+        final_status = await self.determine_publish_status(content.id)
+        content = await self._repo.update(content, {"status": final_status})
+        logger.info(
+            "publish_completed",
+            content_id=str(content.id),
+            final_status=final_status.value,
+        )
+        return content
+
     async def retry_publish(self, content_id: UUID, org_id: UUID) -> Content:
         content = await self.get_content(content_id, org_id)
         if content.status not in (ContentStatus.PUBLISH_FAILED, ContentStatus.PARTIALLY_PUBLISHED):
