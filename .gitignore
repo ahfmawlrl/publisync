@@ -65,3 +65,6 @@ deploy-*.log
 .claude/
 nul
 _[!_]*.py
+
+*.exe
+minio.exe
