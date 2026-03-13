@@ -209,3 +209,11 @@ class ReportStatus(str, enum.Enum):
     GENERATING = "GENERATING"
     DRAFT = "DRAFT"
     FINALIZED = "FINALIZED"
+
+
+class MediaRoleType(str, enum.Enum):
+    SOURCE = "SOURCE"
+    EDITED = "EDITED"
+    SUBTITLE = "SUBTITLE"
+    THUMBNAIL = "THUMBNAIL"
+    EFFECT = "EFFECT"

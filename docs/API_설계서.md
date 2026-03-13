@@ -11,6 +11,7 @@
 > | v1.0 | 2026-03-03 | 초기 작성 |
 > | v1.1 | 2026-03-03 | 화면 설계서 교차 검증 반영 — 누락 API 13개 추가, 부록 수치 교정, 매핑 테이블 보완 |
 > | v1.2 | 2026-03-04 | 아키텍처 설계서 교차 검증 반영 — 공통 상태 코드 423/502 추가, X-Request-Id 추적 헤더 추가 |
+> | v2.0 | 2026-03-13 | 콘텐츠 워크플로우 재설계 — Variants CRUD 6개 엔드포인트 추가 (6.12~6.17), 콘텐츠 섹션 총 17개 엔드포인트 |
 
 ---
 
@@ -788,6 +789,121 @@ X-Request-Id: {uuid-v4}
   }
 }
 ```
+
+### 6.12 POST /contents/:id/variants — 파생본 생성 (v2.0 추가)
+
+> **대응 화면:** 4.2 콘텐츠 에디터 — 플랫폼별 커스터마이즈 모드
+
+**허용 역할:** AM, AO
+
+**Request Body:**
+```json
+{
+  "platform": "youtube",
+  "channelId": "ch_uuid",
+  "title": "YouTube용 제목 오버라이드",
+  "body": "YouTube용 본문 오버라이드",
+  "metadata": {
+    "tags": ["#서울시", "#공공기관"],
+    "category": "25"
+  }
+}
+```
+
+**Response 201:**
+```json
+{
+  "data": {
+    "id": "var_uuid",
+    "contentId": "cnt_201",
+    "platform": "youtube",
+    "channelId": "ch_uuid",
+    "title": "YouTube용 제목 오버라이드",
+    "body": "YouTube용 본문 오버라이드",
+    "metadata": { "tags": ["#서울시", "#공공기관"], "category": "25" },
+    "createdAt": "2026-03-13T10:00:00Z"
+  }
+}
+```
+
+### 6.13 GET /contents/:id/variants — 파생본 목록 (v2.0 추가)
+
+**허용 역할:** All
+
+**Response 200:**
+```json
+{
+  "data": [
+    {
+      "id": "var_uuid_1",
+      "platform": "youtube",
+      "channelId": "ch_uuid",
+      "title": "YouTube용 제목",
+      "body": null,
+      "media": [
+        { "id": "vm_uuid", "mediaId": "med_uuid", "role": "SOURCE", "sortOrder": 0 }
+      ],
+      "createdAt": "2026-03-13T10:00:00Z"
+    }
+  ]
+}
+```
+
+### 6.14 PUT /contents/:id/variants/:vid — 파생본 수정 (v2.0 추가)
+
+**허용 역할:** AM, AO
+
+**Request Body:**
+```json
+{
+  "title": "수정된 YouTube 제목",
+  "body": "수정된 본문",
+  "metadata": { "tags": ["#업데이트"] }
+}
+```
+
+**Response 200:** 수정된 variant 객체 (6.12 Response 동일 구조)
+
+### 6.15 DELETE /contents/:id/variants/:vid — 파생본 삭제 (v2.0 추가)
+
+**허용 역할:** AM, AO
+
+**Response 204:** No Content
+
+### 6.16 POST /contents/:id/variants/:vid/media — 파생본 미디어 연결 (v2.0 추가)
+
+**허용 역할:** AM, AO
+
+**Request Body:**
+```json
+{
+  "mediaId": "med_uuid",
+  "role": "SOURCE",
+  "sortOrder": 0
+}
+```
+
+> `role` 값: `SOURCE`, `EDITED`, `SUBTITLE`, `THUMBNAIL`, `EFFECT`
+
+**Response 201:**
+```json
+{
+  "data": {
+    "id": "vm_uuid",
+    "variantId": "var_uuid",
+    "mediaId": "med_uuid",
+    "role": "SOURCE",
+    "sortOrder": 0,
+    "createdAt": "2026-03-13T10:00:00Z"
+  }
+}
+```
+
+### 6.17 DELETE /contents/:id/variants/:vid/media/:mid — 파생본 미디어 해제 (v2.0 추가)
+
+**허용 역할:** AM, AO
+
+**Response 204:** No Content
 
 ---
 
@@ -3283,7 +3399,7 @@ data: {"unreadNotifications":4,"pendingApprovals":3,"dangerousComments":6}
 | 인증 (Auth) | 7 | 1-A |
 | 워크스페이스 (Workspaces) | 2 | 1-A |
 | 대시보드 (Dashboard) | 8 | 1-A, 1-B |
-| 콘텐츠 (Contents) | 11 | 1-A |
+| 콘텐츠 (Contents) | 17 | 1-A (+6 variants v2.0) |
 | 승인 (Approvals) | 4 | 1-A |
 | 캘린더 (Calendar) | 4 | 2 |
 | 댓글 (Comments) | 8 | 1-B |

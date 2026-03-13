@@ -130,15 +130,20 @@ async def get_approval(
 
 
 # ── POST /approvals/:id/approve ────────────────────────
+# v2.0: AM is default approver. CD is also allowed so the service layer can
+# check the org-level require_cd_review setting for finer-grained control.
 @router.post("/{approval_id}/approve", response_model=ApiResponse[ApprovalRequestResponse])
 async def approve(
     approval_id: UUID,
     body: ApprovalActionRequest,
-    _user: User = Depends(require_roles(UserRole.CLIENT_DIRECTOR, UserRole.AGENCY_MANAGER)),
+    _user: User = Depends(require_roles(UserRole.AGENCY_MANAGER, UserRole.CLIENT_DIRECTOR)),
     workspace: WorkspaceContext = Depends(get_workspace_context),
     service: ApprovalService = Depends(_get_service),
 ) -> dict:
-    req = await service.approve(approval_id, workspace.org_id, workspace.user.id, body.comment)
+    req = await service.approve(
+        approval_id, workspace.org_id, workspace.user.id, body.comment,
+        actor_role=workspace.user.role,
+    )
     return {"success": True, "data": _to_approval_response(req)}
 
 
@@ -147,9 +152,12 @@ async def approve(
 async def reject(
     approval_id: UUID,
     body: ApprovalActionRequest,
-    _user: User = Depends(require_roles(UserRole.CLIENT_DIRECTOR, UserRole.AGENCY_MANAGER)),
+    _user: User = Depends(require_roles(UserRole.AGENCY_MANAGER, UserRole.CLIENT_DIRECTOR)),
     workspace: WorkspaceContext = Depends(get_workspace_context),
     service: ApprovalService = Depends(_get_service),
 ) -> dict:
-    req = await service.reject(approval_id, workspace.org_id, workspace.user.id, body.comment)
+    req = await service.reject(
+        approval_id, workspace.org_id, workspace.user.id, body.comment,
+        actor_role=workspace.user.role,
+    )
     return {"success": True, "data": _to_approval_response(req)}

@@ -3,9 +3,8 @@
 from uuid import UUID
 
 import structlog
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from fastapi.responses import JSONResponse, StreamingResponse
-from minio.error import S3Error
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db_session
@@ -13,6 +12,7 @@ from app.core.deps import WorkspaceContext, get_workspace_context, require_roles
 from app.integrations.storage import (
     ALLOWED_CONTENT_TYPES,
     generate_presigned_upload_url,
+    get_storage,
 )
 from app.models.enums import UserRole
 from app.models.media import MediaAsset, MediaFolder
@@ -129,14 +129,21 @@ async def list_media(
 
 
 # ── POST /media/upload ────────────────────────────────────
-@router.post("/upload", response_model=ApiResponse[MediaAssetResponse], status_code=201)
+@router.post("/upload", response_model=ApiResponse[MediaAssetResponse], status_code=201, deprecated=True)
 async def create_media_record(
     body: MediaUploadRequest,
+    response: Response,
     workspace: WorkspaceContext = Depends(get_workspace_context),
     _user: User = Depends(require_roles(UserRole.AGENCY_MANAGER, UserRole.AGENCY_OPERATOR)),
     service: MediaService = Depends(_get_service),
 ) -> dict:
-    """Create a media asset record after the file has been uploaded to storage."""
+    """Create a media asset record after the file has been uploaded to storage.
+
+    Deprecated: 미디어 업로드는 콘텐츠 작성 화면(POST /contents)에서 처리됩니다.
+    """
+    response.headers["Deprecation"] = "true"
+    response.headers["Sunset"] = "2026-06-01"
+    response.headers["Link"] = '</api/v1/contents>; rel="successor-version"'
     asset = await service.create_asset_record(
         workspace.org_id,
         workspace.user.id,
@@ -172,13 +179,20 @@ async def create_folder(
 
 
 # ── POST /media/presigned-upload ──────────────────────────
-@router.post("/presigned-upload", response_model=dict)
+@router.post("/presigned-upload", response_model=dict, deprecated=True)
 async def get_presigned_upload_url(
     body: PresignedUploadRequest,
+    response: Response,
     workspace: WorkspaceContext = Depends(get_workspace_context),
     _user: User = Depends(require_roles(UserRole.AGENCY_MANAGER, UserRole.AGENCY_OPERATOR)),
 ) -> dict:
-    """Generate a presigned PUT URL for direct client-side upload to MinIO."""
+    """Generate a presigned PUT URL for direct client-side upload.
+
+    Deprecated: 미디어 업로드는 콘텐츠 작성 화면(POST /contents)에서 처리됩니다.
+    """
+    response.headers["Deprecation"] = "true"
+    response.headers["Sunset"] = "2026-06-01"
+    response.headers["Link"] = '</api/v1/contents>; rel="successor-version"'
     if body.content_type not in ALLOWED_CONTENT_TYPES:
         return {
             "success": False,
@@ -279,24 +293,35 @@ async def download_media_asset(
     _user: User = Depends(require_roles(UserRole.AGENCY_MANAGER, UserRole.AGENCY_OPERATOR, UserRole.CLIENT_DIRECTOR)),
     service: MediaService = Depends(_get_service),
 ):
-    """Stream the original media file from MinIO storage."""
+    """Stream the original media file from storage."""
     asset = await service.get_asset(asset_id, workspace.org_id)
 
     try:
-        from app.core.config import settings
-        from app.integrations.storage import get_minio_client
+        storage = get_storage()
+        stream, content_type, _size = storage.download(asset.object_key)
 
-        minio_client = get_minio_client()
-        response = minio_client.get_object(settings.MINIO_BUCKET, asset.object_key)
+        def _iter():
+            try:
+                while True:
+                    chunk = stream.read(32 * 1024)
+                    if not chunk:
+                        break
+                    yield chunk
+            finally:
+                if hasattr(stream, "close"):
+                    stream.close()
+                if hasattr(stream, "release_conn"):
+                    stream.release_conn()
+
         return StreamingResponse(
-            response.stream(32 * 1024),
-            media_type=asset.mime_type or "application/octet-stream",
+            _iter(),
+            media_type=asset.mime_type or content_type,
             headers={
                 "Content-Disposition": f'inline; filename="{asset.original_filename or asset.filename}"',
             },
         )
-    except S3Error as e:
-        logger.warning("minio_download_s3_error", asset_id=str(asset_id), error=str(e))
+    except FileNotFoundError:
+        logger.warning("storage_download_not_found", asset_id=str(asset_id))
         return JSONResponse(
             status_code=404,
             content={
@@ -308,7 +333,7 @@ async def download_media_asset(
             },
         )
     except Exception as e:
-        logger.error("minio_download_failed", asset_id=str(asset_id), error=str(e))
+        logger.error("storage_download_failed", asset_id=str(asset_id), error=str(e))
         return JSONResponse(
             status_code=502,
             content={
@@ -348,17 +373,25 @@ async def get_media_thumbnail(
         )
 
     try:
-        from app.core.config import settings
-        from app.integrations.storage import get_minio_client
+        storage = get_storage()
+        stream, _ct, _sz = storage.download(thumbnail_key)
 
-        minio_client = get_minio_client()
-        response = minio_client.get_object(settings.MINIO_BUCKET, thumbnail_key)
-        return StreamingResponse(
-            response.stream(32 * 1024),
-            media_type="image/jpeg",
-        )
-    except S3Error as e:
-        logger.warning("minio_thumbnail_s3_error", asset_id=str(asset_id), error=str(e))
+        def _iter():
+            try:
+                while True:
+                    chunk = stream.read(32 * 1024)
+                    if not chunk:
+                        break
+                    yield chunk
+            finally:
+                if hasattr(stream, "close"):
+                    stream.close()
+                if hasattr(stream, "release_conn"):
+                    stream.release_conn()
+
+        return StreamingResponse(_iter(), media_type="image/jpeg")
+    except FileNotFoundError:
+        logger.warning("storage_thumbnail_not_found", asset_id=str(asset_id))
         return JSONResponse(
             status_code=404,
             content={
@@ -370,7 +403,7 @@ async def get_media_thumbnail(
             },
         )
     except Exception as e:
-        logger.error("minio_thumbnail_failed", asset_id=str(asset_id), error=str(e))
+        logger.error("storage_thumbnail_failed", asset_id=str(asset_id), error=str(e))
         return JSONResponse(
             status_code=502,
             content={

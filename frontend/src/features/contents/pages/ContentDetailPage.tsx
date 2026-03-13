@@ -250,6 +250,43 @@ export default function ContentDetailPage() {
                 ),
               },
               {
+                key: 'variants',
+                label: `플랫폼별 변형 (${content.variants?.length || 0})`,
+                children: content.variants && content.variants.length > 0 ? (
+                  <Tabs
+                    size="small"
+                    items={content.variants.map((v) => ({
+                      key: v.id,
+                      label: <Tag color={getPlatformConfig(v.platform).color}>{getPlatformConfig(v.platform).label}</Tag>,
+                      children: (
+                        <Card size="small">
+                          <Descriptions column={1} size="small">
+                            <Descriptions.Item label="제목">
+                              {v.title || <Text type="secondary">(공통 제목 사용)</Text>}
+                            </Descriptions.Item>
+                            <Descriptions.Item label="본문">
+                              {v.body || <Text type="secondary">(공통 본문 사용)</Text>}
+                            </Descriptions.Item>
+                            <Descriptions.Item label="해시태그">
+                              {v.hashtags && v.hashtags.length > 0
+                                ? v.hashtags.join(' ')
+                                : <Text type="secondary">(공통 해시태그 사용)</Text>}
+                            </Descriptions.Item>
+                            <Descriptions.Item label="미디어">
+                              {v.media && v.media.length > 0
+                                ? `${v.media.length}개 파일`
+                                : <Text type="secondary">없음</Text>}
+                            </Descriptions.Item>
+                          </Descriptions>
+                        </Card>
+                      ),
+                    }))}
+                  />
+                ) : (
+                  <Empty description="플랫폼별 변형이 없습니다 (전체 동일 게시)" />
+                ),
+              },
+              {
                 key: 'preview',
                 label: '플랫폼별 미리보기',
                 children: (

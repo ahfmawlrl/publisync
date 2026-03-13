@@ -40,6 +40,7 @@ from app.core.exceptions import PubliSyncError, publisync_error_handler
 from app.core.logging import setup_logging
 from app.core.middleware import RequestIdMiddleware
 from app.core.rate_limit import limiter
+from app.integrations.storage.routes import router as storage_router
 
 
 def _sentry_before_send(event: dict, hint: dict) -> dict:
@@ -189,3 +190,4 @@ app.include_router(reply_templates_router.router, prefix="/api/v1/reply-template
 app.include_router(reports_router.router, prefix="/api/v1/reports", tags=["reports"])
 app.include_router(search_router.router, prefix="/api/v1/search", tags=["search"])
 app.include_router(sse_router.router, prefix="/api/v1/sse", tags=["sse"])
+app.include_router(storage_router, prefix="/api/v1/storage", tags=["storage"])

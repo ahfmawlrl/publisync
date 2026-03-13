@@ -109,7 +109,7 @@ X-Request-Id: {uuid-v4}
 | 15 | GET | `/dashboard/all-organizations` | AM | 전체 기관 현황 (기관별 channelCount, contentCount, pendingApprovals, lastPublishedAt) |
 | 16 | GET | `/dashboard/badge-counts` | All | 사이드바 뱃지 카운트 |
 
-### 콘텐츠 (11)
+### 콘텐츠 (17, v2.0: +6 variants)
 
 | # | Method | Endpoint | 역할 | 설명 |
 |---|---|---|---|---|
@@ -127,6 +127,12 @@ X-Request-Id: {uuid-v4}
 | 27a | GET | `/contents/:id/versions` | All | 콘텐츠 버전 목록 |
 | 27b | GET | `/contents/:id/versions/:version` | All | 특정 버전 상세 |
 | 27c | POST | `/contents/:id/versions/:version/restore` | AM,AO | 이전 버전 복원 |
+| 27d | POST | `/contents/:id/variants` | AM,AO | 파생본 생성 (v2.0) |
+| 27e | GET | `/contents/:id/variants` | All | 파생본 목록 (v2.0) |
+| 27f | PUT | `/contents/:id/variants/:vid` | AM,AO | 파생본 수정 (v2.0) |
+| 27g | DELETE | `/contents/:id/variants/:vid` | AM,AO | 파생본 삭제 (v2.0) |
+| 27h | POST | `/contents/:id/variants/:vid/media` | AM,AO | 파생본 미디어 연결 (v2.0) |
+| 27i | DELETE | `/contents/:id/variants/:vid/media/:mid` | AM,AO | 파생본 미디어 해제 (v2.0) |
 
 ### 승인 (4)
 
@@ -290,13 +296,14 @@ X-Request-Id: {uuid-v4}
 | # | Method | Endpoint | 역할 | 설명 |
 |---|---|---|---|---|
 | 94 | GET | `/media` | All | 미디어 라이브러리 목록 |
-| 95 | POST | `/media/upload` | AM,AO | 미디어 업로드 |
+| 95 | POST | `/media/upload` | AM,AO | ~~미디어 업로드~~ (DEPRECATED: 콘텐츠 작성에서 처리) |
 | 96 | GET | `/media/:id` | All | 미디어 상세 |
 | 97 | PUT | `/media/:id` | AM,AO | 미디어 메타 수정 |
 | 98 | DELETE | `/media/:id` | AM | 미디어 삭제 |
 | 99 | GET | `/media/folders` | All | 폴더 목록 |
 | 100 | POST | `/media/folders` | AM,AO | 폴더 생성 |
 | 101 | POST | `/media/shortform` | AM,AO | 숏폼 생성 (F15) |
+| — | POST | `/media/presigned-upload` | AM,AO | ~~Presigned URL 발급~~ (DEPRECATED: 콘텐츠 작성에서 처리) |
 
 ### AI (8)
 

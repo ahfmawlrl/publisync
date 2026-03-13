@@ -1,4 +1,4 @@
-"""Repository for Content, ContentVersion, PublishResult — S5 (F01)."""
+"""Repository for Content, ContentVersion, PublishResult, ContentVariant — S5 (F01)."""
 
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.content import Content, ContentVersion, PublishResult
+from app.models.content import Content, ContentVariant, ContentVersion, PublishResult, VariantMedia
 from app.models.enums import ContentStatus
 
 
@@ -21,7 +21,11 @@ class ContentRepository:
         stmt = (
             select(Content)
             .where(Content.id == content_id, Content.deleted_at.is_(None))
-            .options(selectinload(Content.publish_results), selectinload(Content.author))
+            .options(
+                selectinload(Content.publish_results),
+                selectinload(Content.author),
+                selectinload(Content.variants).selectinload(ContentVariant.media),
+            )
         )
         result = await self._db.execute(stmt)
         return result.scalar_one_or_none()
@@ -68,7 +72,10 @@ class ContentRepository:
 
         total = (await self._db.execute(count_base)).scalar() or 0
         stmt = (
-            base.options(selectinload(Content.author))
+            base.options(
+                selectinload(Content.author),
+                selectinload(Content.variants).selectinload(ContentVariant.media),
+            )
             .order_by(Content.created_at.desc())
             .offset(offset)
             .limit(limit)
@@ -153,3 +160,56 @@ class ContentRepository:
         )
         result = await self._db.execute(stmt)
         return {row[0].value if hasattr(row[0], "value") else row[0]: row[1] for row in result.all()}
+
+    # ── ContentVariant (v2.0) ─────────────────────────────
+
+    async def create_variant(self, variant: ContentVariant) -> ContentVariant:
+        self._db.add(variant)
+        await self._db.flush()
+        await self._db.refresh(variant, attribute_names=["media"])
+        return variant
+
+    async def list_variants(self, content_id: UUID) -> list[ContentVariant]:
+        stmt = (
+            select(ContentVariant)
+            .where(ContentVariant.content_id == content_id)
+            .options(selectinload(ContentVariant.media))
+            .order_by(ContentVariant.sort_order, ContentVariant.created_at)
+        )
+        result = await self._db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_variant(self, variant_id: UUID) -> ContentVariant | None:
+        stmt = (
+            select(ContentVariant)
+            .where(ContentVariant.id == variant_id)
+            .options(selectinload(ContentVariant.media))
+        )
+        result = await self._db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def update_variant(self, variant: ContentVariant, data: dict) -> ContentVariant:
+        for key, value in data.items():
+            setattr(variant, key, value)
+        await self._db.flush()
+        await self._db.refresh(variant, attribute_names=["media"])
+        return variant
+
+    async def delete_variant(self, variant: ContentVariant) -> None:
+        await self._db.delete(variant)
+        await self._db.flush()
+
+    # ── VariantMedia (v2.0) ───────────────────────────────
+
+    async def add_variant_media(self, vm: VariantMedia) -> VariantMedia:
+        self._db.add(vm)
+        await self._db.flush()
+        await self._db.refresh(vm)
+        return vm
+
+    async def remove_variant_media(self, vm: VariantMedia) -> None:
+        await self._db.delete(vm)
+        await self._db.flush()
+
+    async def get_variant_media(self, media_id: UUID) -> VariantMedia | None:
+        return await self._db.get(VariantMedia, media_id)

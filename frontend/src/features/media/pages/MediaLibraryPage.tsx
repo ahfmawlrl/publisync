@@ -4,12 +4,9 @@ import {
   EyeOutlined,
   FileOutlined,
   FolderAddOutlined,
-  InboxOutlined,
-  LoadingOutlined,
   PictureOutlined,
   PlayCircleOutlined,
   SoundOutlined,
-  UploadOutlined,
 } from '@ant-design/icons';
 import {
   App,
@@ -21,7 +18,6 @@ import {
   Modal,
   Pagination,
   Popconfirm,
-  Progress,
   Segmented,
   Select,
   Space,
@@ -32,12 +28,10 @@ import {
   Typography,
 } from 'antd';
 import type { DataNode } from 'antd/es/tree';
-import { useCallback, useMemo, useState } from 'react';
-import { useDropzone } from 'react-dropzone';
-import { useQueryClient } from '@tanstack/react-query';
+import { Scissors, Subtitles } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router';
 
-import apiClient from '@/shared/api/client';
-import type { ApiResponse } from '@/shared/api/types';
 import AuthImage from '@/shared/components/AuthImage';
 import VideoPlayer from '@/shared/components/VideoPlayer';
 import WaveformViewer from '@/shared/components/WaveformViewer';
@@ -51,30 +45,10 @@ import {
   useMediaList,
   useUpdateMedia,
 } from '../hooks/useMedia';
-import type { MediaAssetListItem, MediaType, PresignedUploadResult } from '../types';
+import type { MediaAssetListItem, MediaType } from '../types';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
-
-const MAX_SIZE = 100 * 1024 * 1024; // 100MB
-
-const ACCEPTED_TYPES: Record<string, string[]> = {
-  'image/jpeg': ['.jpg', '.jpeg'],
-  'image/png': ['.png'],
-  'image/gif': ['.gif'],
-  'image/webp': ['.webp'],
-  'image/svg+xml': ['.svg'],
-  'video/mp4': ['.mp4'],
-  'video/webm': ['.webm'],
-  'video/quicktime': ['.mov'],
-  'audio/mpeg': ['.mp3'],
-  'audio/wav': ['.wav'],
-  'audio/aac': ['.aac'],
-  'audio/ogg': ['.ogg'],
-  'audio/webm': ['.weba'],
-  'application/pdf': ['.pdf'],
-  'application/msword': ['.doc'],
-};
 
 const MEDIA_TYPE_OPTIONS = [
   { value: 'IMAGE', label: '이미지' },
@@ -104,16 +78,9 @@ function getMediaIcon(mediaType: MediaType) {
   }
 }
 
-interface UploadingItem {
-  id: string;
-  filename: string;
-  progress: number;
-  error?: string;
-}
-
 export default function MediaLibraryPage() {
   const { message: messageApi } = App.useApp();
-  const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   // State
   const [page, setPage] = useState(1);
@@ -124,14 +91,10 @@ export default function MediaLibraryPage() {
   const [tagFilter, setTagFilter] = useState<string[]>([]);
 
   // Modals
-  const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [folderModalOpen, setFolderModalOpen] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<MediaAssetListItem | null>(null);
-
-  // Upload state
-  const [uploadingFiles, setUploadingFiles] = useState<UploadingItem[]>([]);
 
   // Forms
   const [editForm] = Form.useForm();
@@ -180,105 +143,6 @@ export default function MediaLibraryPage() {
 
     return [rootNode];
   }, [folders]);
-
-  // Upload handler
-  const uploadFile = useCallback(
-    async (file: File) => {
-      const uploadId = crypto.randomUUID();
-      const uploadingItem: UploadingItem = { id: uploadId, filename: file.name, progress: 0 };
-      setUploadingFiles((prev) => [...prev, uploadingItem]);
-
-      try {
-        // 1. Get presigned URL
-        const presignedRes = await apiClient.post<ApiResponse<PresignedUploadResult>>(
-          '/media/presigned-upload',
-          { filename: file.name, content_type: file.type, file_size: file.size },
-        );
-
-        if (!presignedRes.data.success) {
-          throw new Error('Presigned URL 발급 실패');
-        }
-
-        const { upload_url, object_key } = presignedRes.data.data;
-
-        // 2. Upload to storage
-        await new Promise<void>((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open('PUT', upload_url, true);
-          xhr.setRequestHeader('Content-Type', file.type);
-
-          xhr.upload.onprogress = (e) => {
-            if (e.lengthComputable) {
-              const progress = Math.round((e.loaded / e.total) * 100);
-              setUploadingFiles((prev) =>
-                prev.map((f) => (f.id === uploadId ? { ...f, progress } : f)),
-              );
-            }
-          };
-
-          xhr.onload = () => {
-            if (xhr.status >= 200 && xhr.status < 300) resolve();
-            else reject(new Error(`업로드 실패: ${xhr.status}`));
-          };
-
-          xhr.onerror = () => reject(new Error('네트워크 오류'));
-          xhr.send(file);
-        });
-
-        // 3. Create asset record
-        await apiClient.post('/media/upload', {
-          filename: file.name,
-          original_filename: file.name,
-          content_type: file.type,
-          object_key,
-          file_size: file.size,
-          folder_id: selectedFolderId || undefined,
-        });
-
-        queryClient.invalidateQueries({ queryKey: ['media'] });
-        messageApi.success(`${file.name} 업로드 완료`);
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : '업로드 실패';
-        setUploadingFiles((prev) =>
-          prev.map((f) => (f.id === uploadId ? { ...f, error: errorMsg } : f)),
-        );
-        messageApi.error(`${file.name}: ${errorMsg}`);
-      } finally {
-        setTimeout(() => {
-          setUploadingFiles((prev) => prev.filter((f) => f.id !== uploadId));
-        }, 1500);
-      }
-    },
-    [messageApi, selectedFolderId, queryClient],
-  );
-
-  const onDrop = useCallback(
-    (acceptedFiles: File[]) => {
-      acceptedFiles.forEach(uploadFile);
-    },
-    [uploadFile],
-  );
-
-  const onDropRejected = useCallback(
-    (fileRejections: { file: File; errors: { code: string; message: string }[] }[]) => {
-      fileRejections.forEach(({ file, errors }) => {
-        const reasons = errors.map((e) => {
-          if (e.code === 'file-too-large') return '100MB 초과';
-          if (e.code === 'file-invalid-type') return '지원하지 않는 형식';
-          return e.message;
-        });
-        messageApi.error(`${file.name}: ${reasons.join(', ')}`);
-      });
-    },
-    [messageApi],
-  );
-
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    onDropRejected,
-    accept: ACCEPTED_TYPES,
-    maxSize: MAX_SIZE,
-  });
 
   // Handlers
   const handleEditOpen = (asset: MediaAssetListItem) => {
@@ -377,13 +241,9 @@ export default function MediaLibraryPage() {
           <Title level={4} className="!mb-0">
             미디어 라이브러리
           </Title>
-          <Button
-            type="primary"
-            icon={<UploadOutlined />}
-            onClick={() => setUploadModalOpen(true)}
-          >
-            업로드
-          </Button>
+          <Typography.Text type="secondary" className="text-xs">
+            미디어 업로드는 콘텐츠 작성 화면에서 진행해주세요
+          </Typography.Text>
         </div>
 
         {/* Filters */}
@@ -465,6 +325,24 @@ export default function MediaLibraryPage() {
                     <Tooltip key="edit" title="수정">
                       <EditOutlined onClick={() => handleEditOpen(asset)} />
                     </Tooltip>,
+                    ...(asset.media_type === 'VIDEO'
+                      ? [
+                          <Tooltip key="subtitle" title="자막 편집">
+                            <Subtitles
+                              size={14}
+                              className="cursor-pointer"
+                              onClick={() => navigate(`/ai/subtitle-editor/${asset.id}`)}
+                            />
+                          </Tooltip>,
+                          <Tooltip key="shortform" title="숏폼 추출">
+                            <Scissors
+                              size={14}
+                              className="cursor-pointer"
+                              onClick={() => navigate(`/ai/shortform-editor/${asset.id}`)}
+                            />
+                          </Tooltip>,
+                        ]
+                      : []),
                     <Popconfirm
                       key="delete"
                       title="이 미디어를 삭제하시겠습니까?"
@@ -536,6 +414,26 @@ export default function MediaLibraryPage() {
                         onClick={() => handleEditOpen(asset)}
                         title="수정"
                       />
+                      {asset.media_type === 'VIDEO' && (
+                        <>
+                          <Tooltip title="자막 편집">
+                            <Button
+                              type="text"
+                              size="small"
+                              icon={<Subtitles size={14} />}
+                              onClick={() => navigate(`/ai/subtitle-editor/${asset.id}`)}
+                            />
+                          </Tooltip>
+                          <Tooltip title="숏폼 추출">
+                            <Button
+                              type="text"
+                              size="small"
+                              icon={<Scissors size={14} />}
+                              onClick={() => navigate(`/ai/shortform-editor/${asset.id}`)}
+                            />
+                          </Tooltip>
+                        </>
+                      )}
                       <Popconfirm
                         title="이 미디어를 삭제하시겠습니까?"
                         onConfirm={() => handleDelete(asset.id)}
@@ -572,55 +470,6 @@ export default function MediaLibraryPage() {
           </div>
         )}
       </div>
-
-      {/* Upload Modal */}
-      <Modal
-        title="미디어 업로드"
-        open={uploadModalOpen}
-        onCancel={() => setUploadModalOpen(false)}
-        footer={
-          <Button onClick={() => setUploadModalOpen(false)}>닫기</Button>
-        }
-        width={540}
-      >
-        <div className="space-y-4">
-          <div
-            {...getRootProps()}
-            className={`cursor-pointer rounded-lg border-2 border-dashed p-8 text-center transition-colors ${
-              isDragActive ? 'border-blue-400 bg-blue-50' : 'border-gray-300 hover:border-blue-300'
-            }`}
-          >
-            <input {...getInputProps()} />
-            <InboxOutlined className="mb-2 text-4xl text-gray-400" />
-            <p className="text-sm text-gray-600">
-              {isDragActive
-                ? '파일을 여기에 놓으세요'
-                : '클릭하거나 파일을 드래그하여 업로드'}
-            </p>
-            <Text type="secondary" className="text-xs">
-              이미지, 동영상, PDF / 최대 100MB
-            </Text>
-          </div>
-
-          {uploadingFiles.length > 0 && (
-            <div className="space-y-2">
-              {uploadingFiles.map((item) => (
-                <div key={item.id} className="flex items-center gap-2">
-                  <LoadingOutlined />
-                  <Text className="flex-1 truncate text-xs">{item.filename}</Text>
-                  {item.error ? (
-                    <Text type="danger" className="text-xs">
-                      {item.error}
-                    </Text>
-                  ) : (
-                    <Progress size="small" percent={item.progress} className="w-28" />
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </Modal>
 
       {/* Edit Modal */}
       <Modal

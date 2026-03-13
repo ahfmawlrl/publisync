@@ -83,6 +83,9 @@ class ApprovalHistory(Base, TimestampMixin):
     step: Mapped[int] = mapped_column(Integer, default=0)
     action: Mapped[ApprovalAction] = mapped_column(Enum(ApprovalAction), nullable=False)
     reviewer_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    variant_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("content_variants.id", ondelete="SET NULL"), nullable=True
+    )
     comment: Mapped[str | None] = mapped_column(Text)
 
     request: Mapped[ApprovalRequest] = relationship(back_populates="histories")

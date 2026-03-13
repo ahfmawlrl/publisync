@@ -8,7 +8,7 @@ from app.models.channel import Channel, ChannelHistory
 from app.models.comment import Comment, ReplyTemplate
 
 # Phase 1-A models (content, channel, approval)
-from app.models.content import Content, ContentVersion, PublishResult
+from app.models.content import Content, ContentVariant, ContentVersion, PublishResult, VariantMedia
 from app.models.enums import (
     AiJobStatus,
     AiJobType,
@@ -23,6 +23,7 @@ from app.models.enums import (
     CommentStatus,
     ContentStatus,
     InvitationStatus,
+    MediaRoleType,
     MediaType,
     NotificationChannel,
     NotificationType,
@@ -77,6 +78,7 @@ __all__ = [  # noqa: RUF022 — intentionally ordered by phase, not alphabetical
     "AiJobStatus",
     "AiJobType",
     "MediaType",
+    "MediaRoleType",
     "CalendarEventType",
     # Phase 1-A models (user)
     "Agency",
@@ -90,6 +92,8 @@ __all__ = [  # noqa: RUF022 — intentionally ordered by phase, not alphabetical
     # Phase 1-A models (content)
     "Content",
     "ContentVersion",
+    "ContentVariant",
+    "VariantMedia",
     "PublishResult",
     # Phase 1-A models (channel)
     "Channel",

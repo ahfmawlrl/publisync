@@ -77,10 +77,13 @@ export default function ContentsListPage() {
       title: '플랫폼',
       dataIndex: 'platforms',
       key: 'platforms',
-      width: 160,
-      render: (platforms: string[]) => (
+      width: 180,
+      render: (platforms: string[], record) => (
         <span>
           {platforms.map((p) => getPlatformConfig(p).short).join('·')}
+          {record.variants && record.variants.length > 0 && (
+            <Tag className="ml-1 text-xs" color="cyan">{record.variants.length}변형</Tag>
+          )}
         </span>
       ),
     },

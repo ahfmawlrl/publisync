@@ -33,10 +33,10 @@ export default function ContentCard({ content, onEdit }: ContentCardProps) {
 
 ```
 features/contents/
-├── components/       ← 이 기능 전용 컴포넌트
-├── hooks/            ← useContents, useCreateContent
-├── pages/            ← ContentsListPage, ContentCreatePage
-└── types.ts          ← Content, ContentStatus 등
+├── components/       ← VariantEditor, PlatformPreview, SourceMediaSection 등
+├── hooks/            ← useContents, useCreateContent, useVariants
+├── pages/            ← ContentsListPage, ContentEditorPage, ContentDetailPage
+└── types.ts          ← Content, ContentStatus, VariantRecord 등
 ```
 
 **의존 방향 규칙:**
@@ -118,6 +118,7 @@ export function useCreateContent() {
 #### Invalidation 규칙
 
 - 콘텐츠 CUD → `['contents']`, `['dashboard']` 무효화
+- Variant CUD → `['contents']` 무효화 (콘텐츠 상세에 variants 포함)
 - 댓글 변경 → `['comments']`, `['dashboard', 'summary']` 무효화
 - SSE 이벤트 수신 → 관련 queryKey 선택적 무효화
 

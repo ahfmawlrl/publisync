@@ -16,9 +16,8 @@ const OrganizationsPage = lazy(() => import('@/features/settings/pages/Organizat
 const ChannelsPage = lazy(() => import('@/features/channels/pages/ChannelsPage'));
 const OAuthCallbackPage = lazy(() => import('@/features/channels/pages/OAuthCallbackPage'));
 const ContentsListPage = lazy(() => import('@/features/contents/pages/ContentsListPage'));
-const ContentCreatePage = lazy(() => import('@/features/contents/pages/ContentCreatePage'));
+const ContentEditorPage = lazy(() => import('@/features/contents/pages/ContentEditorPage'));
 const ContentDetailPage = lazy(() => import('@/features/contents/pages/ContentDetailPage'));
-const ContentEditPage = lazy(() => import('@/features/contents/pages/ContentEditPage'));
 const ApprovalsListPage = lazy(() => import('@/features/approvals/pages/ApprovalsListPage'));
 const WorkflowSettingsPage = lazy(() => import('@/features/approvals/pages/WorkflowSettingsPage'));
 const CommentsListPage = lazy(() => import('@/features/comments/pages/CommentsListPage'));
@@ -114,8 +113,8 @@ export const router = createBrowserRouter([
           {
             element: <RouteGuard requiredRoles={[AM, AO]} />,
             children: [
-              { path: '/contents/create', element: withSuspense(ContentCreatePage) },
-              { path: '/contents/:id/edit', element: withSuspense(ContentEditPage) },
+              { path: '/contents/create', element: withSuspense(ContentEditorPage) },
+              { path: '/contents/:id/edit', element: withSuspense(ContentEditorPage) },
             ],
           },
 

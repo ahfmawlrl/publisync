@@ -8,10 +8,17 @@ from uuid import UUID
 
 import structlog
 
-from app.core.exceptions import ContentNotFoundError, WorkflowStateConflictError
+from app.core.exceptions import ContentNotFoundError, NotFoundError, WorkflowStateConflictError
 from app.models.approval import ApprovalHistory, ApprovalRequest
-from app.models.content import Content, ContentVersion, PublishResult
-from app.models.enums import ApprovalAction, ApprovalStatus, ContentStatus, PublishResultStatus
+from app.models.content import Content, ContentVariant, ContentVersion, PublishResult, VariantMedia
+from app.models.enums import (
+    ApprovalAction,
+    ApprovalStatus,
+    ContentStatus,
+    MediaRoleType,
+    PlatformType,
+    PublishResultStatus,
+)
 from app.repositories.approval_repository import ApprovalRepository
 from app.repositories.content_repository import ContentRepository
 
@@ -159,6 +166,12 @@ class ContentService:
         if hashtags:
             meta["hashtags"] = hashtags
 
+        # v2.0: source_media_id
+        source_media_id = None
+        if data.get("source_media_id"):
+            raw = data["source_media_id"]
+            source_media_id = UUID(raw) if isinstance(raw, str) else raw
+
         content = Content(
             organization_id=org_id,
             title=data["title"],
@@ -172,8 +185,12 @@ class ContentService:
             metadata_=meta or None,
             ai_generated=data.get("ai_generated", False),
             media_urls=data.get("media_urls", []),
+            source_media_id=source_media_id,
         )
         content = await self._repo.create(content)
+
+        # v2.0: Create variants from inline data or uniform_publish
+        await self._create_variants_from_request(content, org_id, data)
 
         # Create initial version
         await self._repo.add_version(ContentVersion(
@@ -382,7 +399,10 @@ class ContentService:
         return await self._repo.list_publish_results(content_id, offset=offset, limit=limit)
 
     async def publish(self, content_id: UUID, org_id: UUID) -> Content:
-        """APPROVED 상태의 콘텐츠를 게시(PUBLISHING → PUBLISHED) 처리한다."""
+        """APPROVED 상태의 콘텐츠를 게시(PUBLISHING -> PUBLISHED) 처리한다.
+
+        v2.0: variants가 있으면 variant 기반 게시, 없으면 레거시 channel_ids 기반.
+        """
         content = await self.get_content(content_id, org_id)
         if content.status != ContentStatus.APPROVED:
             raise WorkflowStateConflictError("Can only publish approved content")
@@ -390,112 +410,46 @@ class ContentService:
         content = await self._repo.update(content, {"status": ContentStatus.PUBLISHING})
         logger.info("content_publish_started", content_id=str(content_id))
 
-        # 채널 미연동 환경에서는 바로 PUBLISHED로 전환 (데모/테스트 Fallback)
+        variants = content.variants or []
         channel_ids = content.channel_ids or []
-        if not channel_ids:
+
+        if not variants and not channel_ids:
+            # 채널/variant 모두 없으면 데모 Fallback
             content = await self._repo.update(content, {"status": ContentStatus.PUBLISHED})
             logger.info("content_published_no_channels", content_id=str(content_id))
             return content
 
-        # 실제 채널이 있으면 각 플랫폼에 게시 실행
         content = await self._execute_publish(content, org_id)
         return content
 
     async def _execute_publish(self, content: Content, org_id: UUID) -> Content:
-        """각 채널에 대해 플랫폼 어댑터를 호출하여 실제 게시를 수행한다.
+        """v2.0: variant 기반 게시. variant 없으면 레거시 channel_ids fallback.
 
-        각 채널별 PublishResult 레코드를 생성하고,
-        전체 결과에 따라 최종 상태(PUBLISHED/PARTIALLY_PUBLISHED/PUBLISH_FAILED)를 결정한다.
+        각 variant(또는 채널)별 PublishResult 레코드를 생성하고,
+        전체 결과에 따라 최종 상태를 결정한다.
         """
         from uuid import UUID as UUIDType
 
-        from app.core.encryption import decrypt_token
-        from app.integrations.platforms import get_adapter
-        from app.models.channel import Channel
-
-        channel_ids = content.channel_ids or []
         db = self._repo._db
+        variants = content.variants or []
 
-        for ch_id in channel_ids:
-            ch_uuid = ch_id if isinstance(ch_id, UUIDType) else UUIDType(str(ch_id))
-            channel = await db.get(Channel, ch_uuid)
+        if variants:
+            # v2.0: variant 기반 게시
+            for variant in variants:
+                ch_uuid = variant.channel_id
+                if not ch_uuid:
+                    # channel_id 없는 variant는 건너뜀
+                    logger.warning("publish_variant_no_channel", variant_id=str(variant.id))
+                    continue
 
-            if not channel:
-                logger.warning("publish_channel_not_found", channel_id=str(ch_id))
-                # PublishResult FAILED 기록
-                pr = PublishResult(
-                    content_id=content.id,
-                    organization_id=org_id,
-                    channel_id=ch_uuid,
-                    status=PublishResultStatus.FAILED,
-                    error_message=f"Channel {ch_id} not found",
+                await self._publish_to_channel(
+                    db, content, org_id, ch_uuid, variant=variant,
                 )
-                db.add(pr)
-                continue
-
-            # 토큰 복호화
-            try:
-                access_token = decrypt_token(channel.access_token_enc) if channel.access_token_enc else ""
-            except Exception as exc:
-                logger.error("publish_token_decrypt_failed", channel_id=str(ch_id), error=str(exc))
-                pr = PublishResult(
-                    content_id=content.id,
-                    organization_id=org_id,
-                    channel_id=ch_uuid,
-                    status=PublishResultStatus.FAILED,
-                    error_message=f"Token decrypt failed: {exc!s}",
-                )
-                db.add(pr)
-                continue
-
-            # 플랫폼 어댑터 호출
-            adapter = get_adapter(channel.platform)
-            content_data = {
-                "title": content.title,
-                "body": content.body or "",
-                "media_urls": content.media_urls or [],
-                "channel_account_id": channel.platform_account_id,
-                "platforms": content.platforms or [],
-            }
-
-            try:
-                result = await adapter.publish(access_token, content_data)
-            except Exception as exc:
-                logger.error("publish_adapter_error", channel_id=str(ch_id), error=str(exc))
-                result = None
-
-            if result and result.success:
-                pr = PublishResult(
-                    content_id=content.id,
-                    organization_id=org_id,
-                    channel_id=ch_uuid,
-                    status=PublishResultStatus.SUCCESS,
-                    platform_post_id=result.platform_post_id,
-                    platform_url=result.platform_url,
-                )
-                logger.info(
-                    "publish_channel_success",
-                    channel_id=str(ch_id),
-                    platform=channel.platform.value,
-                    platform_post_id=result.platform_post_id,
-                )
-            else:
-                error_msg = result.error_message if result else "Unknown adapter error"
-                pr = PublishResult(
-                    content_id=content.id,
-                    organization_id=org_id,
-                    channel_id=ch_uuid,
-                    status=PublishResultStatus.FAILED,
-                    error_message=error_msg,
-                )
-                logger.warning(
-                    "publish_channel_failed",
-                    channel_id=str(ch_id),
-                    platform=channel.platform.value,
-                    error=error_msg,
-                )
-
-            db.add(pr)
+        else:
+            # 레거시: channel_ids 기반
+            for ch_id in content.channel_ids or []:
+                ch_uuid = ch_id if isinstance(ch_id, UUIDType) else UUIDType(str(ch_id))
+                await self._publish_to_channel(db, content, org_id, ch_uuid)
 
         await db.flush()
 
@@ -508,6 +462,101 @@ class ContentService:
             final_status=final_status.value,
         )
         return content
+
+    async def _publish_to_channel(
+        self,
+        db,
+        content: Content,
+        org_id: UUID,
+        channel_id: UUID,
+        variant: ContentVariant | None = None,
+    ) -> None:
+        """Publish to a single channel, creating a PublishResult record."""
+        from app.core.encryption import decrypt_token
+        from app.integrations.platforms import get_adapter
+        from app.models.channel import Channel
+
+        channel = await db.get(Channel, channel_id)
+        if not channel:
+            logger.warning("publish_channel_not_found", channel_id=str(channel_id))
+            db.add(PublishResult(
+                content_id=content.id,
+                organization_id=org_id,
+                channel_id=channel_id,
+                variant_id=variant.id if variant else None,
+                status=PublishResultStatus.FAILED,
+                error_message=f"Channel {channel_id} not found",
+            ))
+            return
+
+        # 토큰 복호화
+        try:
+            access_token = decrypt_token(channel.access_token_enc) if channel.access_token_enc else ""
+        except Exception as exc:
+            logger.error("publish_token_decrypt_failed", channel_id=str(channel_id), error=str(exc))
+            db.add(PublishResult(
+                content_id=content.id,
+                organization_id=org_id,
+                channel_id=channel_id,
+                variant_id=variant.id if variant else None,
+                status=PublishResultStatus.FAILED,
+                error_message=f"Token decrypt failed: {exc!s}",
+            ))
+            return
+
+        # v2.0: variant 데이터 우선, fallback to content
+        title = (variant.title if variant and variant.title else content.title) or ""
+        body = (variant.body if variant and variant.body else content.body) or ""
+
+        adapter = get_adapter(channel.platform)
+        content_data = {
+            "title": title,
+            "body": body,
+            "media_urls": content.media_urls or [],
+            "channel_account_id": channel.platform_account_id,
+            "platforms": content.platforms or [],
+        }
+
+        try:
+            result = await adapter.publish(access_token, content_data)
+        except Exception as exc:
+            logger.error("publish_adapter_error", channel_id=str(channel_id), error=str(exc))
+            result = None
+
+        if result and result.success:
+            pr = PublishResult(
+                content_id=content.id,
+                organization_id=org_id,
+                channel_id=channel_id,
+                variant_id=variant.id if variant else None,
+                status=PublishResultStatus.SUCCESS,
+                platform_post_id=result.platform_post_id,
+                platform_url=result.platform_url,
+            )
+            logger.info(
+                "publish_channel_success",
+                channel_id=str(channel_id),
+                platform=channel.platform.value,
+                platform_post_id=result.platform_post_id,
+            )
+        else:
+            error_msg = result.error_message if result else "Unknown adapter error"
+            pr = PublishResult(
+                content_id=content.id,
+                organization_id=org_id,
+                channel_id=channel_id,
+                variant_id=variant.id if variant else None,
+                status=PublishResultStatus.FAILED,
+                error_message=error_msg,
+            )
+            logger.warning(
+                "publish_channel_failed",
+                channel_id=str(channel_id),
+                platform=channel.platform.value,
+                error=error_msg,
+            )
+
+        db.add(pr)
 
     async def retry_publish(self, content_id: UUID, org_id: UUID) -> Content:
         content = await self.get_content(content_id, org_id)
@@ -559,6 +608,119 @@ class ContentService:
 
         logger.info("content_publish_cancelled", content_id=str(content_id))
         return content
+
+    # ── Variant CRUD (v2.0) ─────────────────────────────
+
+    async def _create_variants_from_request(
+        self, content: Content, org_id: UUID, data: dict,
+    ) -> None:
+        """Create variants from inline request data or uniform_publish mode."""
+        variants_data = data.get("variants")
+        uniform = data.get("uniform_publish", False)
+
+        if variants_data:
+            # Explicit variant definitions
+            for vd in variants_data:
+                variant = ContentVariant(
+                    content_id=content.id,
+                    organization_id=org_id,
+                    platform=PlatformType(vd["platform"]),
+                    channel_id=UUID(vd["channel_id"]) if vd.get("channel_id") else None,
+                    title=vd.get("title"),
+                    body=vd.get("body"),
+                    hashtags=vd.get("hashtags"),
+                    metadata_=vd.get("metadata"),
+                    sort_order=vd.get("sort_order", 0),
+                )
+                await self._repo.create_variant(variant)
+        elif uniform and data.get("channel_ids"):
+            # Uniform publish: create identical variants per channel
+            channel_ids = data.get("channel_ids", [])
+            platforms = data.get("platforms", [])
+            for ch_id_raw in channel_ids:
+                ch_id = UUID(ch_id_raw) if isinstance(ch_id_raw, str) else ch_id_raw
+                # Determine platform from channel (best-effort: use first platform or look up)
+                platform = platforms[0] if platforms else "YOUTUBE"
+                variant = ContentVariant(
+                    content_id=content.id,
+                    organization_id=org_id,
+                    platform=PlatformType(platform.upper()),
+                    channel_id=ch_id,
+                    sort_order=0,
+                )
+                await self._repo.create_variant(variant)
+
+    async def create_variant(
+        self, content_id: UUID, org_id: UUID, data: dict,
+    ) -> ContentVariant:
+        """Add a variant to an existing content."""
+        await self.get_content(content_id, org_id)
+        variant = ContentVariant(
+            content_id=content_id,
+            organization_id=org_id,
+            platform=PlatformType(data["platform"]),
+            channel_id=UUID(data["channel_id"]) if data.get("channel_id") else None,
+            title=data.get("title"),
+            body=data.get("body"),
+            hashtags=data.get("hashtags"),
+            metadata_=data.get("metadata"),
+            sort_order=data.get("sort_order", 0),
+        )
+        return await self._repo.create_variant(variant)
+
+    async def list_variants(self, content_id: UUID, org_id: UUID) -> list[ContentVariant]:
+        await self.get_content(content_id, org_id)
+        return await self._repo.list_variants(content_id)
+
+    async def update_variant(
+        self, content_id: UUID, variant_id: UUID, org_id: UUID, data: dict,
+    ) -> ContentVariant:
+        await self.get_content(content_id, org_id)
+        variant = await self._repo.get_variant(variant_id)
+        if not variant or variant.content_id != content_id:
+            raise NotFoundError("Variant not found")
+        update_data = {}
+        for field in ("title", "body", "hashtags", "sort_order"):
+            if field in data:
+                update_data[field] = data[field]
+        if "metadata" in data:
+            update_data["metadata_"] = data["metadata"]
+        return await self._repo.update_variant(variant, update_data)
+
+    async def delete_variant(
+        self, content_id: UUID, variant_id: UUID, org_id: UUID,
+    ) -> None:
+        await self.get_content(content_id, org_id)
+        variant = await self._repo.get_variant(variant_id)
+        if not variant or variant.content_id != content_id:
+            raise NotFoundError("Variant not found")
+        await self._repo.delete_variant(variant)
+
+    async def attach_variant_media(
+        self, content_id: UUID, variant_id: UUID, org_id: UUID, data: dict,
+    ) -> VariantMedia:
+        await self.get_content(content_id, org_id)
+        variant = await self._repo.get_variant(variant_id)
+        if not variant or variant.content_id != content_id:
+            raise NotFoundError("Variant not found")
+        vm = VariantMedia(
+            variant_id=variant_id,
+            media_asset_id=UUID(data["media_asset_id"]),
+            organization_id=org_id,
+            role=MediaRoleType(data.get("role", "SOURCE")),
+            sort_order=data.get("sort_order", 0),
+            metadata_=data.get("metadata"),
+        )
+        return await self._repo.add_variant_media(vm)
+
+    async def detach_variant_media(
+        self, content_id: UUID, variant_id: UUID, media_id: UUID, org_id: UUID,
+    ) -> None:
+        await self.get_content(content_id, org_id)
+        vm = await self._repo.get_variant_media(media_id)
+        if not vm or vm.variant_id != variant_id:
+            raise NotFoundError("Variant media not found")
+        await self._repo.remove_variant_media(vm)
 
     async def determine_publish_status(self, content_id: UUID) -> ContentStatus:
         """Determine final content status based on publish results (PARTIALLY_PUBLISHED logic)."""

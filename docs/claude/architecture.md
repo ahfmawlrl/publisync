@@ -446,6 +446,43 @@ publisync-media/
 - MIME 타입 확인
 - 파일 수 제한: 10개
 
+### StorageBackend 추상화 (v2.0 추가)
+
+```
+app/integrations/storage/
+├── base.py           ← StorageBackend ABC (7 메서드)
+├── local.py          ← LocalStorageBackend (개발용, ./uploads/)
+├── minio_backend.py  ← MinIOStorageBackend (프로덕션, S3 호환)
+├── routes.py         ← 로컬 파일 서빙 엔드포인트 (/api/v1/storage/files/*)
+└── __init__.py       ← get_storage() 팩토리 (@lru_cache 싱글턴) + 레거시 래퍼
+```
+
+- `STORAGE_BACKEND=local` → 로컬 파일시스템, MinIO 없이 개발 가능
+- `STORAGE_BACKEND=minio` → 기존 MinIO/S3 동작
+- 기존 `upload_file_to_storage()`, `get_object_stream()` 등은 `get_storage()` 위임 래퍼로 유지
+
+### Variant 기반 게시 흐름 (v2.0 추가)
+
+```
+게시 실행 시:
+├── content.variants 존재 → variant별 순회
+│   ├── variant.title/body 오버라이드 적용
+│   ├── variant_media → 미디어 첨부
+│   ├── PlatformAdapter.publish() → PublishResult(variant_id 기록)
+│   └── 전체 variant 완료 → 최종 상태 결정
+│
+└── content.variants 미존재 → 레거시 (channel_ids 순회, 공통 title/body)
+
+uniform_publish=true 시 자동 변환:
+├── 프론트엔드에서 channel_ids[] 전송
+├── 백엔드가 각 채널별 variant 자동 생성 (title/body=null → 공통 값)
+└── variant 기반 게시 실행
+
+승인 RBAC 분기:
+├── org.require_cd_review=true → AO→CD 검토→AM 승인→게시
+└── org.require_cd_review=false → AO→AM 승인→게시 (기본)
+```
+
 ---
 
 ## 8. 보안

@@ -2,7 +2,17 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import apiClient from '@/shared/api/client';
 import type { ApiResponse, PaginatedResponse } from '@/shared/api/types';
-import type { ContentCreateData, ContentRecord, ContentUpdateData, PublishResultRecord } from '../types';
+import type {
+  ContentCreateData,
+  ContentRecord,
+  ContentUpdateData,
+  PublishResultRecord,
+  VariantCreateData,
+  VariantMediaAttachData,
+  VariantMediaRecord,
+  VariantRecord,
+  VariantUpdateData,
+} from '../types';
 
 export function useContents(params: {
   page?: number;
@@ -155,6 +165,119 @@ export function useCancelPublish() {
     mutationFn: async (id: string) => {
       const res = await apiClient.post<ApiResponse<ContentRecord>>(`/contents/${id}/cancel-publish`);
       return res.data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contents'] });
+    },
+  });
+}
+
+// ── v2.0: Variant hooks ─────────────────────────────
+
+export function useVariants(contentId: string | null) {
+  return useQuery({
+    queryKey: ['contents', contentId, 'variants'],
+    queryFn: async () => {
+      const res = await apiClient.get<ApiResponse<VariantRecord[]>>(
+        `/contents/${contentId}/variants`,
+      );
+      return res.data.data;
+    },
+    enabled: !!contentId,
+  });
+}
+
+export function useCreateVariant() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ contentId, data }: { contentId: string; data: VariantCreateData }) => {
+      const res = await apiClient.post<ApiResponse<VariantRecord>>(
+        `/contents/${contentId}/variants`,
+        data,
+      );
+      return res.data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contents'] });
+    },
+  });
+}
+
+export function useUpdateVariant() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      contentId,
+      variantId,
+      data,
+    }: {
+      contentId: string;
+      variantId: string;
+      data: VariantUpdateData;
+    }) => {
+      const res = await apiClient.put<ApiResponse<VariantRecord>>(
+        `/contents/${contentId}/variants/${variantId}`,
+        data,
+      );
+      return res.data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contents'] });
+    },
+  });
+}
+
+export function useDeleteVariant() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ contentId, variantId }: { contentId: string; variantId: string }) => {
+      await apiClient.delete(`/contents/${contentId}/variants/${variantId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contents'] });
+    },
+  });
+}
+
+export function useAttachVariantMedia() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      contentId,
+      variantId,
+      data,
+    }: {
+      contentId: string;
+      variantId: string;
+      data: VariantMediaAttachData;
+    }) => {
+      const res = await apiClient.post<ApiResponse<VariantMediaRecord>>(
+        `/contents/${contentId}/variants/${variantId}/media`,
+        data,
+      );
+      return res.data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contents'] });
+    },
+  });
+}
+
+export function useDetachVariantMedia() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      contentId,
+      variantId,
+      mediaId,
+    }: {
+      contentId: string;
+      variantId: string;
+      mediaId: string;
+    }) => {
+      await apiClient.delete(
+        `/contents/${contentId}/variants/${variantId}/media/${mediaId}`,
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contents'] });

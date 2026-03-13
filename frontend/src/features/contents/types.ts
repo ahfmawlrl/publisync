@@ -1,3 +1,57 @@
+// ── Variant types (v2.0) ────────────────────────────
+
+export interface VariantMediaRecord {
+  id: string;
+  media_asset_id: string;
+  role: string;
+  sort_order: number;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface VariantRecord {
+  id: string;
+  content_id: string;
+  organization_id: string;
+  platform: string;
+  channel_id: string | null;
+  title: string | null;
+  body: string | null;
+  hashtags: string[];
+  metadata: Record<string, unknown> | null;
+  sort_order: number;
+  media: VariantMediaRecord[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VariantCreateData {
+  platform: string;
+  channel_id?: string;
+  title?: string;
+  body?: string;
+  hashtags?: string[];
+  metadata?: Record<string, unknown>;
+  sort_order?: number;
+}
+
+export interface VariantUpdateData {
+  title?: string;
+  body?: string;
+  hashtags?: string[];
+  metadata?: Record<string, unknown>;
+  sort_order?: number;
+}
+
+export interface VariantMediaAttachData {
+  media_asset_id: string;
+  role?: string;
+  sort_order?: number;
+  metadata?: Record<string, unknown>;
+}
+
+// ── Content types ───────────────────────────────────
+
 export interface ContentRecord {
   id: string;
   organization_id: string;
@@ -14,6 +68,8 @@ export interface ContentRecord {
   hashtags: string[];
   ai_generated: boolean;
   media_urls: string[];
+  source_media_id: string | null;
+  variants: VariantRecord[];
   created_at: string;
   updated_at: string;
 }
@@ -21,6 +77,7 @@ export interface ContentRecord {
 export interface PublishResultRecord {
   id: string;
   content_id: string;
+  variant_id: string | null;
   channel_id: string;
   status: string;
   platform_post_id: string | null;
@@ -45,6 +102,9 @@ export interface ContentCreateData {
   hashtags?: string[];
   ai_generated?: boolean;
   metadata?: Record<string, unknown>;
+  source_media_id?: string;
+  variants?: VariantCreateData[];
+  uniform_publish?: boolean;
 }
 
 export interface ContentUpdateData {
@@ -57,4 +117,5 @@ export interface ContentUpdateData {
   media_urls?: string[];
   hashtags?: string[];
   metadata?: Record<string, unknown>;
+  source_media_id?: string;
 }

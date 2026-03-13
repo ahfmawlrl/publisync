@@ -31,7 +31,11 @@ class Settings(BaseSettings):
     # ── OAuth Token Encryption ─────────────────────────────
     OAUTH_ENCRYPTION_KEY: str = "change-me-in-production"
 
-    # ── MinIO ──────────────────────────────────────────────
+    # ── Storage ──────────────────────────────────────────────
+    STORAGE_BACKEND: str = "local"  # "local" | "minio"
+    STORAGE_LOCAL_ROOT: str = "./uploads"
+
+    # MinIO / S3 settings (used when STORAGE_BACKEND=minio)
     MINIO_ENDPOINT: str = "localhost:9000"
     MINIO_ACCESS_KEY: str = "minioadmin"
     MINIO_SECRET_KEY: str = "minioadmin"

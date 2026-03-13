@@ -277,8 +277,7 @@ def _generate_pdf(report, org_id: str) -> str | None:
     try:
         from weasyprint import HTML
 
-        from app.core.config import settings
-        from app.integrations.storage import _get_client
+        from app.integrations.storage import get_storage
 
         sections = report.content or {}
         html_parts = [
@@ -312,14 +311,9 @@ def _generate_pdf(report, org_id: str) -> str | None:
         pdf_buffer = io.BytesIO(pdf_bytes)
         pdf_buffer.seek(0)
 
-        object_name = f"orgs/{org_id}/reports/{report.id}.pdf"
-        minio_client = _get_client()
-        minio_client.put_object(
-            settings.MINIO_BUCKET,
-            object_name,
-            pdf_buffer,
-            length=len(pdf_bytes),
-            content_type="application/pdf",
+        storage = get_storage()
+        object_name = storage.upload(
+            org_id, pdf_buffer, f"{report.id}.pdf", "application/pdf", len(pdf_bytes)
         )
         return object_name
 
