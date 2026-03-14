@@ -95,7 +95,7 @@ export function useCreateShortform() {
  */
 export function useSaveSubtitles() {
   return useMutation({
-    mutationFn: async (data: { mediaAssetId: string; subtitles: Record<string, unknown>[] }) => {
+    mutationFn: async (data: { mediaAssetId: string; subtitles: { start: number; end: number; text: string }[] }) => {
       const res = await apiClient.put<ApiResponse<{ saved: boolean }>>(
         `/media/${data.mediaAssetId}/subtitles`,
         { subtitles: data.subtitles },

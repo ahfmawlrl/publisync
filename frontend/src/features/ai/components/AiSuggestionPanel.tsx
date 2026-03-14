@@ -76,6 +76,9 @@ export default function AiSuggestionPanel({
 
   // Error state
   if (error) {
+    const errorMessage = error.includes('All AI providers failed')
+      ? 'AI 서비스에 연결할 수 없습니다. AI API 키 설정을 확인해주세요.'
+      : error;
     return (
       <Alert
         type="warning"
@@ -84,7 +87,7 @@ export default function AiSuggestionPanel({
         message="AI 제안 생성 실패"
         description={
           <Space direction="vertical" size={4}>
-            <Text type="secondary">{error}</Text>
+            <Text type="secondary">{errorMessage}</Text>
             <Text type="secondary">직접 입력하여 계속 작업할 수 있습니다.</Text>
           </Space>
         }

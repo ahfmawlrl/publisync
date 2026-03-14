@@ -1,7 +1,8 @@
 import { BellOutlined, LogoutOutlined, MoonOutlined, SettingOutlined, SunOutlined, UserOutlined } from '@ant-design/icons';
-import { Avatar, Badge, Button, Divider, Dropdown, Layout, Select, Space, Tag, Tooltip, Typography } from 'antd';
+import { useQueryClient } from '@tanstack/react-query';
+import { Avatar, Badge, Button, Divider, Dropdown, Layout, Select, Tag, Tooltip, Typography } from 'antd';
 import type { MenuProps } from 'antd';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 
 import NotificationDrawer from '@/features/notifications/components/NotificationDrawer';
@@ -41,9 +42,22 @@ export default function TopBar({ isMobile = false }: TopBarProps) {
   const setTheme = useUiStore((s) => s.setTheme);
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
 
+  const queryClient = useQueryClient();
   const { workspaces, currentOrgId, switchWorkspace } = useWorkspace();
   const hasValidWorkspace = !!currentOrgId && currentOrgId !== 'all';
   const { data: unread } = useUnreadCount(hasValidWorkspace);
+
+  const handleSwitchWorkspace = useCallback(
+    (orgId: string) => {
+      if (orgId === currentOrgId) return;
+      switchWorkspace(orgId);
+      // 워크스페이스 전환 시 workspaces 쿼리를 제외한 모든 캐시 무효화
+      queryClient.invalidateQueries({
+        predicate: (query) => query.queryKey[0] !== 'workspaces',
+      });
+    },
+    [currentOrgId, switchWorkspace, queryClient],
+  );
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const unreadCount = unread?.count ?? 0;
@@ -120,7 +134,7 @@ export default function TopBar({ isMobile = false }: TopBarProps) {
         <div className="flex items-center gap-3">
           <Select
             value={currentOrgId || undefined}
-            onChange={switchWorkspace}
+            onChange={handleSwitchWorkspace}
             placeholder="워크스페이스 선택"
             style={{ minWidth: isMobile ? 120 : 180 }}
             options={workspaceOptions}

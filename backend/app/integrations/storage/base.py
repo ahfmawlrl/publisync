@@ -44,6 +44,20 @@ class StorageBackend(ABC):
         """
 
     @abstractmethod
+    def save_direct(
+        self,
+        object_key: str,
+        file_data: BinaryIO,
+        content_type: str,
+        file_size: int,
+    ) -> str:
+        """Save file data to a caller-specified object key (no key generation).
+
+        Used for thumbnails where the key is derived from the original file's key.
+        Returns the same object_key on success.
+        """
+
+    @abstractmethod
     def delete(self, object_key: str) -> None:
         """Delete a file by object key."""
 

@@ -14,8 +14,8 @@ export interface PaginationMeta {
   totalPages: number;
 }
 
-export interface PaginatedResponse<T> {
+export interface PaginatedResponse<T, M extends PaginationMeta = PaginationMeta> {
   success: boolean;
   data: T[];
-  meta: PaginationMeta;
+  meta: M;
 }

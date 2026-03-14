@@ -40,6 +40,7 @@ export interface MediaAssetListItem {
   created_by: string;
   created_at: string;
   updated_at: string;
+  usage_count: number;
 }
 
 export interface MediaFolder {
@@ -50,6 +51,8 @@ export interface MediaFolder {
   created_at: string;
 }
 
+export type MediaSort = 'newest' | 'oldest' | 'name_asc' | 'name_desc' | 'size_desc' | 'size_asc';
+
 export interface MediaListParams {
   page?: number;
   limit?: number;
@@ -57,6 +60,15 @@ export interface MediaListParams {
   folder_id?: string;
   search?: string;
   tags?: string[];
+  sort?: MediaSort;
+}
+
+export interface StorageStats {
+  usage_bytes: number;
+  quota_bytes: number;
+  usage_ratio: number;
+  warning: boolean;
+  blocked: boolean;
 }
 
 export interface MediaUploadData {

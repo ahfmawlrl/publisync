@@ -46,7 +46,7 @@ function formatFileSize(bytes: number): string {
 interface MediaLibraryPickerModalProps {
   open: boolean;
   onClose: () => void;
-  onSelect: (items: { url: string; filename: string; size: number }[]) => void;
+  onSelect: (items: { url: string; filename: string; size: number; assetId?: string; mediaType?: string }[]) => void;
   maxSelect?: number;
 }
 
@@ -93,9 +93,11 @@ export default function MediaLibraryPickerModal({
 
   const handleConfirm = () => {
     const items = Array.from(selectedItems.values()).map((asset) => ({
-      url: `/media/${asset.id}/download`,
-      filename: asset.filename,
+      url: `/api/v1/storage/files/${asset.object_key}`,
+      filename: asset.original_filename || asset.filename,
       size: asset.file_size,
+      assetId: asset.id,
+      mediaType: asset.media_type,
     }));
     onSelect(items);
     handleClose();
@@ -122,7 +124,7 @@ export default function MediaLibraryPickerModal({
       okButtonProps={{ disabled: selectedIds.size === 0 }}
       cancelText="취소"
       width={800}
-      destroyOnClose
+      destroyOnHidden
     >
       {/* Filters */}
       <div className="mb-4 flex gap-2">

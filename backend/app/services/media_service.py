@@ -81,6 +81,7 @@ class MediaService:
         folder_id: UUID | None = None,
         search: str | None = None,
         tags: list[str] | None = None,
+        sort: str = "newest",
     ) -> tuple[list[MediaAsset], int]:
         offset = (page - 1) * limit
         return await self._repo.list_assets(
@@ -91,7 +92,14 @@ class MediaService:
             folder_id=folder_id,
             search=search,
             tags=tags,
+            sort=sort,
         )
+
+    async def get_content_usage_counts(
+        self, org_id: UUID, object_keys: list[str],
+    ) -> dict[str, int]:
+        """에셋들의 콘텐츠 사용 횟수를 일괄 조회."""
+        return await self._repo.get_content_usage_counts(org_id, object_keys)
 
     async def get_asset(self, asset_id: UUID, org_id: UUID) -> MediaAsset:
         asset = await self._repo.get_asset(asset_id, org_id)
@@ -268,7 +276,9 @@ class MediaService:
         asset = await self.get_asset(asset_id, org_id)
 
         # Merge subtitles into existing metadata
-        existing_metadata = asset.metadata_ or {}
+        # Deep copy to ensure SQLAlchemy detects the JSONB change
+        import copy
+        existing_metadata = copy.deepcopy(asset.metadata_) if asset.metadata_ else {}
         existing_metadata["subtitles"] = {
             "language": language,
             "segments": subtitles,

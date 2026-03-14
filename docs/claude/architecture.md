@@ -405,19 +405,16 @@ Browser → PUT presignedUrl (직접 MinIO 업로드)
 Browser → POST /media/upload/complete → API Server → DB 메타 기록 → 201 { mediaId, url }
 ```
 
-### 버킷 구조
+### 저장소 구조
 
 ```
-publisync-media/
-├── {org_id}/                  ← 기관별 격리 (1-depth)
-│   ├── uploads/{year}/{month}/{uuid}.*   ← 원본 미디어
-│   ├── thumbnails/{content_id}_thumb.jpg ← 썸네일
-│   ├── shortforms/            ← AI 숏폼 [Phase 2]
-│   ├── reports/{report_id}.pdf ← 리포트 [Phase 3]
-│   └── profiles/{user_id}.jpg ← 프로필
-└── system/
-    ├── templates/             ← 이메일 에셋
-    └── defaults/              ← 기본 아바타, 로고
+uploads/                           ← STORAGE_LOCAL_ROOT (개발) 또는 MinIO 버킷 (운영)
+└── orgs/{org_id}/                 ← 기관별 격리
+    └── media/
+        ├── orig_{uuid}.{ext}      ← 원본 미디어 (이미지/동영상/문서)
+        ├── thumb_{uuid}.jpg       ← 자동 생성 썸네일 (동일 UUID)
+        ├── shortforms/            ← AI 숏폼 [Phase 2]
+        └── reports/{report_id}.pdf ← 리포트 [Phase 3]
 ```
 
 ### Presigned URL
@@ -450,16 +447,31 @@ publisync-media/
 
 ```
 app/integrations/storage/
-├── base.py           ← StorageBackend ABC (7 메서드)
+├── base.py           ← StorageBackend ABC (8 메서드)
 ├── local.py          ← LocalStorageBackend (개발용, ./uploads/)
 ├── minio_backend.py  ← MinIOStorageBackend (프로덕션, S3 호환)
 ├── routes.py         ← 로컬 파일 서빙 엔드포인트 (/api/v1/storage/files/*)
-└── __init__.py       ← get_storage() 팩토리 (@lru_cache 싱글턴) + 레거시 래퍼
+└── __init__.py       ← get_storage() 팩토리 + _derive_thumb_key() + 레거시 래퍼
 ```
 
 - `STORAGE_BACKEND=local` → 로컬 파일시스템, MinIO 없이 개발 가능
 - `STORAGE_BACKEND=minio` → 기존 MinIO/S3 동작
 - 기존 `upload_file_to_storage()`, `get_object_stream()` 등은 `get_storage()` 위임 래퍼로 유지
+
+### 파일 네이밍 규칙 (v2.1 추가)
+
+```
+orgs/{org_id}/media/
+├── orig_{uuid}.png     ← 원본 파일 (업로드 시 생성)
+├── thumb_{uuid}.jpg    ← 썸네일 (자동 생성, 동일 UUID 공유)
+├── orig_{uuid}.mp4     ← 동영상 원본
+└── thumb_{uuid}.jpg    ← 동영상 썸네일 (ffmpeg 프레임 추출)
+```
+
+- `_generate_key()` → `orig_` 접두어 + `uuid4().hex` + 원본 확장자
+- `_derive_thumb_key()` → `orig_` → `thumb_` 치환 + `.jpg` 확장자 고정
+- `save_direct(object_key, ...)` → 키를 직접 지정하여 저장 (썸네일용)
+- 파일명만으로 원본↔썸네일 짝을 즉시 식별 가능
 
 ### Variant 기반 게시 흐름 (v2.0 추가)
 

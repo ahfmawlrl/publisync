@@ -1,12 +1,14 @@
 """Repository for MediaAsset, MediaFolder — Phase 2 (F11)."""
 
 from datetime import UTC, datetime, timedelta
+from typing import ClassVar
 from uuid import UUID
 
 from sqlalchemy import delete as sa_delete
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.content import Content
 from app.models.media import MediaAsset, MediaFolder
 
 
@@ -21,6 +23,16 @@ class MediaRepository:
 
     # ── MediaAsset ────────────────────────────────────────
 
+    # 허용된 정렬 옵션 매핑
+    _SORT_MAP: ClassVar[dict[str, tuple]] = {
+        "newest": (MediaAsset.created_at.desc,),
+        "oldest": (MediaAsset.created_at.asc,),
+        "name_asc": (MediaAsset.filename.asc,),
+        "name_desc": (MediaAsset.filename.desc,),
+        "size_desc": (MediaAsset.file_size.desc,),
+        "size_asc": (MediaAsset.file_size.asc,),
+    }
+
     async def list_assets(
         self,
         org_id: UUID,
@@ -30,6 +42,7 @@ class MediaRepository:
         folder_id: UUID | None = None,
         search: str | None = None,
         tags: list[str] | None = None,
+        sort: str = "newest",
     ) -> tuple[list[MediaAsset], int]:
         base = select(MediaAsset).where(
             MediaAsset.organization_id == org_id,
@@ -55,7 +68,13 @@ class MediaRepository:
             count_base = count_base.where(MediaAsset.tags.overlap(tags))
 
         total = (await self._db.execute(count_base)).scalar() or 0
-        stmt = base.order_by(MediaAsset.created_at.desc()).offset(offset).limit(limit)
+
+        # 정렬 적용
+        sort_fns = self._SORT_MAP.get(sort, self._SORT_MAP["newest"])
+        for fn in sort_fns:
+            base = base.order_by(fn())
+
+        stmt = base.offset(offset).limit(limit)
         result = await self._db.execute(stmt)
         return list(result.scalars().all()), total
 
@@ -92,6 +111,39 @@ class MediaRepository:
         asset.deleted_at = datetime.now(UTC)
         await self._db.flush()
         return True
+
+    # ── Content Usage Count ─────────────────────────────────
+
+    async def get_content_usage_counts(
+        self, org_id: UUID, object_keys: list[str],
+    ) -> dict[str, int]:
+        """주어진 object_key 목록에 대해 해당 파일을 참조하는 콘텐츠 수를 반환.
+
+        Contents.media_urls (ARRAY[String])에 object_key가 포함된 콘텐츠를 카운트합니다.
+        """
+        if not object_keys:
+            return {}
+
+        # PostgreSQL: media_urls @> ARRAY[key]::varchar[]  per key
+        # 효율적인 batch 처리를 위해 unnest + group by 사용
+        stmt = (
+            select(
+                func.unnest(Content.media_urls).label("url"),
+                func.count().label("cnt"),
+            )
+            .where(
+                Content.organization_id == org_id,
+                Content.media_urls.isnot(None),
+            )
+            .group_by("url")
+        )
+        result = await self._db.execute(stmt)
+        rows = result.all()
+
+        # object_key → count 매핑
+        url_counts: dict[str, int] = {row.url: row.cnt for row in rows}
+
+        return {key: url_counts.get(key, 0) for key in object_keys}
 
     # ── Storage Quota ─────────────────────────────────────
 

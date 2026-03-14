@@ -3,7 +3,7 @@
 from uuid import UUID
 
 import structlog
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -63,7 +63,7 @@ def _to_asset_response(a: MediaAsset) -> MediaAssetResponse:
     )
 
 
-def _to_asset_list_item(a: MediaAsset) -> MediaAssetListItem:
+def _to_asset_list_item(a: MediaAsset, usage_count: int = 0) -> MediaAssetListItem:
     return MediaAssetListItem(
         id=str(a.id),
         organization_id=str(a.organization_id),
@@ -83,6 +83,7 @@ def _to_asset_list_item(a: MediaAsset) -> MediaAssetListItem:
         created_by=str(a.created_by),
         created_at=a.created_at.isoformat(),
         updated_at=a.updated_at.isoformat(),
+        usage_count=usage_count,
     )
 
 
@@ -97,7 +98,7 @@ def _to_folder_response(f: MediaFolder) -> MediaFolderResponse:
 
 
 # ── GET /media ────────────────────────────────────────────
-@router.get("", response_model=PaginatedResponse[MediaAssetListItem])
+@router.get("")
 async def list_media(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
@@ -105,11 +106,12 @@ async def list_media(
     folder_id: UUID | None = Query(None),
     search: str | None = Query(None),
     tags: list[str] | None = Query(None),
+    sort: str = Query("newest", regex="^(newest|oldest|name_asc|name_desc|size_desc|size_asc)$"),
     workspace: WorkspaceContext = Depends(get_workspace_context),
     _user: User = Depends(require_roles(UserRole.AGENCY_MANAGER, UserRole.AGENCY_OPERATOR, UserRole.CLIENT_DIRECTOR)),
     service: MediaService = Depends(_get_service),
 ) -> dict:
-    """List media assets with optional filtering."""
+    """List media assets with optional filtering and sorting."""
     assets, total = await service.list_assets(
         workspace.org_id,
         page=page,
@@ -118,32 +120,42 @@ async def list_media(
         folder_id=folder_id,
         search=search,
         tags=tags,
+        sort=sort,
     )
+
+    # 사용 콘텐츠 카운트 + 저장소 통계 일괄 조회
+    object_keys = [a.object_key for a in assets if a.object_key]
+    usage_map = await service.get_content_usage_counts(workspace.org_id, object_keys)
+    storage_stats = await service.check_storage_quota(workspace.org_id)
+
     return {
         "success": True,
-        "data": [_to_asset_list_item(a) for a in assets],
-        "meta": PaginationMeta(
-            total=total, page=page, limit=limit, total_pages=(total + limit - 1) // limit
-        ),
+        "data": [
+            _to_asset_list_item(a, usage_count=usage_map.get(a.object_key, 0))
+            for a in assets
+        ],
+        "meta": {
+            **PaginationMeta(
+                total=total, page=page, limit=limit, total_pages=(total + limit - 1) // limit
+            ).model_dump(),
+            "storage": storage_stats,
+        },
     }
 
 
 # ── POST /media/upload ────────────────────────────────────
-@router.post("/upload", response_model=ApiResponse[MediaAssetResponse], status_code=201, deprecated=True)
+@router.post("/upload", response_model=ApiResponse[MediaAssetResponse], status_code=201)
 async def create_media_record(
     body: MediaUploadRequest,
-    response: Response,
     workspace: WorkspaceContext = Depends(get_workspace_context),
     _user: User = Depends(require_roles(UserRole.AGENCY_MANAGER, UserRole.AGENCY_OPERATOR)),
     service: MediaService = Depends(_get_service),
 ) -> dict:
     """Create a media asset record after the file has been uploaded to storage.
 
-    Deprecated: 미디어 업로드는 콘텐츠 작성 화면(POST /contents)에서 처리됩니다.
+    콘텐츠 에디터에서 파일 업로드 완료 후 호출하여 media_assets에 자동 등록합니다.
+    미디어 라이브러리에서 조회 가능하게 됩니다.
     """
-    response.headers["Deprecation"] = "true"
-    response.headers["Sunset"] = "2026-06-01"
-    response.headers["Link"] = '</api/v1/contents>; rel="successor-version"'
     asset = await service.create_asset_record(
         workspace.org_id,
         workspace.user.id,
@@ -179,20 +191,17 @@ async def create_folder(
 
 
 # ── POST /media/presigned-upload ──────────────────────────
-@router.post("/presigned-upload", response_model=dict, deprecated=True)
+@router.post("/presigned-upload", response_model=dict)
 async def get_presigned_upload_url(
     body: PresignedUploadRequest,
-    response: Response,
     workspace: WorkspaceContext = Depends(get_workspace_context),
     _user: User = Depends(require_roles(UserRole.AGENCY_MANAGER, UserRole.AGENCY_OPERATOR)),
 ) -> dict:
     """Generate a presigned PUT URL for direct client-side upload.
 
-    Deprecated: 미디어 업로드는 콘텐츠 작성 화면(POST /contents)에서 처리됩니다.
+    콘텐츠 에디터에서 파일 업로드 시 presigned URL을 발급받아
+    클라이언트가 스토리지에 직접 업로드합니다.
     """
-    response.headers["Deprecation"] = "true"
-    response.headers["Sunset"] = "2026-06-01"
-    response.headers["Link"] = '</api/v1/contents>; rel="successor-version"'
     if body.content_type not in ALLOWED_CONTENT_TYPES:
         return {
             "success": False,

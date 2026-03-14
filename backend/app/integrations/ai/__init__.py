@@ -8,11 +8,26 @@ Usage:
     result = await generate_text(prompt="...", system_prompt=PROMPTS["TITLE"])
 """
 
+import os
 import time
 
 import structlog
 
+from app.core.config import settings
+
 logger = structlog.get_logger()
+
+# ── Sync Settings → os.environ for litellm ───────────────────
+# litellm reads API keys from os.environ directly, but Pydantic
+# BaseSettings only loads .env into the Settings object.
+_ENV_KEY_MAP = {
+    "OPENAI_API_KEY": settings.OPENAI_API_KEY,
+    "ANTHROPIC_API_KEY": settings.ANTHROPIC_API_KEY,
+    "GOOGLE_API_KEY": settings.GOOGLE_API_KEY,
+}
+for env_key, value in _ENV_KEY_MAP.items():
+    if value and not os.environ.get(env_key):
+        os.environ[env_key] = value
 
 
 # ── System prompts per task type ─────────────────────────────

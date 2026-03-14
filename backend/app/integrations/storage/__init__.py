@@ -130,13 +130,31 @@ def get_minio_client():
 # ffprobe/Pillow, so they stay as module-level functions.
 
 
+def _derive_thumb_key(object_key: str) -> str:
+    """Derive thumbnail object_key from original object_key.
+
+    Replaces ``orig_`` prefix with ``thumb_`` and changes extension to ``.jpg``.
+
+    Example:
+        ``orgs/.../media/orig_aaa111.png`` → ``orgs/.../media/thumb_aaa111.jpg``
+    """
+    import re
+
+    # Replace the last path segment: orig_<uuid>.<ext> → thumb_<uuid>.jpg
+    return re.sub(r"orig_([0-9a-f]+)\.[^/]+$", r"thumb_\1.jpg", object_key)
+
+
 def generate_thumbnail(
     org_id: str,
     object_key: str,
     size: tuple[int, int] = (200, 200),
     quality: int = 85,
 ) -> str | None:
-    """Generate image thumbnail and upload it back to storage."""
+    """Generate image thumbnail and save with same UUID as original.
+
+    Original: ``orgs/{org}/media/orig_aaa111.png``
+    Thumbnail: ``orgs/{org}/media/thumb_aaa111.jpg``
+    """
     try:
         from PIL import Image
 
@@ -161,13 +179,9 @@ def generate_thumbnail(
         thumb_buffer.seek(0)
         thumb_size = thumb_buffer.getbuffer().nbytes
 
-        # Upload thumbnail
-        thumb_key = storage.upload(
-            org_id, thumb_buffer, "thumbnail.jpg", "image/jpeg", thumb_size
-        )
-        # Adjust key prefix to thumbnails/
-        # The upload() generates orgs/{org_id}/media/... but we want thumbnails/
-        # Since the key is already unique, this is fine as-is.
+        # Save thumbnail with derived key (same UUID, thumb_ prefix)
+        thumb_key = _derive_thumb_key(object_key)
+        storage.save_direct(thumb_key, thumb_buffer, "image/jpeg", thumb_size)
 
         logger.info(
             "thumbnail_generated",
@@ -293,10 +307,9 @@ def generate_video_thumbnail(
         thumb_size = thumb_buffer.getbuffer().nbytes
         os.unlink(tmp_frame_path)
 
-        # Upload thumbnail
-        thumb_key = storage.upload(
-            org_id, thumb_buffer, "video_thumb.jpg", "image/jpeg", thumb_size
-        )
+        # Save thumbnail with derived key (same UUID, thumb_ prefix)
+        thumb_key = _derive_thumb_key(object_key)
+        storage.save_direct(thumb_key, thumb_buffer, "image/jpeg", thumb_size)
 
         logger.info(
             "video_thumbnail_generated",

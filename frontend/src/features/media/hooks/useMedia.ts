@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import apiClient from '@/shared/api/client';
-import type { ApiResponse, PaginatedResponse } from '@/shared/api/types';
+import type { ApiResponse, PaginatedResponse, PaginationMeta } from '@/shared/api/types';
 import type {
   MediaAsset,
   MediaAssetListItem,
@@ -12,13 +12,19 @@ import type {
   MediaUploadData,
   PresignedUploadData,
   PresignedUploadResult,
+  StorageStats,
 } from '../types';
+
+/** list_media 응답의 확장 meta (storage 포함) */
+interface MediaListMeta extends PaginationMeta {
+  storage?: StorageStats;
+}
 
 export function useMediaList(params: MediaListParams) {
   return useQuery({
     queryKey: ['media', params],
     queryFn: async () => {
-      const res = await apiClient.get<PaginatedResponse<MediaAssetListItem>>('/media', { params });
+      const res = await apiClient.get<PaginatedResponse<MediaAssetListItem, MediaListMeta>>('/media', { params });
       return res.data;
     },
   });

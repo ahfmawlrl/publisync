@@ -28,8 +28,6 @@ const NotificationsPage = lazy(() => import('@/features/notifications/pages/Noti
 const CalendarPage = lazy(() => import('@/features/calendar/pages/CalendarPage'));
 const MediaLibraryPage = lazy(() => import('@/features/media/pages/MediaLibraryPage'));
 const AiDashboardPage = lazy(() => import('@/features/ai/pages/AiDashboardPage'));
-const SubtitleEditorPage = lazy(() => import('@/features/ai/pages/SubtitleEditorPage'));
-const ShortformEditorPage = lazy(() => import('@/features/ai/pages/ShortformEditorPage'));
 const ReportsPage = lazy(() => import('@/features/reports/pages/ReportsPage'));
 const SentimentTrendPage = lazy(() => import('@/features/analytics/pages/SentimentTrendPage'));
 const PredictionPage = lazy(() => import('@/features/analytics/pages/PredictionPage'));
@@ -198,14 +196,6 @@ export const router = createBrowserRouter([
               { path: '/ai/dashboard', element: withSuspense(AiDashboardPage) },
             ],
           },
-          {
-            element: <RouteGuard requiredRoles={[AM, AO]} />,
-            children: [
-              { path: '/ai/subtitle-editor/:assetId', element: withSuspense(SubtitleEditorPage) },
-              { path: '/ai/shortform-editor/:assetId', element: withSuspense(ShortformEditorPage) },
-            ],
-          },
-
           // ── Admin (SA only) ──
           {
             element: <RouteGuard requiredRoles={[SA]} />,

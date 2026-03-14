@@ -5,6 +5,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy.orm import attributes as sa_attributes
+
 from app.core.database import get_db_session
 from app.core.deps import WorkspaceContext, get_workspace_context
 from app.models.content import Content, ContentVariant, PublishResult, VariantMedia
@@ -76,14 +78,25 @@ def _to_content_response(c: Content) -> ContentResponse:
         channel_ids=[str(cid) for cid in (c.channel_ids or [])],
         scheduled_at=c.scheduled_at.isoformat() if c.scheduled_at else None,
         author_id=str(c.author_id),
-        author_name=c.author.name if hasattr(c, "author") and c.author else None,
+        author_name=(
+            c.author.name
+            if "author" in sa_attributes.instance_state(c).dict and c.author
+            else None
+        ),
         platform_contents=c.platform_contents,
         metadata=c.metadata_,
         hashtags=meta.get("hashtags", []),
         ai_generated=c.ai_generated,
         media_urls=c.media_urls or [],
         source_media_id=str(c.source_media_id) if c.source_media_id else None,
-        variants=[_to_variant_response(v) for v in (c.variants or [])],
+        variants=[
+            _to_variant_response(v)
+            for v in (
+                c.variants
+                if "variants" in sa_attributes.instance_state(c).dict
+                else []
+            )
+        ],
         created_at=c.created_at.isoformat(),
         updated_at=c.updated_at.isoformat(),
     )

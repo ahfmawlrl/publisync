@@ -58,7 +58,7 @@ class MinIOStorageBackend(StorageBackend):
 
     def _generate_key(self, org_id: str, filename: str, prefix: str = "media") -> str:
         ext = filename.rsplit(".", 1)[-1] if "." in filename else ""
-        unique_name = f"{uuid.uuid4().hex}.{ext}" if ext else uuid.uuid4().hex
+        unique_name = f"orig_{uuid.uuid4().hex}.{ext}" if ext else f"orig_{uuid.uuid4().hex}"
         return f"orgs/{org_id}/{prefix}/{unique_name}"
 
     def _rewrite_to_proxy_url(self, url: str) -> str:
@@ -128,6 +128,28 @@ class MinIOStorageBackend(StorageBackend):
             length=length or 0,
         )
         return response, content_type, total_size
+
+    def save_direct(
+        self,
+        object_key: str,
+        file_data: BinaryIO,
+        content_type: str,
+        file_size: int,
+    ) -> str:
+        self._client.put_object(
+            self._bucket,
+            object_key,
+            data=file_data,
+            length=file_size,
+            content_type=content_type,
+        )
+        logger.info(
+            "minio_file_saved_direct",
+            object_key=object_key,
+            file_size=file_size,
+            content_type=content_type,
+        )
+        return object_key
 
     def delete(self, object_key: str) -> None:
         try:

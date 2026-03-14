@@ -46,6 +46,7 @@ class MediaAssetListItem(BaseModel):
     created_by: str
     created_at: str
     updated_at: str
+    usage_count: int = 0
 
 
 class MediaUploadRequest(BaseModel):

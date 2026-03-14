@@ -1,14 +1,18 @@
 import {
+  CloudOutlined,
   DeleteOutlined,
   EditOutlined,
   EyeOutlined,
   FileOutlined,
   FolderAddOutlined,
+  InfoCircleOutlined,
+  LinkOutlined,
   PictureOutlined,
   PlayCircleOutlined,
   SoundOutlined,
 } from '@ant-design/icons';
 import {
+  Alert,
   App,
   Button,
   Card,
@@ -18,6 +22,7 @@ import {
   Modal,
   Pagination,
   Popconfirm,
+  Progress,
   Segmented,
   Select,
   Space,
@@ -28,7 +33,6 @@ import {
   Typography,
 } from 'antd';
 import type { DataNode } from 'antd/es/tree';
-import { Scissors, Subtitles } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 
@@ -45,7 +49,7 @@ import {
   useMediaList,
   useUpdateMedia,
 } from '../hooks/useMedia';
-import type { MediaAssetListItem, MediaType } from '../types';
+import type { MediaAssetListItem, MediaSort, MediaType } from '../types';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -57,10 +61,20 @@ const MEDIA_TYPE_OPTIONS = [
   { value: 'DOCUMENT', label: '문서' },
 ];
 
+const SORT_OPTIONS: { value: MediaSort; label: string }[] = [
+  { value: 'newest', label: '최신순' },
+  { value: 'oldest', label: '오래된순' },
+  { value: 'name_asc', label: '이름 A→Z' },
+  { value: 'name_desc', label: '이름 Z→A' },
+  { value: 'size_desc', label: '큰 파일순' },
+  { value: 'size_asc', label: '작은 파일순' },
+];
+
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
 function getMediaIcon(mediaType: MediaType) {
@@ -89,6 +103,7 @@ export default function MediaLibraryPage() {
   const [selectedFolderId, setSelectedFolderId] = useState<string | undefined>();
   const [searchText, setSearchText] = useState<string | undefined>();
   const [tagFilter, setTagFilter] = useState<string[]>([]);
+  const [sortBy, setSortBy] = useState<MediaSort>('newest');
 
   // Modals
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -108,9 +123,11 @@ export default function MediaLibraryPage() {
     folder_id: selectedFolderId,
     search: searchText,
     tags: tagFilter.length > 0 ? tagFilter : undefined,
+    sort: sortBy,
   });
 
   const { data: folders } = useMediaFolders();
+  const storageStats = mediaData?.meta?.storage;
   const { data: detailAsset } = useMediaAsset(
     detailModalOpen && selectedAsset ? selectedAsset.id : null,
   );
@@ -241,13 +258,45 @@ export default function MediaLibraryPage() {
           <Title level={4} className="!mb-0">
             미디어 라이브러리
           </Title>
-          <Typography.Text type="secondary" className="text-xs">
-            미디어 업로드는 콘텐츠 작성 화면에서 진행해주세요
-          </Typography.Text>
         </div>
 
+        {/* Upload notice */}
+        <Alert
+          message={
+            <span>
+              <InfoCircleOutlined className="mr-1" />
+              미디어 업로드는 <Button type="link" size="small" className="!p-0" onClick={() => navigate('/contents/create')}>새 콘텐츠 작성</Button> 화면에서 진행해주세요. 업로드된 미디어는 자동으로 라이브러리에 보관됩니다.
+            </span>
+          }
+          type="info"
+          showIcon={false}
+          className="mb-4"
+          closable
+        />
+
+        {/* Storage stats */}
+        {storageStats && (
+          <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-600 dark:bg-gray-800">
+            <div className="mb-1 flex items-center justify-between text-sm">
+              <Space size={4}>
+                <CloudOutlined className="text-blue-500 dark:text-blue-400" />
+                <Text strong>저장소 사용량</Text>
+              </Space>
+              <Text type="secondary">
+                {formatFileSize(storageStats.usage_bytes)} / {formatFileSize(storageStats.quota_bytes)}
+              </Text>
+            </div>
+            <Progress
+              percent={Math.round(storageStats.usage_ratio * 100)}
+              size="small"
+              status={storageStats.blocked ? 'exception' : storageStats.warning ? 'active' : 'normal'}
+              strokeColor={storageStats.blocked ? '#ff4d4f' : storageStats.warning ? '#faad14' : '#1677ff'}
+            />
+          </div>
+        )}
+
         {/* Filters */}
-        <div className="mb-4 flex items-center gap-3">
+        <div className="mb-4 flex flex-wrap items-center gap-3">
           <Segmented
             value={viewMode}
             onChange={setViewMode}
@@ -255,6 +304,15 @@ export default function MediaLibraryPage() {
               { value: 'grid', label: '그리드' },
               { value: 'list', label: '리스트' },
             ]}
+          />
+          <Select
+            value={sortBy}
+            style={{ width: 130 }}
+            onChange={(v) => {
+              setSortBy(v);
+              setPage(1);
+            }}
+            options={SORT_OPTIONS}
           />
           <Select
             placeholder="미디어 유형"
@@ -325,24 +383,6 @@ export default function MediaLibraryPage() {
                     <Tooltip key="edit" title="수정">
                       <EditOutlined onClick={() => handleEditOpen(asset)} />
                     </Tooltip>,
-                    ...(asset.media_type === 'VIDEO'
-                      ? [
-                          <Tooltip key="subtitle" title="자막 편집">
-                            <Subtitles
-                              size={14}
-                              className="cursor-pointer"
-                              onClick={() => navigate(`/ai/subtitle-editor/${asset.id}`)}
-                            />
-                          </Tooltip>,
-                          <Tooltip key="shortform" title="숏폼 추출">
-                            <Scissors
-                              size={14}
-                              className="cursor-pointer"
-                              onClick={() => navigate(`/ai/shortform-editor/${asset.id}`)}
-                            />
-                          </Tooltip>,
-                        ]
-                      : []),
                     <Popconfirm
                       key="delete"
                       title="이 미디어를 삭제하시겠습니까?"
@@ -367,6 +407,13 @@ export default function MediaLibraryPage() {
                         <Text type="secondary" className="text-xs">
                           {formatFileSize(asset.file_size)}
                         </Text>
+                        {asset.usage_count > 0 && (
+                          <Tooltip title={`${asset.usage_count}개 콘텐츠에서 사용 중`}>
+                            <Tag color="blue" className="text-xs">
+                              <LinkOutlined /> {asset.usage_count}
+                            </Tag>
+                          </Tooltip>
+                        )}
                         {asset.tags.slice(0, 2).map((tag) => (
                           <Tag key={tag} className="text-xs">
                             {tag}
@@ -395,6 +442,13 @@ export default function MediaLibraryPage() {
                       </Text>
                     </div>
                     <Space size={4} wrap>
+                      {asset.usage_count > 0 && (
+                        <Tooltip title={`${asset.usage_count}개 콘텐츠에서 사용 중`}>
+                          <Tag color="blue">
+                            <LinkOutlined /> {asset.usage_count}
+                          </Tag>
+                        </Tooltip>
+                      )}
                       {asset.tags.map((tag) => (
                         <Tag key={tag}>{tag}</Tag>
                       ))}
@@ -414,26 +468,6 @@ export default function MediaLibraryPage() {
                         onClick={() => handleEditOpen(asset)}
                         title="수정"
                       />
-                      {asset.media_type === 'VIDEO' && (
-                        <>
-                          <Tooltip title="자막 편집">
-                            <Button
-                              type="text"
-                              size="small"
-                              icon={<Subtitles size={14} />}
-                              onClick={() => navigate(`/ai/subtitle-editor/${asset.id}`)}
-                            />
-                          </Tooltip>
-                          <Tooltip title="숏폼 추출">
-                            <Button
-                              type="text"
-                              size="small"
-                              icon={<Scissors size={14} />}
-                              onClick={() => navigate(`/ai/shortform-editor/${asset.id}`)}
-                            />
-                          </Tooltip>
-                        </>
-                      )}
                       <Popconfirm
                         title="이 미디어를 삭제하시겠습니까?"
                         onConfirm={() => handleDelete(asset.id)}
