@@ -1,4 +1,4 @@
-"""AI API — 16 endpoints (S11 F02 + S17 F05/F17/F21 + S18 F03/F15 + Phase 3 F20 + Phase 4 F16/F22).
+"""AI API — 18 endpoints (S11 F02 + S17 F05/F17/F21 + S18 F03/F15 + Phase 3 F20 + Phase 4 F16/F22).
 
 GET  /ai/usage                  (AM) — AI usage statistics
 GET  /ai/jobs                   (AM, AO) — list AI jobs
@@ -12,6 +12,8 @@ POST /ai/content-review         (AM, AO) — S17
 POST /ai/suggest-effects        (AM, AO) — S17
 POST /ai/generate-subtitles     (AM, AO) — S18
 POST /ai/extract-shortform      (AM, AO) — S18
+POST /ai/subtitle-burnin        (AM, AO) — S18 (ffmpeg)
+POST /ai/render-shortform       (AM, AO) — S18 (ffmpeg)
 GET  /ai/jobs/{job_id}          (AM, AO) — S18
 POST /ai/optimal-time           (AM, AO) — Phase 3
 POST /ai/generate-thumbnail     (AM, AO) — Phase 4
@@ -34,8 +36,10 @@ from app.schemas.ai import (
     AiGenerateResponse,
     AiImproveTemplateRequest,
     AiOptimalTimeRequest,
+    AiRenderShortformRequest,
     AiReplyRequest,
     AiShortformRequest,
+    AiSubtitleBurninRequest,
     AiSubtitleRequest,
     AiSuggestEffectsRequest,
     AiThumbnailRequest,
@@ -385,6 +389,70 @@ async def confirm_shortform(
             "status": "CONFIRMED",
             "confirmed_clips": len(body.selected_clips),
             "message": "숏폼 클립이 확정되었습니다.",
+        },
+    }
+
+
+# ── ffmpeg 영상 편집 (F03/F15) ───────────────────────
+
+
+@router.post("/subtitle-burnin", status_code=status.HTTP_202_ACCEPTED)
+async def subtitle_burnin(
+    body: AiSubtitleBurninRequest,
+    workspace: WorkspaceContext = Depends(get_workspace_context),
+    _user: User = Depends(require_roles(UserRole.AGENCY_MANAGER, UserRole.AGENCY_OPERATOR)),
+    service: AiService = Depends(_get_service),
+) -> dict:
+    """자막 합성 영상 생성 (202 Accepted).
+
+    미디어 에셋에 저장된 자막을 ffmpeg로 영상에 합성(burn-in)하여
+    새 영상 파일을 생성한다.
+    """
+    style_params = body.style.model_dump() if body.style else {}
+    job = await service.create_subtitle_burnin_job(
+        org_id=workspace.org_id,
+        user_id=workspace.user.id,
+        media_asset_id=body.media_asset_id,
+        style=style_params,
+    )
+    return {
+        "success": True,
+        "data": {
+            "job_id": str(job.id),
+            "job_type": "SUBTITLE_BURNIN",
+            "status": "QUEUED",
+            "message": "자막 합성 영상 생성 작업이 시작되었습니다.",
+        },
+    }
+
+
+@router.post("/render-shortform", status_code=status.HTTP_202_ACCEPTED)
+async def render_shortform(
+    body: AiRenderShortformRequest,
+    workspace: WorkspaceContext = Depends(get_workspace_context),
+    _user: User = Depends(require_roles(UserRole.AGENCY_MANAGER, UserRole.AGENCY_OPERATOR)),
+    service: AiService = Depends(_get_service),
+) -> dict:
+    """숏폼 영상 생성 (202 Accepted).
+
+    지정된 구간을 ffmpeg로 절단·리인코딩하여
+    숏폼 영상 파일을 생성한다.
+    """
+    segments_data = [s.model_dump() for s in body.segments]
+    job = await service.create_render_shortform_job(
+        org_id=workspace.org_id,
+        user_id=workspace.user.id,
+        media_asset_id=body.media_asset_id,
+        segments=segments_data,
+        include_subtitles=body.include_subtitles,
+    )
+    return {
+        "success": True,
+        "data": {
+            "job_id": str(job.id),
+            "job_type": "SHORTFORM_RENDER",
+            "status": "QUEUED",
+            "message": "숏폼 영상 생성 작업이 시작되었습니다.",
         },
     }
 

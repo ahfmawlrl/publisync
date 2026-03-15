@@ -66,10 +66,10 @@ class ReportService:
                 "include_sections": include_sections,
             },
         )
-        self._repo.db.add(job)
-        await self._repo.db.flush()
-        await self._repo.db.refresh(job)
-        await self._repo.db.commit()
+        self._repo._db.add(job)
+        await self._repo._db.flush()
+        await self._repo._db.refresh(job)
+        await self._repo._db.commit()
 
         # Dispatch Celery task
         from app.tasks.report import generate_report_task
@@ -104,7 +104,7 @@ class ReportService:
         if content is not None:
             report.content = content
         report = await self._repo.update(report)
-        await self._repo.db.commit()
+        await self._repo._db.commit()
         return report
 
     async def finalize_report(self, report_id: UUID, org_id: UUID) -> Report | None:
@@ -115,7 +115,7 @@ class ReportService:
         report.status = ReportStatus.FINALIZED
         report.finalized_at = datetime.now(UTC)
         report = await self._repo.update(report)
-        await self._repo.db.commit()
+        await self._repo._db.commit()
         logger.info("report_finalized", report_id=str(report_id))
         return report
 
@@ -125,8 +125,8 @@ class ReportService:
         if not report or report.status == ReportStatus.FINALIZED:
             return False
 
-        await self._repo.db.delete(report)
-        await self._repo.db.commit()
+        await self._repo._db.delete(report)
+        await self._repo._db.commit()
         logger.info("report_deleted", report_id=str(report_id))
         return True
 

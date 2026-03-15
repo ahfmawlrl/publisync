@@ -200,6 +200,46 @@ class ShortformConfirmRequest(BaseModel):
     )
 
 
+# ── ffmpeg 영상 편집 (F03/F15) ───────────────────────
+
+
+class SubtitleBurninStyle(BaseModel):
+    """자막 합성 스타일 옵션."""
+
+    font_name: str = Field("NanumGothic", description="Font family name")
+    font_size: int = Field(24, ge=12, le=72, description="Font size in pixels")
+    font_color: str = Field("&HFFFFFF", description="Primary font color (ASS format)")
+    outline_color: str = Field("&H000000", description="Outline color (ASS format)")
+    outline_width: int = Field(2, ge=0, le=5, description="Outline width")
+    margin_v: int = Field(30, ge=0, le=100, description="Vertical margin")
+    position: str = Field("bottom", description="Position: bottom, top, center")
+
+
+class AiSubtitleBurninRequest(BaseModel):
+    """Request for subtitle burn-in video generation (F03)."""
+
+    media_asset_id: str = Field(..., description="Media asset ID with saved subtitles")
+    style: SubtitleBurninStyle | None = Field(None, description="Subtitle style options")
+
+
+class ShortformRenderSegment(BaseModel):
+    """숏폼 렌더링 구간 정보."""
+
+    start_time: float = Field(..., ge=0, description="Segment start time in seconds")
+    end_time: float = Field(..., ge=0, description="Segment end time in seconds")
+    label: str = Field("", max_length=200, description="Segment label/title")
+
+
+class AiRenderShortformRequest(BaseModel):
+    """Request for shortform video rendering (F15)."""
+
+    media_asset_id: str = Field(..., description="Source video media asset ID")
+    segments: list[ShortformRenderSegment] = Field(
+        ..., min_length=1, max_length=10, description="Segments to render as shortform videos"
+    )
+    include_subtitles: bool = Field(False, description="Include burned-in subtitles if available")
+
+
 # ── Phase 3 — Optimal Time (F20) ─────────────────────
 
 

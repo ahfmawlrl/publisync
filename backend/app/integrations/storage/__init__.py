@@ -197,13 +197,17 @@ def generate_thumbnail(
 
 
 def get_video_metadata(object_key: str) -> dict | None:
-    """Extract video metadata (duration, width, height) using ffprobe."""
-    import json as _json
+    """Extract video metadata (duration, width, height) using ffprobe.
+
+    Delegates to ``integrations.ffmpeg.probe.probe_metadata()``.
+    Downloads the file to a temp path, probes, and cleans up.
+    """
     import os
-    import subprocess
     import tempfile
 
     try:
+        from app.integrations.ffmpeg import probe_metadata
+
         storage = get_storage()
         stream, _ct, _sz = storage.download(object_key)
 
@@ -219,32 +223,11 @@ def get_video_metadata(object_key: str) -> dict | None:
         if hasattr(stream, "release_conn"):
             stream.release_conn()
 
-        cmd = [
-            "ffprobe", "-v", "quiet", "-print_format", "json",
-            "-show_format", "-show_streams", tmp_path,
-        ]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)  # noqa: S603
+        meta = probe_metadata(tmp_path)
         os.unlink(tmp_path)
 
-        if result.returncode != 0:
-            logger.warning("ffprobe_failed", object_key=object_key, stderr=result.stderr[:200])
-            return None
+        return {"duration": meta.duration, "width": meta.width, "height": meta.height}
 
-        probe = _json.loads(result.stdout)
-        duration = float(probe.get("format", {}).get("duration", 0))
-
-        width = height = None
-        for s in probe.get("streams", []):
-            if s.get("codec_type") == "video":
-                width = s.get("width")
-                height = s.get("height")
-                break
-
-        return {"duration": duration, "width": width, "height": height}
-
-    except FileNotFoundError:
-        logger.warning("ffprobe_not_installed", object_key=object_key)
-        return None
     except Exception as e:
         logger.error("video_metadata_extraction_failed", object_key=object_key, error=str(e))
         return None
@@ -256,13 +239,18 @@ def generate_video_thumbnail(
     time_offset: float = 3.0,
     size: tuple[int, int] = (320, 180),
 ) -> str | None:
-    """Extract a frame from video and create a thumbnail."""
+    """Extract a frame from video and create a thumbnail.
+
+    Delegates frame extraction to ``integrations.ffmpeg.thumbnail.extract_frame()``.
+    Still handles Storage download/upload and Pillow resizing here.
+    """
     import os
-    import subprocess
     import tempfile
 
     try:
         from PIL import Image
+
+        from app.integrations.ffmpeg import extract_frame
 
         storage = get_storage()
 
@@ -280,20 +268,10 @@ def generate_video_thumbnail(
         if hasattr(stream, "release_conn"):
             stream.release_conn()
 
-        # Extract frame using ffmpeg
+        # Extract frame using ffmpeg module
         tmp_frame_path = tmp_video_path + ".jpg"
-        cmd = [
-            "ffmpeg", "-y", "-ss", str(time_offset),
-            "-i", tmp_video_path,
-            "-frames:v", "1", "-q:v", "2",
-            tmp_frame_path,
-        ]
-        result = subprocess.run(cmd, capture_output=True, timeout=30)  # noqa: S603
+        extract_frame(tmp_video_path, tmp_frame_path, time_offset=time_offset)
         os.unlink(tmp_video_path)
-
-        if result.returncode != 0 or not os.path.exists(tmp_frame_path):
-            logger.warning("ffmpeg_frame_extraction_failed", object_key=object_key)
-            return None
 
         # Resize with Pillow
         img = Image.open(tmp_frame_path)
@@ -319,9 +297,6 @@ def generate_video_thumbnail(
         )
         return thumb_key
 
-    except FileNotFoundError:
-        logger.warning("ffmpeg_not_installed", object_key=object_key)
-        return None
     except Exception as e:
         logger.error("video_thumbnail_generation_failed", object_key=object_key, error=str(e))
         return None

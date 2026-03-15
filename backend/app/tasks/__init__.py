@@ -106,8 +106,13 @@ celery_app.conf.beat_schedule = {
     },
 }
 
-# Auto-discover tasks
-celery_app.autodiscover_tasks(["app.tasks"])
+# Explicitly import all task modules so Celery registers every @task
+import app.tasks.ai  # noqa: F401, E402
+import app.tasks.publish  # noqa: F401, E402
+import app.tasks.comment  # noqa: F401, E402
+import app.tasks.system  # noqa: F401, E402
+import app.tasks.search  # noqa: F401, E402
+import app.tasks.report  # noqa: F401, E402
 
 # Initialize Sentry for Celery workers (workers don't import main.py)
 if settings.SENTRY_DSN:

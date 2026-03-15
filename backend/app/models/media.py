@@ -73,6 +73,9 @@ class MediaAsset(Base, TimestampMixin):
     height: Mapped[int | None] = mapped_column(Integer, nullable=True)  # pixels
     tags: Mapped[list[str] | None] = mapped_column(ARRAY(String), default=list)
     metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB, default=dict)
+    parent_asset_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("media_assets.id", ondelete="SET NULL"), nullable=True
+    )
     folder_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("media_folders.id", ondelete="SET NULL"), nullable=True
     )

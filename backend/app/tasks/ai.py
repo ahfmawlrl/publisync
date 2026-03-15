@@ -1,4 +1,9 @@
-"""AI queue tasks — sentiment analysis batch processing + async jobs (S18 F03/F15)."""
+"""AI queue tasks — sentiment analysis batch processing + async jobs (S18 F03/F15).
+
+ffmpeg 기반 영상 편집 태스크 포함:
+- subtitle_burnin_task: 자막 합성 영상 생성
+- render_shortform_task: 숏폼 영상 생성
+"""
 
 import json
 from datetime import UTC, datetime
@@ -9,6 +14,16 @@ from celery import shared_task
 from app.tasks import celery_app
 
 logger = structlog.get_logger()
+
+
+def _set_rls_context(session, org_id: str | None) -> None:
+    """Celery 태스크용 RLS 컨텍스트 설정 (세션 레벨)."""
+    if org_id:
+        from sqlalchemy import text as sa_text
+
+        session.execute(sa_text(f"SET app.current_org_id = '{org_id}'"))
+        session.execute(sa_text("SET app.user_role = 'AGENCY_OPERATOR'"))
+
 
 # ── Sentiment batch size for litellm calls ──────────────
 _SENTIMENT_BATCH_SIZE = 20  # comments per litellm call (cost-efficient)
@@ -193,8 +208,8 @@ def generate_content_metadata(self, content_id: str, task_type: str) -> dict:
 # ── S18 — AI Asynchronous Features (F03/F15) ────────────
 
 
-@celery_app.task(name="generate_subtitles", bind=True, max_retries=2, default_retry_delay=60)
-def generate_subtitles_task(self, job_id: str) -> None:
+@celery_app.task(name="app.tasks.ai.generate_subtitles", bind=True, max_retries=2, default_retry_delay=60)
+def generate_subtitles_task(self, job_id: str, org_id: str | None = None) -> None:
     """Async subtitle generation from video/audio (F03).
 
     Uses litellm to generate subtitle suggestions based on content metadata.
@@ -205,6 +220,8 @@ def generate_subtitles_task(self, job_id: str) -> None:
     from app.models.enums import AiJobStatus
 
     with sync_session_factory() as session:
+        _set_rls_context(session, org_id)
+
         job = session.get(AiJob, job_id)
         if not job:
             return
@@ -316,8 +333,8 @@ def generate_subtitles_task(self, job_id: str) -> None:
             raise self.retry(exc=exc) from exc
 
 
-@celery_app.task(name="extract_shortform", bind=True, max_retries=2, default_retry_delay=60)
-def extract_shortform_task(self, job_id: str) -> None:
+@celery_app.task(name="app.tasks.ai.extract_shortform", bind=True, max_retries=2, default_retry_delay=60)
+def extract_shortform_task(self, job_id: str, org_id: str | None = None) -> None:
     """Async shortform clip extraction from long video (F15).
 
     Uses litellm to recommend highlight segments based on content metadata.
@@ -328,6 +345,8 @@ def extract_shortform_task(self, job_id: str) -> None:
     from app.models.enums import AiJobStatus
 
     with sync_session_factory() as session:
+        _set_rls_context(session, org_id)
+
         job = session.get(AiJob, job_id)
         if not job:
             return
@@ -466,8 +485,8 @@ def extract_shortform_task(self, job_id: str) -> None:
 # ── Phase 4 — Thumbnail (F16) ────────────────────────
 
 
-@celery_app.task(name="generate_thumbnail", bind=True, max_retries=1, default_retry_delay=60)
-def generate_thumbnail_task(self, job_id: str) -> None:
+@celery_app.task(name="app.tasks.ai.generate_thumbnail", bind=True, max_retries=1, default_retry_delay=60)
+def generate_thumbnail_task(self, job_id: str, org_id: str | None = None) -> None:
     """Async thumbnail generation using AI (F16).
 
     Uses litellm to generate thumbnail design descriptions.
@@ -478,6 +497,8 @@ def generate_thumbnail_task(self, job_id: str) -> None:
     from app.models.enums import AiJobStatus
 
     with sync_session_factory() as session:
+        _set_rls_context(session, org_id)
+
         job = session.get(AiJob, job_id)
         if not job:
             return
@@ -582,4 +603,388 @@ def generate_thumbnail_task(self, job_id: str) -> None:
             job.error_message = str(exc)
             job.completed_at = datetime.now(UTC)
             session.commit()
+            raise self.retry(exc=exc) from exc
+
+
+# ── ffmpeg 기반 영상 편집 태스크 ──────────────────────
+
+
+@celery_app.task(name="app.tasks.ai.subtitle_burnin", bind=True, max_retries=2, default_retry_delay=30)
+def subtitle_burnin_task(self, job_id: str, org_id: str | None = None) -> None:
+    """자막을 영상에 합성(burn-in)하여 새 영상 파일을 생성한다 (F03).
+
+    1. DB에서 원본 MediaAsset + metadata.subtitles.segments 로드
+    2. Storage에서 원본 영상 다운로드 → 임시 파일
+    3. SRT 임시 파일 생성
+    4. ffmpeg subtitles 필터로 합성
+    5. 결과 영상을 Storage에 업로드
+    6. 새 MediaAsset 레코드 생성 (parent_asset_id = 원본)
+    7. AiJob 완료
+    """
+    import copy
+    import os
+    import tempfile
+
+    from app.core.database import sync_session_factory
+    from app.models.ai_usage import AiJob
+    from app.models.enums import AiJobStatus
+    from app.models.media import MediaAsset
+
+    with sync_session_factory() as session:
+        _set_rls_context(session, org_id)
+
+        job = session.get(AiJob, job_id)
+        if not job:
+            return
+
+        try:
+            job.status = AiJobStatus.PROCESSING
+            job.started_at = datetime.now(UTC)
+            job.progress = 5
+            session.commit()
+
+            params = job.input_params or {}
+            media_asset_id = params.get("media_asset_id")
+            style_params = params.get("style", {})
+
+            # 1. 원본 에셋 + 자막 로드
+            asset = session.get(MediaAsset, media_asset_id)
+            if not asset:
+                raise ValueError(f"MediaAsset {media_asset_id} not found")
+
+            metadata = copy.deepcopy(asset.metadata_) if asset.metadata_ else {}
+            subtitles_data = metadata.get("subtitles", {})
+            segments_raw = subtitles_data.get("segments", [])
+            if not segments_raw:
+                raise ValueError("No subtitles found in media asset metadata")
+
+            job.progress = 10
+            session.commit()
+
+            # 2. 원본 영상 다운로드
+            from app.integrations.storage import get_storage
+
+            storage = get_storage()
+            stream, _ct, _sz = storage.download(asset.object_key)
+
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                # 원본 파일 확장자 유지
+                ext = os.path.splitext(asset.filename)[1] or ".mp4"
+                input_path = os.path.join(tmp_dir, f"input{ext}")
+                with open(input_path, "wb") as f:
+                    while True:
+                        chunk = stream.read(64 * 1024)
+                        if not chunk:
+                            break
+                        f.write(chunk)
+                if hasattr(stream, "close"):
+                    stream.close()
+                if hasattr(stream, "release_conn"):
+                    stream.release_conn()
+
+                job.progress = 20
+                session.commit()
+
+                # 3. SRT 파일 생성
+                from app.integrations.ffmpeg import SubtitleSegment, SubtitleStyle, generate_srt
+
+                srt_segments = [
+                    SubtitleSegment(
+                        start=float(seg.get("start", 0)),
+                        end=float(seg.get("end", 0)),
+                        text=str(seg.get("text", "")),
+                    )
+                    for seg in segments_raw
+                ]
+                srt_path = os.path.join(tmp_dir, "subtitles.srt")
+                generate_srt(srt_segments, srt_path)
+
+                # 4. 스타일 구성
+                style = SubtitleStyle(
+                    font_name=style_params.get("font_name", "Malgun Gothic"),
+                    font_size=style_params.get("font_size", 24),
+                    font_color=style_params.get("font_color", "&HFFFFFF"),
+                    outline_color=style_params.get("outline_color", "&H000000"),
+                    outline_width=style_params.get("outline_width", 2),
+                    margin_v=style_params.get("margin_v", 30),
+                    position=style_params.get("position", "bottom"),
+                )
+
+                # 5. ffmpeg 자막 합성
+                from app.integrations.ffmpeg import burn_subtitles
+
+                output_path = os.path.join(tmp_dir, f"subtitled{ext}")
+
+                def _on_progress(progress: float) -> None:
+                    # 20~80% 구간에 매핑
+                    pct = 20 + int(progress * 60)
+                    job.progress = min(pct, 80)
+                    session.commit()
+
+                result = burn_subtitles(
+                    input_path=input_path,
+                    output_path=output_path,
+                    srt_path=srt_path,
+                    style=style,
+                    on_progress=_on_progress,
+                )
+
+                job.progress = 85
+                session.commit()
+
+                # 6. 결과 영상 업로드
+                org_id = str(asset.organization_id)
+                timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
+                base_name = os.path.splitext(asset.original_filename or asset.filename)[0]
+                new_filename = f"subtitled_{base_name}_{timestamp}{ext}"
+                upload_key = f"orgs/{org_id}/media/subtitled/{new_filename}"
+
+                with open(output_path, "rb") as f:
+                    storage.save_direct(upload_key, f, "video/mp4", result.file_size)
+
+                job.progress = 90
+                session.commit()
+
+                # 7. 새 MediaAsset 생성
+                new_asset = MediaAsset(
+                    organization_id=asset.organization_id,
+                    filename=new_filename,
+                    original_filename=new_filename,
+                    mime_type="video/mp4",
+                    media_type=asset.media_type,
+                    file_size=result.file_size,
+                    object_key=upload_key,
+                    duration=asset.duration,
+                    width=asset.width,
+                    height=asset.height,
+                    tags=["subtitled"],
+                    created_by=asset.created_by,
+                    parent_asset_id=asset.id,
+                    metadata_={
+                        "processing": {
+                            "source_job_id": job_id,
+                            "processing_time_seconds": round(result.processing_time, 2),
+                            "ffmpeg_command": result.command,
+                        },
+                        "subtitles": subtitles_data,
+                    },
+                )
+                session.add(new_asset)
+                session.flush()
+
+                # 8. AiJob 완료
+                job.status = AiJobStatus.COMPLETED
+                job.progress = 100
+                job.result = {
+                    "new_asset_id": str(new_asset.id),
+                    "file_name": new_filename,
+                    "file_size": result.file_size,
+                    "duration": asset.duration,
+                    "parent_asset_id": str(asset.id),
+                }
+                job.completed_at = datetime.now(UTC)
+                session.commit()
+
+                logger.info(
+                    "subtitle_burnin_completed",
+                    job_id=job_id,
+                    new_asset_id=str(new_asset.id),
+                    processing_time=round(result.processing_time, 2),
+                )
+
+        except Exception as exc:
+            job.status = AiJobStatus.FAILED
+            job.error_message = str(exc)[:500]
+            job.completed_at = datetime.now(UTC)
+            session.commit()
+            logger.error("subtitle_burnin_failed", job_id=job_id, error=str(exc))
+            raise self.retry(exc=exc) from exc
+
+
+@celery_app.task(name="app.tasks.ai.render_shortform", bind=True, max_retries=2, default_retry_delay=30)
+def render_shortform_task(self, job_id: str, org_id: str | None = None) -> None:
+    """숏폼 구간을 실제 영상으로 절단·리인코딩한다 (F15).
+
+    1. DB에서 원본 MediaAsset 로드
+    2. Storage에서 원본 영상 다운로드 → 임시 파일
+    3. 각 구간별로 ffmpeg trim 실행
+    4. 선택적으로 자막 합성
+    5. 결과 영상들을 Storage에 업로드
+    6. 구간별 새 MediaAsset 레코드 생성
+    7. AiJob 완료
+    """
+    import copy
+    import os
+    import tempfile
+
+    from app.core.database import sync_session_factory
+    from app.models.ai_usage import AiJob
+    from app.models.enums import AiJobStatus
+    from app.models.media import MediaAsset
+
+    with sync_session_factory() as session:
+        _set_rls_context(session, org_id)
+
+        job = session.get(AiJob, job_id)
+        if not job:
+            return
+
+        try:
+            job.status = AiJobStatus.PROCESSING
+            job.started_at = datetime.now(UTC)
+            job.progress = 5
+            session.commit()
+
+            params = job.input_params or {}
+            media_asset_id = params.get("media_asset_id")
+            segments_input = params.get("segments", [])
+            include_subtitles = params.get("include_subtitles", False)
+
+            if not segments_input:
+                raise ValueError("No segments provided for shortform rendering")
+
+            # 1. 원본 에셋 로드
+            asset = session.get(MediaAsset, media_asset_id)
+            if not asset:
+                raise ValueError(f"MediaAsset {media_asset_id} not found")
+
+            job.progress = 10
+            session.commit()
+
+            # 2. 원본 영상 다운로드
+            from app.integrations.storage import get_storage
+
+            storage = get_storage()
+            stream, _ct, _sz = storage.download(asset.object_key)
+
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                ext = os.path.splitext(asset.filename)[1] or ".mp4"
+                input_path = os.path.join(tmp_dir, f"input{ext}")
+                with open(input_path, "wb") as f:
+                    while True:
+                        chunk = stream.read(64 * 1024)
+                        if not chunk:
+                            break
+                        f.write(chunk)
+                if hasattr(stream, "close"):
+                    stream.close()
+                if hasattr(stream, "release_conn"):
+                    stream.release_conn()
+
+                job.progress = 20
+                session.commit()
+
+                # 자막 SRT 준비 (선택)
+                srt_path = None
+                if include_subtitles:
+                    metadata = copy.deepcopy(asset.metadata_) if asset.metadata_ else {}
+                    subs_data = metadata.get("subtitles", {})
+                    subs_segments = subs_data.get("segments", [])
+                    if subs_segments:
+                        from app.integrations.ffmpeg import SubtitleSegment, generate_srt
+
+                        srt_segs = [
+                            SubtitleSegment(
+                                start=float(s.get("start", 0)),
+                                end=float(s.get("end", 0)),
+                                text=str(s.get("text", "")),
+                            )
+                            for s in subs_segments
+                        ]
+                        srt_path = os.path.join(tmp_dir, "subtitles.srt")
+                        generate_srt(srt_segs, srt_path)
+
+                # 3. 각 구간별 절단
+                from app.integrations.ffmpeg import trim_segment
+
+                shortform_results = []
+                total_segments = len(segments_input)
+                org_id = str(asset.organization_id)
+                timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
+
+                for seg_idx, seg in enumerate(segments_input):
+                    start = float(seg.get("start_time", 0))
+                    end = float(seg.get("end_time", start + 60))
+                    label = seg.get("label", f"clip_{seg_idx + 1}")
+
+                    # 파일명 안전 처리
+                    safe_label = "".join(c if c.isalnum() or c in "-_" else "_" for c in label)
+                    output_filename = f"shortform_{safe_label}_{timestamp}{ext}"
+                    output_path = os.path.join(tmp_dir, output_filename)
+
+                    trim_result = trim_segment(
+                        input_path=input_path,
+                        output_path=output_path,
+                        start=start,
+                        end=end,
+                        reencode=True,
+                        srt_path=srt_path,
+                    )
+
+                    # 진행률 업데이트
+                    seg_progress = 20 + int(((seg_idx + 1) / total_segments) * 60)
+                    job.progress = min(seg_progress, 80)
+                    session.commit()
+
+                    # Storage 업로드
+                    upload_key = f"orgs/{org_id}/media/shortforms/{output_filename}"
+                    with open(output_path, "rb") as f:
+                        storage.save_direct(upload_key, f, "video/mp4", trim_result.file_size)
+
+                    # 새 MediaAsset 생성
+                    new_asset = MediaAsset(
+                        organization_id=asset.organization_id,
+                        filename=output_filename,
+                        original_filename=output_filename,
+                        mime_type="video/mp4",
+                        media_type=asset.media_type,
+                        file_size=trim_result.file_size,
+                        object_key=upload_key,
+                        duration=int(trim_result.duration),
+                        width=asset.width,
+                        height=asset.height,
+                        tags=["shortform", safe_label],
+                        created_by=asset.created_by,
+                        parent_asset_id=asset.id,
+                        metadata_={
+                            "processing": {
+                                "source_job_id": job_id,
+                                "processing_time_seconds": round(trim_result.processing_time, 2),
+                                "ffmpeg_command": trim_result.command,
+                                "start_time": start,
+                                "end_time": end,
+                            },
+                        },
+                    )
+                    session.add(new_asset)
+                    session.flush()
+
+                    shortform_results.append({
+                        "new_asset_id": str(new_asset.id),
+                        "file_name": output_filename,
+                        "file_size": trim_result.file_size,
+                        "duration": round(trim_result.duration, 1),
+                        "parent_asset_id": str(asset.id),
+                        "label": label,
+                    })
+
+                # AiJob 완료
+                job.status = AiJobStatus.COMPLETED
+                job.progress = 100
+                job.result = {"shortforms": shortform_results}
+                job.completed_at = datetime.now(UTC)
+                session.commit()
+
+                logger.info(
+                    "render_shortform_completed",
+                    job_id=job_id,
+                    shortform_count=len(shortform_results),
+                )
+
+        except Exception as exc:
+            job.status = AiJobStatus.FAILED
+            job.error_message = str(exc)[:500]
+            job.completed_at = datetime.now(UTC)
+            session.commit()
+            logger.error("render_shortform_failed", job_id=job_id, error=str(exc))
             raise self.retry(exc=exc) from exc

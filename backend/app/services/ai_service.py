@@ -283,13 +283,13 @@ class AiService:
             },
             media_asset_id=media_asset_id if media_asset_id else None,
         )
-        self._repo.db.add(job)
-        await self._repo.db.flush()
+        self._repo._db.add(job)
+        await self._repo._db.flush()
 
         # Dispatch Celery task
         from app.tasks.ai import generate_subtitles_task
 
-        generate_subtitles_task.delay(str(job.id))
+        generate_subtitles_task.delay(str(job.id), str(org_id))
         return job
 
     async def create_shortform_job(
@@ -318,12 +318,72 @@ class AiService:
             },
             media_asset_id=media_asset_id if media_asset_id else None,
         )
-        self._repo.db.add(job)
-        await self._repo.db.flush()
+        self._repo._db.add(job)
+        await self._repo._db.flush()
 
         from app.tasks.ai import extract_shortform_task
 
-        extract_shortform_task.delay(str(job.id))
+        extract_shortform_task.delay(str(job.id), str(org_id))
+        return job
+
+    async def create_subtitle_burnin_job(
+        self,
+        org_id: UUID,
+        user_id: UUID,
+        media_asset_id: str,
+        style: dict,
+    ) -> AiJob:
+        """자막 합성 영상 생성 비동기 작업을 생성한다."""
+        from app.models.ai_usage import AiJob
+        from app.models.enums import AiJobStatus, AiJobType
+
+        job = AiJob(
+            organization_id=org_id,
+            user_id=user_id,
+            job_type=AiJobType.SUBTITLE_BURNIN,
+            status=AiJobStatus.PENDING,
+            input_params={
+                "media_asset_id": media_asset_id,
+                "style": style,
+            },
+        )
+        self._repo._db.add(job)
+        await self._repo._db.flush()
+
+        from app.tasks.ai import subtitle_burnin_task
+
+        subtitle_burnin_task.delay(str(job.id), str(org_id))
+        return job
+
+    async def create_render_shortform_job(
+        self,
+        org_id: UUID,
+        user_id: UUID,
+        media_asset_id: str,
+        segments: list[dict],
+        include_subtitles: bool,
+    ) -> AiJob:
+        """숏폼 영상 생성 비동기 작업을 생성한다."""
+        from app.models.ai_usage import AiJob
+        from app.models.enums import AiJobStatus, AiJobType
+
+        job = AiJob(
+            organization_id=org_id,
+            user_id=user_id,
+            job_type=AiJobType.SHORTFORM_RENDER,
+            status=AiJobStatus.PENDING,
+            input_params={
+                "media_asset_id": media_asset_id,
+                "segments": segments,
+                "include_subtitles": include_subtitles,
+            },
+        )
+        self._repo._db.add(job)
+        await self._repo._db.flush()
+
+        from app.tasks.ai import render_shortform_task
+
+        render_shortform_task.delay(str(job.id), str(org_id))
         return job
 
     async def get_job_status(self, job_id: str, org_id: UUID) -> AiJob | None:
@@ -338,7 +398,7 @@ class AiService:
             AiJob.id == PyUUID(str(job_id)),
             AiJob.organization_id == org_id,
         )
-        result = await self._repo.db.execute(stmt)
+        result = await self._repo._db.execute(stmt)
         return result.scalar_one_or_none()
 
     async def confirm_shortform(
@@ -356,7 +416,7 @@ class AiService:
             AiJob.id == PyUUID(str(job_id)),
             AiJob.organization_id == org_id,
         )
-        result = await self._repo.db.execute(stmt)
+        result = await self._repo._db.execute(stmt)
         job = result.scalar_one_or_none()
         if not job:
             raise ValueError("작업을 찾을 수 없습니다.")
@@ -368,8 +428,8 @@ class AiService:
         job.result = existing_result
         job.status = "CONFIRMED"
 
-        await self._repo.db.commit()
-        await self._repo.db.refresh(job)
+        await self._repo._db.commit()
+        await self._repo._db.refresh(job)
 
         logger.info(
             "shortform_confirmed",
@@ -695,12 +755,12 @@ class AiService:
                 "aspect_ratio": aspect_ratio,
             },
         )
-        self._repo.db.add(job)
-        await self._repo.db.flush()
+        self._repo._db.add(job)
+        await self._repo._db.flush()
 
         from app.tasks.ai import generate_thumbnail_task
 
-        generate_thumbnail_task.delay(str(job.id))
+        generate_thumbnail_task.delay(str(job.id), str(org_id))
         return job
 
     async def translate(
