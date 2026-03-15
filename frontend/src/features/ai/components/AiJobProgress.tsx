@@ -22,6 +22,8 @@ const STATUS_CONFIG = {
 const JOB_TYPE_LABELS: Record<string, string> = {
   SUBTITLE: '자막 생성',
   SHORTFORM: '숏폼 추출',
+  SUBTITLE_BURNIN: '자막 합성',
+  SHORTFORM_RENDER: '숏폼 렌더링',
 };
 
 interface AiJobProgressProps {

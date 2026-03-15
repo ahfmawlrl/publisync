@@ -51,6 +51,33 @@ interface ThumbnailRequest {
   aspect_ratio?: string;
 }
 
+interface SubtitleBurninStyle {
+  font_name?: string;
+  font_size?: number;
+  font_color?: string;
+  outline_color?: string;
+  outline_width?: number;
+  margin_v?: number;
+  position?: 'bottom' | 'top' | 'center';
+}
+
+interface SubtitleBurninRequest {
+  media_asset_id: string;
+  style?: SubtitleBurninStyle;
+}
+
+interface ShortformRenderSegment {
+  start_time: number;
+  end_time: number;
+  label?: string;
+}
+
+interface RenderShortformRequest {
+  media_asset_id: string;
+  segments: ShortformRenderSegment[];
+  include_subtitles?: boolean;
+}
+
 // ── Mutations ───────────────────────────────────────────
 
 /**
@@ -136,6 +163,42 @@ export function useConfirmShortform() {
       );
       return res.data.data;
     },
+  });
+}
+
+/**
+ * Create an async subtitle burn-in job (F03).
+ * POST /api/v1/ai/subtitle-burnin → 202 Accepted
+ */
+export function useSubtitleBurnin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: SubtitleBurninRequest) => {
+      const res = await apiClient.post<ApiResponse<AiJobCreateResponse>>(
+        '/ai/subtitle-burnin',
+        data,
+      );
+      return res.data.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['ai-jobs'] }),
+  });
+}
+
+/**
+ * Create an async shortform rendering job (F15).
+ * POST /api/v1/ai/render-shortform → 202 Accepted
+ */
+export function useRenderShortform() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: RenderShortformRequest) => {
+      const res = await apiClient.post<ApiResponse<AiJobCreateResponse>>(
+        '/ai/render-shortform',
+        data,
+      );
+      return res.data.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['ai-jobs'] }),
   });
 }
 

@@ -18,6 +18,7 @@ import { App, Button, Image, Space, Typography } from 'antd';
 import {
   forwardRef,
   useCallback,
+  useEffect,
   useImperativeHandle,
   useMemo,
   useRef,
@@ -90,6 +91,27 @@ const MediaMainArea = forwardRef<MediaMainAreaHandle, MediaMainAreaProps>(
       () => value.filter((url) => IMAGE_EXTS.test(url)),
       [value],
     );
+
+    // 기존 비디오 URL에서 assetId 자동 해석 (편집 모드)
+    const assetIdResolvedRef = useRef(false);
+    useEffect(() => {
+      if (assetIdResolvedRef.current || !onAssetIdChange || !videoUrl) return;
+      // /api/v1/storage/files/{object_key} → object_key에서 filename 추출
+      const parts = videoUrl.split('/');
+      const filename = parts[parts.length - 1];
+      if (!filename || !VIDEO_EXTS.test(filename)) return;
+      assetIdResolvedRef.current = true;
+      apiClient
+        .get<{ success: boolean; data: { id: string; media_type: string }[] }>('/media', {
+          params: { search: filename, limit: 1 },
+        })
+        .then((res) => {
+          const items = Array.isArray(res.data.data) ? res.data.data : [];
+          const video = items.find((a) => a.media_type === 'VIDEO');
+          if (video) onAssetIdChange(video.id);
+        })
+        .catch(() => {});
+    }, [videoUrl, onAssetIdChange]);
 
     const reportChange = useCallback(
       (urls: string[]) => {

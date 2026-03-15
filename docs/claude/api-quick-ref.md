@@ -313,8 +313,10 @@ X-Request-Id: {uuid-v4}
 | 103 | POST | `/ai/content-review` | AM,AO | 표현 가이드 검수 (F21) |
 | 104 | POST | `/ai/generate-reply` | AM,AO | AI 답글 초안 (F05) |
 | 105 | POST | `/ai/generate-subtitles` | AM,AO | AI 자막 생성 (F03, 비동기) |
+| 105-1 | POST | `/ai/subtitle-burnin` | AM,AO | 자막 합성 영상 생성 (F03, ffmpeg, 비동기) |
 | 106 | POST | `/ai/suggest-effects` | AM,AO | AI 효과음 제안 (F03) |
 | 107 | POST | `/ai/extract-shortform` | AM,AO | AI 숏폼 구간 추출 (F15, 비동기) |
+| 107-1 | POST | `/ai/render-shortform` | AM,AO | 숏폼 영상 생성 (F15, ffmpeg, 비동기) |
 | 108 | POST | `/ai/improve-template` | AM,AO | AI 템플릿 개선 (F05) |
 | 109 | GET | `/ai/jobs/:jobId` | All | 비동기 AI 작업 상태 조회 |
 

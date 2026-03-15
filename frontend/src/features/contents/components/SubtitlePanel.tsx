@@ -6,12 +6,12 @@
  * VideoPlayer는 상단 MediaMainArea와 공유 (별도 인스턴스 X).
  */
 
-import { DownloadOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons';
+import { DownloadOutlined, PlusOutlined, SaveOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import { App, Button, Card, Empty, Input, List, Space, Typography } from 'antd';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import AiJobProgress from '@/features/ai/components/AiJobProgress';
-import { useCreateSubtitles, useSaveSubtitles } from '@/features/ai/hooks/useAiJobs';
+import { useCreateSubtitles, useSaveSubtitles, useSubtitleBurnin } from '@/features/ai/hooks/useAiJobs';
 import { useMediaAsset } from '@/features/media/hooks/useMedia';
 
 const { Text } = Typography;
@@ -64,8 +64,10 @@ export default function SubtitlePanel({ assetId }: SubtitlePanelProps) {
   const { message } = App.useApp();
 
   const [jobId, setJobId] = useState<string | null>(null);
+  const [burninJobId, setBurninJobId] = useState<string | null>(null);
   const createSubtitlesMutation = useCreateSubtitles();
   const saveSubtitlesMutation = useSaveSubtitles();
+  const burninMutation = useSubtitleBurnin();
   const [subtitles, setSubtitles] = useState<SubtitleEntry[]>([]);
   const resultConsumedRef = useRef(false);
   const initialLoadDoneRef = useRef(false);
@@ -208,6 +210,53 @@ export default function SubtitlePanel({ assetId }: SubtitlePanelProps) {
     }
   }, [assetId, subtitles, saveSubtitlesMutation, message]);
 
+  const handleBurnin = useCallback(async () => {
+    if (!assetId) {
+      message.warning('먼저 영상을 업로드하세요.');
+      return;
+    }
+    if (subtitles.length === 0) {
+      message.warning('합성할 자막이 없습니다. 먼저 자막을 생성하거나 추가하세요.');
+      return;
+    }
+    // 자막을 먼저 서버에 저장한 후 합성 요청
+    try {
+      await saveSubtitlesMutation.mutateAsync({
+        mediaAssetId: assetId,
+        subtitles: subtitles.map((s) => ({
+          start: srtTimeToSeconds(s.start),
+          end: srtTimeToSeconds(s.end),
+          text: s.text,
+        })),
+      });
+    } catch {
+      message.error('자막 저장에 실패하여 합성을 진행할 수 없습니다.');
+      return;
+    }
+    burninMutation.mutate(
+      { media_asset_id: assetId },
+      {
+        onSuccess: (data) => {
+          setBurninJobId(data.job_id);
+          message.info('자막 합성 영상 생성을 시작했습니다.');
+        },
+        onError: () => message.error('자막 합성 요청에 실패했습니다.'),
+      },
+    );
+  }, [assetId, subtitles, saveSubtitlesMutation, burninMutation, message]);
+
+  const handleBurninComplete = useCallback(
+    (result: Record<string, unknown>) => {
+      const outputAssetId = result.output_asset_id as string | undefined;
+      if (outputAssetId) {
+        message.success('자막이 합성된 영상이 생성되었습니다. 미디어 라이브러리에서 확인하세요.');
+      } else {
+        message.success('자막 합성이 완료되었습니다.');
+      }
+    },
+    [message],
+  );
+
   if (!assetId) {
     return (
       <Card size="small">
@@ -219,7 +268,7 @@ export default function SubtitlePanel({ assetId }: SubtitlePanelProps) {
     );
   }
 
-  const isJobRunning = !!jobId;
+  const isJobRunning = !!jobId || !!burninJobId;
 
   return (
     <Card size="small">
@@ -245,6 +294,15 @@ export default function SubtitlePanel({ assetId }: SubtitlePanelProps) {
         </Button>
         <Button
           size="small"
+          icon={<VideoCameraOutlined />}
+          onClick={handleBurnin}
+          loading={burninMutation.isPending}
+          disabled={subtitles.length === 0 || isJobRunning}
+        >
+          자막 합성 영상
+        </Button>
+        <Button
+          size="small"
           icon={<DownloadOutlined />}
           onClick={handleExportSrt}
           disabled={subtitles.length === 0}
@@ -260,14 +318,26 @@ export default function SubtitlePanel({ assetId }: SubtitlePanelProps) {
         </Button>
       </div>
 
-      {/* Job Progress */}
-      {isJobRunning && (
+      {/* Job Progress — Subtitle Generation */}
+      {jobId && (
         <div className="mb-3">
           <AiJobProgress
             jobId={jobId}
             title="AI 자막 생성"
             onComplete={handleJobComplete}
             onClose={() => setJobId(null)}
+          />
+        </div>
+      )}
+
+      {/* Job Progress — Subtitle Burn-in */}
+      {burninJobId && (
+        <div className="mb-3">
+          <AiJobProgress
+            jobId={burninJobId}
+            title="자막 합성 영상 생성"
+            onComplete={handleBurninComplete}
+            onClose={() => setBurninJobId(null)}
           />
         </div>
       )}

@@ -2952,6 +2952,114 @@ data: {"unreadNotifications":4,"pendingApprovals":3,"dangerousComments":6}
 }
 ```
 
+### 18.9-1 POST /ai/subtitle-burnin — 자막 합성 영상 생성 (Phase 2)
+
+> **대응 화면:** 콘텐츠 작성 화면 → 자막 편집기 모달 → [자막 합성 영상] 버튼
+> **대응 기능:** F03
+
+미디어 에셋에 저장된 자막 데이터를 ffmpeg `subtitles` 필터로 영상에 합성(burn-in)하여 새 영상 파일을 생성한다.
+자막이 사전에 `PUT /ai/save-subtitles`로 저장되어 있어야 한다.
+비동기 처리: Celery `ai` 큐에서 ffmpeg를 실행하며, AiJob으로 진행률을 추적한다.
+
+**Request Body:**
+```json
+{
+  "media_asset_id": "uuid-of-media-asset",
+  "style": {
+    "font_size": 24,
+    "font_color": "#FFFFFF",
+    "outline_color": "#000000",
+    "outline_width": 2,
+    "position": "bottom",
+    "font_name": "NanumGothic"
+  }
+}
+```
+
+> `style`은 선택사항이며, 생략 시 기본값이 적용된다.
+
+**Response 202:**
+```json
+{
+  "data": {
+    "job_id": "job_uuid",
+    "job_type": "SUBTITLE_BURNIN",
+    "status": "QUEUED",
+    "message": "자막 합성 영상 생성 작업이 시작되었습니다."
+  }
+}
+```
+
+**AiJob 완료 시 result:**
+```json
+{
+  "new_asset_id": "uuid-of-new-media-asset",
+  "file_name": "subtitled_원본파일명.mp4",
+  "file_size": 52428800,
+  "duration": 120,
+  "parent_asset_id": "uuid-of-original-asset"
+}
+```
+
+**에러:**
+- `400`: 해당 미디어에 저장된 자막이 없음
+- `404`: 미디어 에셋을 찾을 수 없음
+- `422`: style 파라미터 검증 실패
+
+---
+
+### 18.9-2 POST /ai/render-shortform — 숏폼 영상 생성 (Phase 2)
+
+> **대응 화면:** 콘텐츠 작성 화면 → 숏폼 편집기 모달 → [숏폼 생성] 버튼
+> **대응 기능:** F15
+
+`POST /ai/extract-shortform`으로 추출된 구간 정보를 기반으로 ffmpeg로 실제 영상을 절단·리인코딩하여 숏폼 영상 파일을 생성한다.
+
+**Request Body:**
+```json
+{
+  "media_asset_id": "uuid-of-media-asset",
+  "segments": [
+    {
+      "start_time": 30.0,
+      "end_time": 75.0,
+      "label": "핵심 정책 요약"
+    }
+  ],
+  "include_subtitles": true
+}
+```
+
+**Response 202:**
+```json
+{
+  "data": {
+    "job_id": "job_uuid",
+    "job_type": "SHORTFORM_RENDER",
+    "status": "QUEUED",
+    "message": "숏폼 영상 생성 작업이 시작되었습니다."
+  }
+}
+```
+
+**AiJob 완료 시 result:**
+```json
+{
+  "shortforms": [
+    {
+      "new_asset_id": "uuid-of-shortform-asset",
+      "file_name": "shortform_1_핵심정책요약.mp4",
+      "file_size": 10485760,
+      "duration": 45,
+      "parent_asset_id": "uuid-of-original-asset",
+      "label": "핵심 정책 요약"
+    }
+  ]
+}
+```
+
+---
+
 ### 18.10 POST /ai/optimal-time — 최적 게시 시간 추천 (Phase 3)
 
 > **대응 화면:** 4.2 [🤖 최적 시간 추천] 버튼
